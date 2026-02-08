@@ -30,6 +30,49 @@ export type Player = {
 
 export type Fireworks = Record<Suit, CardId[]>;
 
+export type HintLog = {
+  id: string;
+  type: 'hint';
+  actorId: PlayerId;
+  actorName: string;
+  targetId: PlayerId;
+  targetName: string;
+  hintType: 'color' | 'number';
+  suit: Suit | null;
+  number: CardNumber | null;
+  touched: number;
+};
+
+export type PlayLog = {
+  id: string;
+  type: 'play';
+  actorId: PlayerId;
+  actorName: string;
+  suit: Suit;
+  number: CardNumber;
+  success: boolean;
+};
+
+export type DiscardLog = {
+  id: string;
+  type: 'discard';
+  actorId: PlayerId;
+  actorName: string;
+  suit: Suit;
+  number: CardNumber;
+  gainedHint: boolean;
+};
+
+export type DrawLog = {
+  id: string;
+  type: 'draw';
+  actorId: PlayerId;
+  actorName: string;
+  count: number;
+};
+
+export type GameLogEntry = HintLog | PlayLog | DiscardLog | DrawLog;
+
 export type GameState = {
   players: Player[];
   currentTurnPlayerIndex: number;
@@ -39,4 +82,5 @@ export type GameState = {
   fireworks: Fireworks;
   hintTokens: number;
   fuseTokensUsed: number;
+  logs: GameLogEntry[];
 };

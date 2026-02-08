@@ -1,4 +1,4 @@
-import type { Card, CardHints, CardId, CardNumber, GameState, Suit } from './types';
+import type { Card, CardHints, CardId, CardNumber, GameLogEntry, GameState, Suit } from './types';
 
 const hint = (partial: Partial<CardHints> = {}): CardHints => ({
   color: null,
@@ -60,6 +60,10 @@ const allCards: Card[] = [
     color: 'G',
     number: 3
   }),
+  createCard('you-4', 'R', 2, {
+    notColors: ['W', 'M'],
+    notNumbers: [5]
+  }),
 
   createCard('p2-0', 'Y', 1, {
     color: 'Y',
@@ -70,6 +74,9 @@ const allCards: Card[] = [
     color: 'M'
   }),
   createCard('p2-3', 'G', 4),
+  createCard('p2-4', 'B', 2, {
+    number: 2
+  }),
 
   createCard('p3-0', 'R', 1, {
     color: 'R'
@@ -81,6 +88,7 @@ const allCards: Card[] = [
   createCard('p3-3', 'W', 1, {
     number: 1
   }),
+  createCard('p3-4', 'W', 2),
 
   createCard('p4-0', 'G', 1, {
     color: 'G',
@@ -91,6 +99,9 @@ const allCards: Card[] = [
     number: 5
   }),
   createCard('p4-3', 'R', 3),
+  createCard('p4-4', 'M', 4, {
+    color: 'M'
+  }),
 
   createCard('deck-01', 'Y', 1),
   createCard('deck-02', 'Y', 1),
@@ -111,27 +122,100 @@ const cards = allCards.reduce<Record<CardId, Card>>((acc, card) => {
   return acc;
 }, {});
 
+const logs: GameLogEntry[] = [
+  {
+    id: 'log-01',
+    type: 'hint',
+    actorId: 'p2',
+    actorName: 'Kai',
+    targetId: 'p3',
+    targetName: 'Mina',
+    hintType: 'number',
+    suit: null,
+    number: 4,
+    touched: 1
+  },
+  {
+    id: 'log-02',
+    type: 'hint',
+    actorId: 'p3',
+    actorName: 'Mina',
+    targetId: 'you',
+    targetName: 'You',
+    hintType: 'color',
+    suit: 'G',
+    number: null,
+    touched: 1
+  },
+  {
+    id: 'log-03',
+    type: 'play',
+    actorId: 'p4',
+    actorName: 'Ravi',
+    suit: 'G',
+    number: 3,
+    success: true
+  },
+  {
+    id: 'log-04',
+    type: 'discard',
+    actorId: 'you',
+    actorName: 'You',
+    suit: 'W',
+    number: 3,
+    gainedHint: true
+  },
+  {
+    id: 'log-05',
+    type: 'play',
+    actorId: 'p2',
+    actorName: 'Kai',
+    suit: 'B',
+    number: 5,
+    success: false
+  },
+  {
+    id: 'log-06',
+    type: 'draw',
+    actorId: 'p3',
+    actorName: 'Mina',
+    count: 1
+  },
+  {
+    id: 'log-07',
+    type: 'hint',
+    actorId: 'p3',
+    actorName: 'Mina',
+    targetId: 'p2',
+    targetName: 'Kai',
+    hintType: 'number',
+    suit: null,
+    number: 1,
+    touched: 2
+  }
+];
+
 export const exampleGameState: GameState = {
   players: [
     {
       id: 'you',
       name: 'You',
-      cards: ['you-0', 'you-1', 'you-2', 'you-3']
+      cards: ['you-0', 'you-1', 'you-2', 'you-3', 'you-4']
     },
     {
       id: 'p2',
       name: 'Kai',
-      cards: ['p2-0', 'p2-1', 'p2-2', 'p2-3']
+      cards: ['p2-0', 'p2-1', 'p2-2', 'p2-3', 'p2-4']
     },
     {
       id: 'p3',
       name: 'Mina',
-      cards: ['p3-0', 'p3-1', 'p3-2', 'p3-3']
+      cards: ['p3-0', 'p3-1', 'p3-2', 'p3-3', 'p3-4']
     },
     {
       id: 'p4',
       name: 'Ravi',
-      cards: ['p4-0', 'p4-1', 'p4-2', 'p4-3']
+      cards: ['p4-0', 'p4-1', 'p4-2', 'p4-3', 'p4-4']
     }
   ],
   currentTurnPlayerIndex: 2,
@@ -150,7 +234,7 @@ export const exampleGameState: GameState = {
     'deck-11',
     'deck-12'
   ],
-  discardPile: ['b4-d1', 'b4-d2', 'y1-d1', 'y2-d1', 'y3-d1', 'w5-d1', 'g5-d1', 'm5-d1', 'r1-d1', 'w2-d1'],
+  discardPile: ['b4-d1', 'b4-d2', 'y2-d1', 'y3-d1', 'w5-d1', 'g5-d1', 'm5-d1', 'r1-d1', 'w2-d1'],
   fireworks: {
     R: ['r1-p', 'r2-p', 'r3-p', 'r4-p', 'r5-p'],
     Y: [],
@@ -160,6 +244,6 @@ export const exampleGameState: GameState = {
     M: ['m1-p', 'm2-p', 'm3-p', 'm4-p']
   },
   hintTokens: 3,
-  fuseTokensUsed: 2
+  fuseTokensUsed: 2,
+  logs
 };
-
