@@ -16,14 +16,6 @@
     "unicorn/filename-case": "off",
     "node/no-process-env": "error"
   },
-  "overrides": [
-    {
-      "files": ["src/config.ts"],
-      "rules": {
-        "node/no-process-env": "off"
-      }
-    }
-  ],
   "ignorePatterns": [
     "node_modules",
     "dist",

@@ -8,6 +8,7 @@ import {
   type OnlineState,
   type RoomMember
 } from './network';
+import { electHostId } from './hostElection';
 
 const DEBUG_NETWORK_ROOM_STORAGE_KEY = 'hanabi.debug_network.room.v1';
 const DEBUG_PLAYER_HASH_PREFIX = '#debug-';
@@ -164,14 +165,13 @@ function getRoomStateOrCreate(players: string[]): DebugNetworkRoomState {
 }
 
 function getHostId(players: string[]): string | null {
-  return players[0] ?? null;
+  return electHostId(players);
 }
 
 function buildMembers(players: string[]): RoomMember[] {
   return players.map((peerId, index) => ({
     peerId,
-    name: `Player ${index + 1}`,
-    sequence: index + 1
+    name: `Player ${index + 1}`
   }));
 }
 

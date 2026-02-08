@@ -7,7 +7,7 @@ See `project.md` for overall infrastructure
 - Keep architecture frontend-only: no custom backend APIs.
 - Treat `rules.md` as the single source of gameplay truth.
 - Build for mobile portrait only.
-- Keep gameplay on one screen: no popups, drawers, or hidden panels.
+- Keep gameplay on one screen: avoid multi-screen UX for gameplay. Overlays/drawers are OK for non-critical info (logs/debug) as long as gameplay-critical decisions stay visible.
 
 ## Networking
 - Use WebRTC data channels for multiplayer.

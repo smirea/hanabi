@@ -395,6 +395,24 @@ function GameClient({
   const onlineState = activeSession.state;
 
   const activeGameState = isLocalDebugMode ? debugGameState : onlineState.gameState;
+  const discardCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    if (!activeGameState) {
+      return counts;
+    }
+
+    for (const cardId of activeGameState.discardPile) {
+      const card = activeGameState.cards[cardId];
+      if (!card) {
+        continue;
+      }
+
+      const key = `${card.suit}-${card.number}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+
+    return counts;
+  }, [activeGameState]);
   const activeGame = useMemo(() => {
     if (isLocalDebugMode) {
       return debugGame;
@@ -856,7 +874,8 @@ function GameClient({
                   const remaining = perspective.knownRemainingCounts[suit][num];
                   const knownUnavailable = perspective.knownUnavailableCounts[suit][num];
                   const totalCopies = remaining + knownUnavailable;
-                  const blocked = num > height && remaining === 0;
+                  const discarded = discardCounts.get(`${suit}-${num}`) ?? 0;
+                  const blocked = num > height && discarded >= totalCopies;
                   const pipStates = getPegPipStates(remaining, totalCopies);
 
                   return (
@@ -866,7 +885,7 @@ function GameClient({
                       data-testid={`peg-${suit}-${num}`}
                     >
                       <span className="peg-num">{blocked ? '✕' : num}</span>
-                      <span className="peg-pips" aria-label={`${remaining} copies known available`}>
+                      <span className="peg-pips" aria-label={`${remaining} copies not visible to you`}>
                         {pipStates.map((pipState, pipIndex) => (
                           <span key={`pip-${pipIndex}`} className={`peg-pip ${pipState}`} />
                         ))}
@@ -1291,7 +1310,7 @@ function CardView({
   return (
     <button
       type="button"
-      className="card"
+      className={`card ${card.hints.recentlyHinted ? 'recent' : ''}`}
       style={{ '--card-bg': bgColor } as CSSProperties}
       onClick={onSelect}
       data-testid={testId}
