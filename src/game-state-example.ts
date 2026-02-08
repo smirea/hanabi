@@ -49,85 +49,48 @@ const allCards: Card[] = [
   createCard('w2-d1', 'W', 2),
 
   createCard('you-0', 'Y', 4, {
-    color: 'Y',
-    notColors: ['R', 'G', 'B'],
-    notNumbers: [1, 2],
-    recentlyHinted: true
+    color: 'Y'
   }),
-  createCard('you-1', 'W', 3, {
-    number: 3,
-    notColors: ['R', 'Y'],
-    notNumbers: [1, 5]
-  }),
+  createCard('you-1', 'W', 3),
   createCard('you-2', 'B', 5, {
-    notColors: ['R', 'Y', 'G'],
-    notNumbers: [1, 2, 3],
-    recentlyHinted: true
+    notColors: ['R', 'Y'],
+    notNumbers: [1, 2]
   }),
   createCard('you-3', 'G', 3, {
     color: 'G',
-    number: 3,
-    notColors: [],
-    notNumbers: []
+    number: 3
   }),
 
   createCard('p2-0', 'Y', 1, {
     color: 'Y',
-    number: 1,
-    recentlyHinted: true
-  }),
-  createCard('p2-1', 'W', 4, {
-    number: 4,
-    notColors: ['R', 'B'],
-    notNumbers: [1]
-  }),
-  createCard('p2-2', 'M', 2, {
-    color: 'M',
-    notNumbers: [5]
-  }),
-  createCard('p2-3', 'G', 4, {
-    color: 'G',
-    notColors: ['Y'],
-    notNumbers: [1, 2]
-  }),
-
-  createCard('p3-0', 'R', 1, {
-    color: 'R',
-    recentlyHinted: true
-  }),
-  createCard('p3-1', 'Y', 4, {
-    number: 4,
-    notColors: ['B', 'W'],
-    notNumbers: [1]
-  }),
-  createCard('p3-2', 'B', 1, {
-    color: 'B',
     number: 1
   }),
+  createCard('p2-1', 'W', 4),
+  createCard('p2-2', 'M', 2, {
+    color: 'M'
+  }),
+  createCard('p2-3', 'G', 4),
+
+  createCard('p3-0', 'R', 1, {
+    color: 'R'
+  }),
+  createCard('p3-1', 'Y', 4, {
+    number: 4
+  }),
+  createCard('p3-2', 'B', 1),
   createCard('p3-3', 'W', 1, {
-    number: 1,
-    notColors: ['M'],
-    recentlyHinted: true
+    number: 1
   }),
 
   createCard('p4-0', 'G', 1, {
     color: 'G',
-    number: 1,
-    recentlyHinted: true
+    number: 1
   }),
-  createCard('p4-1', 'M', 1, {
-    color: 'M',
-    notNumbers: [4, 5]
-  }),
+  createCard('p4-1', 'M', 1),
   createCard('p4-2', 'Y', 5, {
-    number: 5,
-    notColors: ['R', 'B', 'G', 'W']
+    number: 5
   }),
-  createCard('p4-3', 'R', 3, {
-    color: 'R',
-    number: 3,
-    notColors: []
-  }),
+  createCard('p4-3', 'R', 3),
 
   createCard('deck-01', 'Y', 1),
   createCard('deck-02', 'Y', 1),
@@ -200,38 +163,3 @@ export const exampleGameState: GameState = {
   fuseTokensUsed: 2
 };
 
-type FireworkMockStatus = {
-  height: number;
-  statusLabel: string;
-  tone: 'normal' | 'complete' | 'blocked';
-};
-
-type DiscardMockEntry = {
-  key: string;
-  suit: Suit;
-  number: CardNumber;
-  count: number;
-};
-
-export const exampleFireworkStatus: Record<Suit, FireworkMockStatus> = {
-  R: { height: 5, statusLabel: 'Complete', tone: 'complete' },
-  Y: { height: 0, statusLabel: 'Not started', tone: 'normal' },
-  G: { height: 2, statusLabel: 'Next 3', tone: 'normal' },
-  B: { height: 3, statusLabel: 'Blocked @3', tone: 'blocked' },
-  W: { height: 1, statusLabel: 'Next 2', tone: 'normal' },
-  M: { height: 4, statusLabel: 'Next 5', tone: 'normal' }
-};
-
-export const exampleBlockedSummary = 'Blue blocked at 3 (all 4s discarded)';
-
-export const exampleDiscardSummary: DiscardMockEntry[] = [
-  { key: 'R1', suit: 'R', number: 1, count: 1 },
-  { key: 'Y1', suit: 'Y', number: 1, count: 1 },
-  { key: 'Y2', suit: 'Y', number: 2, count: 1 },
-  { key: 'Y3', suit: 'Y', number: 3, count: 1 },
-  { key: 'G5', suit: 'G', number: 5, count: 1 },
-  { key: 'B4', suit: 'B', number: 4, count: 2 },
-  { key: 'W2', suit: 'W', number: 2, count: 1 },
-  { key: 'W5', suit: 'W', number: 5, count: 1 },
-  { key: 'M5', suit: 'M', number: 5, count: 1 }
-];
