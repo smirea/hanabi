@@ -3,9 +3,8 @@ pre-commit:
   commands:
     oxlint:
       glob: "*.{js,ts,jsx,tsx}"
-      run: bunx oxlint --fix {staged_files}
-      stage_fixed: true
+      run: bun run lint
     typecheck:
-      run: bunx --bun tsgo --noEmit
+      run: bun run typecheck
     test:
-      run: bun test --pass-with-no-tests
+      run: bun run test
