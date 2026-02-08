@@ -21,15 +21,14 @@
 - Lobby/game state is peer-to-peer.
 - Deterministic host election by lowest peer id.
 - Host is authoritative for turn order and state snapshots.
-- Reconnect flow: rejoin room, request snapshot, resume from sequence.
+- Reconnect flow: rejoin room, request snapshot, resume from host snapshot.
 
 ## Mobile UI Requirements
 - Portrait-first design.
-- All critical data visible on one screen:
-1. Room + connection + turn + deck.
-2. Fireworks + hints + fuses.
-3. Player lanes and card rows.
-4. Action row (hint color, hint number, play, discard, reconnect).
+- All gameplay-critical data visible on one screen:
+1. Fireworks + hints + fuses + deck.
+2. Player lanes and card rows.
+3. Action row (hint color, hint number, play, discard, reconnect).
 
 ## Card Hint Markings
 Each card tracks and renders:

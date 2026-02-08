@@ -3,7 +3,7 @@ pre-commit:
   commands:
     oxlint:
       glob: "*.{js,ts,jsx,tsx}"
-      run: bun run lint
+      run: bun run lint:ci
     typecheck:
       run: bun run typecheck
     test:

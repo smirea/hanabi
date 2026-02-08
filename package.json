@@ -8,9 +8,10 @@
     "build": "bun build ./src/index.html --outdir ./dist --minify",
     "preview": "bun run build && cd dist && bun --port ${PORT:-3000} ./index.html",
     "lint": "bunx oxlint --fix .",
+    "lint:ci": "bunx oxlint .",
     "typecheck": "bunx tsc --noEmit",
-    "test": "bun test ./src/game.test.ts --pass-with-no-tests",
-    "test:ui": "bunx --bun vitest run ./src/App.test.tsx --passWithNoTests"
+    "test": "sh -c 'files=$(find src -type f -name \"*.test.ts\" -print); [ -z \"$files\" ] && exit 0; bun test $files --pass-with-no-tests'",
+    "test:ui": "sh -c 'files=$(find src -type f -name \"*.test.tsx\" -print); [ -z \"$files\" ] && exit 0; bunx --bun vitest run $files --passWithNoTests'"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

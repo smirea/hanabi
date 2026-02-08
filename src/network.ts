@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HanabiGame, type CardNumber, type HanabiState, type Suit } from './game';
+import { comparePeerId, electHostId } from './hostElection';
 
 const NETWORK_APP_ID = 'hanabi-mobile-web';
 const DEFAULT_ROOM_ID = 'default-room';
@@ -27,7 +28,6 @@ export type LobbySettings = {
 export type RoomMember = {
   peerId: string;
   name: string;
-  sequence: number;
 };
 
 export type RoomPhase = 'lobby' | 'playing';
@@ -105,7 +105,7 @@ function createInitialSnapshot(selfId: string, selfName: string): RoomSnapshot {
     version: 1,
     hostId: selfId,
     phase: 'lobby',
-    members: [{ peerId: selfId, name: selfName, sequence: 1 }],
+    members: [{ peerId: selfId, name: selfName }],
     settings: DEFAULT_SETTINGS,
     gameState: null
   };
@@ -132,23 +132,6 @@ function formatPeerName(peerId: string): string {
   return `Player ${suffix}`;
 }
 
-function comparePeerId(a: string, b: string): number {
-  return a.localeCompare(b);
-}
-
-function getHostFromMembers(connectedPeerIds: Set<string>, members: RoomMember[]): string | null {
-  const orderedMembers = members
-    .filter((member) => connectedPeerIds.has(member.peerId))
-    .sort((a, b) => (a.sequence - b.sequence) || comparePeerId(a.peerId, b.peerId));
-
-  if (orderedMembers.length > 0) {
-    return orderedMembers[0].peerId;
-  }
-
-  const fallback = [...connectedPeerIds].sort(comparePeerId)[0] ?? null;
-  return fallback;
-}
-
 function getConnectedPeerIds(selfId: string, room: TrysteroRoom | null): Set<string> {
   const connected = new Set<string>([selfId]);
   if (!room) {
@@ -167,24 +150,27 @@ function assignMembers(
   previousMembers: RoomMember[],
   namesByPeerId: Map<string, string>
 ): RoomMember[] {
-  const sequenceByPeerId = new Map(previousMembers.map((member) => [member.peerId, member.sequence]));
-  let nextSequence = previousMembers.reduce((max, member) => Math.max(max, member.sequence), 0) + 1;
+  const orderedPeerIds: string[] = [];
+  const seen = new Set<string>();
 
-  for (const peerId of [...connectedPeerIds].sort(comparePeerId)) {
-    if (!sequenceByPeerId.has(peerId)) {
-      sequenceByPeerId.set(peerId, nextSequence);
-      nextSequence += 1;
+  for (const member of previousMembers) {
+    if (connectedPeerIds.has(member.peerId) && !seen.has(member.peerId)) {
+      orderedPeerIds.push(member.peerId);
+      seen.add(member.peerId);
     }
   }
 
-  const members = [...connectedPeerIds].map((peerId) => ({
-    peerId,
-    name: namesByPeerId.get(peerId) ?? formatPeerName(peerId),
-    sequence: sequenceByPeerId.get(peerId) ?? nextSequence
-  }));
+  for (const peerId of [...connectedPeerIds].sort(comparePeerId)) {
+    if (!seen.has(peerId)) {
+      orderedPeerIds.push(peerId);
+      seen.add(peerId);
+    }
+  }
 
-  members.sort((a, b) => (a.sequence - b.sequence) || comparePeerId(a.peerId, b.peerId));
-  return members;
+  return orderedPeerIds.map((peerId) => ({
+    peerId,
+    name: namesByPeerId.get(peerId) ?? formatPeerName(peerId)
+  }));
 }
 
 function areMembersEqual(a: RoomMember[], b: RoomMember[]): boolean {
@@ -195,7 +181,7 @@ function areMembersEqual(a: RoomMember[], b: RoomMember[]): boolean {
   for (let index = 0; index < a.length; index += 1) {
     const left = a[index];
     const right = b[index];
-    if (left.peerId !== right.peerId || left.name !== right.name || left.sequence !== right.sequence) {
+    if (left.peerId !== right.peerId || left.name !== right.name) {
       return false;
     }
   }
@@ -240,9 +226,7 @@ function isRoomMember(value: unknown): value is RoomMember {
   return typeof candidate.peerId === 'string'
     && candidate.peerId.length > 0
     && typeof candidate.name === 'string'
-    && candidate.name.trim().length > 0
-    && Number.isInteger(candidate.sequence)
-    && Number(candidate.sequence) > 0;
+    && candidate.name.trim().length > 0;
 }
 
 function isRoomSnapshot(value: unknown): value is RoomSnapshot {
@@ -291,7 +275,7 @@ function shouldAcceptSnapshot(
     return incoming.version >= current.version;
   }
 
-  const electedHost = getHostFromMembers(connectedPeerIds, incoming.members);
+  const electedHost = electHostId(connectedPeerIds, incoming.members.map((member) => member.peerId));
   if (electedHost !== incoming.hostId) {
     return false;
   }
@@ -464,7 +448,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
       }
 
       const connected = getConnectedPeerIds(selfId, room);
-      const electedHost = getHostFromMembers(connected, currentSnapshot?.members ?? []);
+      const electedHost = electHostId(connected, currentSnapshot?.members.map((member) => member.peerId));
       if (!electedHost || electedHost === selfId) {
         return;
       }
@@ -481,7 +465,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
       }
 
       const connected = getConnectedPeerIds(selfId, room);
-      const electedHost = getHostFromMembers(connected, currentSnapshot?.members ?? []);
+      const electedHost = electHostId(connected, currentSnapshot?.members.map((member) => member.peerId));
       if (!electedHost) {
         return;
       }
@@ -651,7 +635,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
           }
 
           const connected = getConnectedPeerIds(selfId, room);
-          const electedHost = getHostFromMembers(connected, currentSnapshot?.members ?? []);
+          const electedHost = electHostId(connected, currentSnapshot?.members.map((member) => member.peerId));
           if (!electedHost) {
             return;
           }
@@ -698,9 +682,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
             return;
           }
 
-          const orderedMembers = [...hostedSnapshot.members].sort(
-            (a, b) => (a.sequence - b.sequence) || comparePeerId(a.peerId, b.peerId)
-          );
+          const orderedMembers = [...hostedSnapshot.members];
 
           if (orderedMembers.length < 2 || orderedMembers.length > 5) {
             return;
