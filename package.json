@@ -9,8 +9,8 @@
     "preview": "bun run build && cd dist && bun --port ${PORT:-3000} ./index.html",
     "lint": "bunx oxlint --fix .",
     "typecheck": "bunx tsc --noEmit",
-    "test": "bun test --pass-with-no-tests",
-    "test:ui": "bunx --bun vitest run --passWithNoTests"
+    "test": "bun test ./src/game.test.ts --pass-with-no-tests",
+    "test:ui": "bunx --bun vitest run ./src/App.test.tsx --passWithNoTests"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

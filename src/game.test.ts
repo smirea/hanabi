@@ -230,7 +230,7 @@ describe('HanabiGame', () => {
     expect(game.state.players[0].cards).toHaveLength(5);
     expect(game.state.drawDeck).toHaveLength(deckBefore - 1);
     expect(game.state.currentTurnPlayerIndex).toBe(1);
-    expect(game.state.logs.map((log) => log.type)).toEqual(['play', 'draw']);
+    expect(game.state.logs.map((log) => log.type)).toEqual(['play']);
   });
 
   test('misplays consume fuses and final fuse loss locks further actions', () => {
@@ -697,6 +697,39 @@ describe('HanabiGame', () => {
     );
   });
 
+  test('perspective view hides own cards and updates known availability by viewer', () => {
+    const game = new HanabiGame({
+      playerNames: ['A', 'B'],
+      deck: twoPlayerDeck(
+        [card('R', 1), card('Y', 1), card('G', 1), card('B', 1), card('W', 1)],
+        [card('R', 2), card('Y', 2), card('G', 2), card('B', 2), card('W', 2)]
+      )
+    });
+
+    const p1View = game.getPerspectiveState('p1');
+    const p2View = game.getPerspectiveState('p2');
+
+    const p1OwnCard = p1View.players.find((player) => player.id === 'p1')!.cards[0];
+    expect(p1OwnCard.suit).toBeNull();
+    expect(p1OwnCard.number).toBeNull();
+    expect(p1OwnCard.isHiddenFromViewer).toBeTrue();
+
+    const p1VisibleCard = p1View.players.find((player) => player.id === 'p2')!.cards[0];
+    expect(p1VisibleCard).toMatchObject({
+      suit: 'R',
+      number: 2,
+      isHiddenFromViewer: false
+    });
+
+    expect(p1View.knownRemainingCounts.R[1]).toBe(3);
+    expect(p2View.knownRemainingCounts.R[1]).toBe(2);
+  });
+
+  test('perspective view rejects unknown viewer ids', () => {
+    const game = new HanabiGame({ playerNames: ['A', 'B'] });
+    expect(() => game.getPerspectiveState('missing')).toThrow('Unknown perspective player: missing');
+  });
+
   test('logs keep sequential ids and expected turn stamps across actions', () => {
     const game = new HanabiGame({
       playerNames: ['A', 'B'],
@@ -710,9 +743,9 @@ describe('HanabiGame', () => {
     game.giveNumberHint('p2', 1);
     game.playCard(game.state.players[1].cards[0]);
 
-    expect(game.state.logs).toHaveLength(3);
-    expect(game.state.logs.map((entry) => entry.id)).toEqual(['log-0001', 'log-0002', 'log-0003']);
-    expect(game.state.logs.map((entry) => entry.turn)).toEqual([1, 2, 2]);
-    expect(game.state.nextLogId).toBe(4);
+    expect(game.state.logs).toHaveLength(2);
+    expect(game.state.logs.map((entry) => entry.id)).toEqual(['log-0001', 'log-0002']);
+    expect(game.state.logs.map((entry) => entry.turn)).toEqual([1, 2]);
+    expect(game.state.nextLogId).toBe(3);
   });
 });

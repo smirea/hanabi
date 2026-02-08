@@ -1,18 +1,19 @@
-const ALL_SUITS = ['R', 'Y', 'G', 'B', 'W', 'M'] as const;
+export const SUITS = ['R', 'Y', 'G', 'B', 'W', 'M'] as const;
+const ALL_SUITS = SUITS;
 const BASE_SUITS = ['R', 'Y', 'G', 'B', 'W'] as const;
-const CARD_NUMBERS = [1, 2, 3, 4, 5] as const;
+export const CARD_NUMBERS = [1, 2, 3, 4, 5] as const;
 
-type Suit = (typeof ALL_SUITS)[number];
-type CardNumber = (typeof CARD_NUMBERS)[number];
-type CardId = string;
-type PlayerId = string;
+export type Suit = (typeof ALL_SUITS)[number];
+export type CardNumber = (typeof CARD_NUMBERS)[number];
+export type CardId = string;
+export type PlayerId = string;
 
-type PendingAction = 'play' | 'discard' | 'hint-color' | 'hint-number' | null;
-type GameStatus = 'active' | 'last_round' | 'won' | 'lost' | 'finished';
+export type PendingAction = 'play' | 'discard' | 'hint-color' | 'hint-number' | null;
+export type GameStatus = 'active' | 'last_round' | 'won' | 'lost' | 'finished';
 type TerminalGameStatus = Extract<GameStatus, 'won' | 'lost' | 'finished'>;
 type EndReason = 'all_fireworks_completed' | 'fuse_limit_reached' | 'final_round_complete';
 
-type CardHints = {
+export type CardHints = {
   color: Suit | null;
   number: CardNumber | null;
   notColors: Suit[];
@@ -20,14 +21,14 @@ type CardHints = {
   recentlyHinted: boolean;
 };
 
-type Card = {
+export type Card = {
   id: CardId;
   suit: Suit;
   number: CardNumber;
   hints: CardHints;
 };
 
-type Player = {
+export type Player = {
   id: PlayerId;
   name: string;
   cards: CardId[];
@@ -92,9 +93,9 @@ type StatusLog = {
   score: number;
 };
 
-type GameLogEntry = HintLog | PlayLog | DiscardLog | DrawLog | StatusLog;
+export type GameLogEntry = HintLog | PlayLog | DiscardLog | DrawLog | StatusLog;
 
-type GameUiState = {
+export type GameUiState = {
   pendingAction: PendingAction;
   selectedCardId: CardId | null;
   selectedTargetPlayerId: PlayerId | null;
@@ -103,7 +104,7 @@ type GameUiState = {
   highlightedCardIds: CardId[];
 };
 
-type GameSettings = {
+export type GameSettings = {
   includeMulticolor: boolean;
   multicolorShortDeck: boolean;
   endlessMode: boolean;
@@ -117,7 +118,7 @@ type LastRoundState = {
   turnsRemaining: number;
 };
 
-type HanabiState = {
+export type HanabiState = {
   players: Player[];
   currentTurnPlayerIndex: number;
   cards: Record<CardId, Card>;
@@ -165,6 +166,45 @@ const CARD_COPIES: Record<CardNumber, number> = {
   3: 2,
   4: 2,
   5: 1
+};
+
+export type PerspectiveCard = {
+  id: CardId;
+  suit: Suit | null;
+  number: CardNumber | null;
+  hints: CardHints;
+  isHiddenFromViewer: boolean;
+};
+
+export type PerspectivePlayer = {
+  id: PlayerId;
+  name: string;
+  cards: PerspectiveCard[];
+  isViewer: boolean;
+  isCurrentTurn: boolean;
+};
+
+export type PerspectiveCountsByNumber = Record<CardNumber, number>;
+export type PerspectiveCountsBySuit = Record<Suit, PerspectiveCountsByNumber>;
+
+export type HanabiPerspectiveState = {
+  viewerId: PlayerId;
+  currentTurnPlayerId: PlayerId;
+  players: PerspectivePlayer[];
+  hintTokens: number;
+  maxHintTokens: number;
+  fuseTokensUsed: number;
+  maxFuseTokens: number;
+  drawDeckCount: number;
+  status: GameStatus;
+  turn: number;
+  score: number;
+  activeSuits: Suit[];
+  logs: GameLogEntry[];
+  ui: GameUiState;
+  fireworksHeights: Record<Suit, number>;
+  knownUnavailableCounts: PerspectiveCountsBySuit;
+  knownRemainingCounts: PerspectiveCountsBySuit;
 };
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -221,6 +261,17 @@ function createEmptyFireworks(): Record<Suit, CardId[]> {
   };
 }
 
+function createEmptyCountsBySuit(): PerspectiveCountsBySuit {
+  return {
+    R: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+    Y: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+    G: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+    B: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+    W: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+    M: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+  };
+}
+
 function addUnique<T>(target: T[], value: T): void {
   if (!target.includes(value)) {
     target.push(value);
@@ -274,6 +325,89 @@ export class HanabiGame {
 
   public getScore(): number {
     return this.state.settings.activeSuits.reduce((sum, suit) => sum + this.state.fireworks[suit].length, 0);
+  }
+
+  public getPerspectiveState(viewerId: PlayerId): HanabiPerspectiveState {
+    const viewer = this.state.players.find((player) => player.id === viewerId);
+    if (!viewer) {
+      throw new Error(`Unknown perspective player: ${viewerId}`);
+    }
+
+    const currentTurnPlayer = this.state.players[this.state.currentTurnPlayerIndex];
+    const knownUnavailableCounts = createEmptyCountsBySuit();
+
+    for (const cardId of this.state.discardPile) {
+      const card = this.getCardOrThrow(cardId);
+      knownUnavailableCounts[card.suit][card.number] += 1;
+    }
+
+    for (const suit of ALL_SUITS) {
+      for (const cardId of this.state.fireworks[suit]) {
+        const card = this.getCardOrThrow(cardId);
+        knownUnavailableCounts[card.suit][card.number] += 1;
+      }
+    }
+
+    for (const player of this.state.players) {
+      if (player.id === viewer.id) {
+        continue;
+      }
+
+      for (const cardId of player.cards) {
+        const card = this.getCardOrThrow(cardId);
+        knownUnavailableCounts[card.suit][card.number] += 1;
+      }
+    }
+
+    const knownRemainingCounts = createEmptyCountsBySuit();
+    for (const suit of ALL_SUITS) {
+      for (const number of CARD_NUMBERS) {
+        const totalCopies = this.getCopiesPerCard(suit, number);
+        knownRemainingCounts[suit][number] = Math.max(0, totalCopies - knownUnavailableCounts[suit][number]);
+      }
+    }
+
+    const fireworksHeights = ALL_SUITS.reduce((acc, suit) => {
+      acc[suit] = this.state.fireworks[suit].length;
+      return acc;
+    }, {} as Record<Suit, number>);
+
+    return {
+      viewerId,
+      currentTurnPlayerId: currentTurnPlayer.id,
+      players: this.state.players.map((player) => ({
+        id: player.id,
+        name: player.name,
+        isViewer: player.id === viewerId,
+        isCurrentTurn: player.id === currentTurnPlayer.id,
+        cards: player.cards.map((cardId) => {
+          const card = this.getCardOrThrow(cardId);
+          const isHiddenFromViewer = player.id === viewerId;
+
+          return {
+            id: card.id,
+            suit: isHiddenFromViewer ? null : card.suit,
+            number: isHiddenFromViewer ? null : card.number,
+            hints: deepClone(card.hints),
+            isHiddenFromViewer
+          };
+        })
+      })),
+      hintTokens: this.state.hintTokens,
+      maxHintTokens: this.state.settings.maxHintTokens,
+      fuseTokensUsed: this.state.fuseTokensUsed,
+      maxFuseTokens: this.state.settings.maxFuseTokens,
+      drawDeckCount: this.state.drawDeck.length,
+      status: this.state.status,
+      turn: this.state.turn,
+      score: this.getScore(),
+      activeSuits: [...this.state.settings.activeSuits],
+      logs: deepClone(this.state.logs),
+      ui: deepClone(this.state.ui),
+      fireworksHeights,
+      knownUnavailableCounts,
+      knownRemainingCounts
+    };
   }
 
   public beginPlaySelection(): void {
@@ -723,6 +857,14 @@ export class HanabiGame {
     }
   }
 
+  private getCopiesPerCard(suit: Suit, number: CardNumber): number {
+    if (suit === 'M' && this.state.settings.multicolorShortDeck) {
+      return 1;
+    }
+
+    return CARD_COPIES[number];
+  }
+
   private static isTerminalStatus(status: GameStatus): status is TerminalGameStatus {
     return status === 'won' || status === 'lost' || status === 'finished';
   }
@@ -808,7 +950,6 @@ export class HanabiGame {
 
     const player = this.state.players[playerIndex];
     player.cards.push(drawnCardId);
-    this.appendDrawLog(player, drawnCardId);
 
     const lastCardDrawn = this.state.drawDeck.length === 0;
     if (lastCardDrawn && !this.state.settings.endlessMode && this.state.status === 'active') {
@@ -913,18 +1054,6 @@ export class HanabiGame {
       suit: card.suit,
       number: card.number,
       gainedHint
-    });
-  }
-
-  private appendDrawLog(actor: Player, cardId: CardId): void {
-    this.state.logs.push({
-      id: this.nextLogId(),
-      turn: this.state.turn,
-      type: 'draw',
-      actorId: actor.id,
-      actorName: actor.name,
-      cardId,
-      remainingDeck: this.state.drawDeck.length
     });
   }
 

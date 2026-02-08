@@ -1,12 +1,28 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CardsThree, Fire, LightbulbFilament } from '@phosphor-icons/react';
-import { exampleGameState } from './game-state-example';
-import { SUITS, CARD_NUMBERS, type Card, type Suit, type CardNumber, type GameLogEntry } from './types';
+import {
+  CARD_NUMBERS,
+  HanabiGame,
+  type GameLogEntry,
+  type HanabiPerspectiveState,
+  type PerspectiveCard,
+  type PlayerId,
+  type Suit
+} from './game';
+import { useLocalStorageState } from './hooks/useLocalStorageState';
 
-const gameState = exampleGameState;
-const MAX_HINT_TOKENS = 8;
-const MAX_FUSES = 3;
+const LOCAL_DEBUG_SETUP = {
+  playerNames: ['Ari', 'Blair', 'Casey'],
+  playerIds: ['p1', 'p2', 'p3'],
+  shuffleSeed: 17
+};
+
+const DEBUG_MODE_STORAGE_KEY = 'hanabi.debug_mode';
+const NEGATIVE_COLOR_HINTS_STORAGE_KEY = 'hanabi.negative_color_hints';
+const NEGATIVE_NUMBER_HINTS_STORAGE_KEY = 'hanabi.negative_number_hints';
 const MAX_PEG_PIPS = 4;
+
+type PegPipState = 'filled' | 'hollow' | 'unused';
 
 const suitColors: Record<Suit, string> = {
   R: '#e64d5f',
@@ -17,47 +33,14 @@ const suitColors: Record<Suit, string> = {
   M: '#d46eb3'
 };
 
-const cardCopies: Record<CardNumber, number> = {
-  1: 4,
-  2: 3,
-  3: 2,
-  4: 2,
-  5: 1
-};
-
 const suitNames: Record<Suit, string> = {
   R: 'red',
   Y: 'yellow',
   G: 'green',
   B: 'blue',
   W: 'white',
-  M: 'pink'
+  M: 'multicolor'
 };
-
-type SelectedCard = { playerId: string; cardId: string } | null;
-type PegPipState = 'filled' | 'hollow' | 'unused';
-
-function getFireworkHeight(suit: Suit): number {
-  return gameState.fireworks[suit].length;
-}
-
-function getRemainingCount(suit: Suit, number: CardNumber): number {
-  const total = cardCopies[number];
-  let discarded = 0;
-
-  for (const cardId of gameState.discardPile) {
-    const card = gameState.cards[cardId];
-    if (card && card.suit === suit && card.number === number) discarded++;
-  }
-
-  return total - discarded;
-}
-
-function isBlocked(suit: Suit, number: CardNumber): boolean {
-  const height = getFireworkHeight(suit);
-  if (number <= height) return false;
-  return getRemainingCount(suit, number) === 0;
-}
 
 function getPegPipStates(remaining: number, total: number): PegPipState[] {
   const clampedRemaining = Math.min(Math.max(remaining, 0), MAX_PEG_PIPS);
@@ -70,14 +53,18 @@ function getPegPipStates(remaining: number, total: number): PegPipState[] {
   });
 }
 
+function isTerminalStatus(status: HanabiPerspectiveState['status']): boolean {
+  return status === 'won' || status === 'lost' || status === 'finished';
+}
+
 function formatLogMessage(log: GameLogEntry): string {
   if (log.type === 'hint') {
     if (log.hintType === 'number') {
-      if (!log.number) return `${log.actorName} gave a number hint to ${log.targetName}`;
+      if (log.number === null) return `${log.actorName} gave a number hint to ${log.targetName}`;
       return `${log.actorName} hinted ${log.number}s to ${log.targetName}`;
     }
 
-    if (!log.suit) return `${log.actorName} gave a color hint to ${log.targetName}`;
+    if (log.suit === null) return `${log.actorName} gave a color hint to ${log.targetName}`;
     return `${log.actorName} hinted ${suitNames[log.suit]} to ${log.targetName}`;
   }
 
@@ -91,72 +78,212 @@ function formatLogMessage(log: GameLogEntry): string {
     return `${log.actorName} discarded ${suitNames[log.suit]} ${log.number}`;
   }
 
-  return `${log.actorName} drew ${log.count} card${log.count === 1 ? '' : 's'}`;
+  if (log.type === 'draw') {
+    return `${log.actorName} drew a card (${log.remainingDeck} left)`;
+  }
+
+  if (log.status === 'won') {
+    return `Game won with score ${log.score}`;
+  }
+
+  if (log.status === 'lost') {
+    return `Game lost with score ${log.score}`;
+  }
+
+  return `Game finished with score ${log.score}`;
 }
 
 function getLogBadge(log: GameLogEntry): string {
   if (log.type === 'hint') return 'Hint';
   if (log.type === 'play') return 'Play';
   if (log.type === 'discard') return 'Discard';
-  return 'Draw';
+  if (log.type === 'draw') return 'Draw';
+  return 'Status';
 }
 
 function App() {
-  const [isLogDrawerOpen, setIsLogDrawerOpen] = useState(false);
-  const [selectedCard, setSelectedCard] = useState<SelectedCard>(null);
-  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const gameRef = useRef<HanabiGame | null>(null);
+  if (!gameRef.current) {
+    gameRef.current = new HanabiGame(LOCAL_DEBUG_SETUP);
+  }
 
-  const feedbackTimeoutRef = useRef<number | null>(null);
+  const game = gameRef.current;
+  const [gameState, setGameState] = useState(() => game.getSnapshot());
+  const [isLogDrawerOpen, setIsLogDrawerOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isDebugMode, setIsDebugMode] = useLocalStorageState<boolean>(DEBUG_MODE_STORAGE_KEY, true);
+  const [showNegativeColorHints, setShowNegativeColorHints] = useLocalStorageState<boolean>(
+    NEGATIVE_COLOR_HINTS_STORAGE_KEY,
+    true
+  );
+  const [showNegativeNumberHints, setShowNegativeNumberHints] = useLocalStorageState<boolean>(
+    NEGATIVE_NUMBER_HINTS_STORAGE_KEY,
+    true
+  );
   const logListRef = useRef<HTMLDivElement | null>(null);
 
-  const currentPlayer = gameState.players[gameState.currentTurnPlayerIndex];
-  const you = gameState.players.find((player) => player.id === 'you')!;
-  const others = gameState.players.filter((player) => player.id !== 'you');
-  const tablePlayers = [...others, you];
-  const lastLog = gameState.logs[gameState.logs.length - 1];
-  const orderedLogs = [...gameState.logs].reverse();
-
-  const hintTokenStates = Array.from({ length: MAX_HINT_TOKENS }, (_, index) => index < gameState.hintTokens);
-  const fuseTokenStates = Array.from({ length: MAX_FUSES }, (_, index) => index < gameState.fuseTokensUsed);
-
-  function showFeedback(message: string): void {
-    setFeedbackMessage(message);
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(12);
-    if (feedbackTimeoutRef.current !== null) window.clearTimeout(feedbackTimeoutRef.current);
-    feedbackTimeoutRef.current = window.setTimeout(() => {
-      setFeedbackMessage(null);
-    }, 1400);
+  const perspectivePlayerId = gameState.players[gameState.currentTurnPlayerIndex]?.id;
+  if (!perspectivePlayerId) {
+    throw new Error('Current turn player is missing');
   }
 
-  function handleCardSelect(playerId: string, cardId: string): void {
-    if (selectedCard && selectedCard.playerId === playerId && selectedCard.cardId === cardId) {
-      setSelectedCard(null);
-      showFeedback('Card selection cleared');
-      return;
+  const perspective = useMemo(
+    () => game.getPerspectiveState(perspectivePlayerId),
+    [game, gameState, perspectivePlayerId]
+  );
+  const others = perspective.players.filter((player) => player.id !== perspective.viewerId);
+  const viewer = perspective.players.find((player) => player.id === perspective.viewerId);
+  if (!viewer) {
+    throw new Error(`Missing viewer ${perspective.viewerId}`);
+  }
+
+  const tablePlayers = [...others, viewer];
+  const lastLog = perspective.logs[perspective.logs.length - 1] ?? null;
+  const orderedLogs = [...perspective.logs].reverse();
+  const hintTokenStates = Array.from({ length: perspective.maxHintTokens }, (_, index) => index < perspective.hintTokens);
+  const remainingFuses = perspective.maxFuseTokens - perspective.fuseTokensUsed;
+  const fuseTokenStates = Array.from({ length: perspective.maxFuseTokens }, (_, index) => index < remainingFuses);
+  const gameOver = isTerminalStatus(perspective.status);
+
+  function commit(command: () => void): void {
+    try {
+      command();
+      setGameState(game.getSnapshot());
+    } catch {
     }
-
-    setSelectedCard({ playerId, cardId });
-
-    const playerName = playerId === you.id
-      ? 'your hand'
-      : `${tablePlayers.find((player) => player.id === playerId)?.name ?? 'teammate'}'s hand`;
-    showFeedback(`Selected card from ${playerName}`);
   }
 
-  function handleActionPress(label: string): void {
-    showFeedback(`${label} selected`);
+  function handlePlayPress(): void {
+    if (!isDebugMode) return;
+    setIsMenuOpen(false);
+    commit(() => {
+      game.beginPlaySelection();
+    });
+  }
+
+  function handleDiscardPress(): void {
+    if (!isDebugMode) return;
+    setIsMenuOpen(false);
+    commit(() => {
+      game.beginDiscardSelection();
+    });
+  }
+
+  function handleHintColorPress(): void {
+    if (!isDebugMode) return;
+    setIsMenuOpen(false);
+    commit(() => {
+      game.beginColorHintSelection();
+    });
+  }
+
+  function handleHintNumberPress(): void {
+    if (!isDebugMode) return;
+    setIsMenuOpen(false);
+    commit(() => {
+      game.beginNumberHintSelection();
+    });
+  }
+
+  function handleCardSelect(playerId: PlayerId, cardId: string): void {
+    if (!isDebugMode) return;
+
+    setIsMenuOpen(false);
+    commit(() => {
+      const pendingAction = game.state.ui.pendingAction;
+      const currentPlayer = game.state.players[game.state.currentTurnPlayerIndex];
+      const selectedCard = game.state.cards[cardId];
+
+      if (!selectedCard) {
+        throw new Error(`Unknown card: ${cardId}`);
+      }
+
+      if (pendingAction === 'play') {
+        if (playerId !== currentPlayer.id) {
+          return;
+        }
+
+        game.playCard(cardId);
+        return;
+      }
+
+      if (pendingAction === 'discard') {
+        if (playerId !== currentPlayer.id) {
+          return;
+        }
+
+        game.discardCard(cardId);
+        return;
+      }
+
+      if (pendingAction === 'hint-color') {
+        if (playerId === currentPlayer.id) {
+          return;
+        }
+
+        game.giveColorHint(playerId, selectedCard.suit);
+        return;
+      }
+
+      if (pendingAction === 'hint-number') {
+        if (playerId === currentPlayer.id) {
+          return;
+        }
+
+        game.giveNumberHint(playerId, selectedCard.number);
+      }
+    });
   }
 
   function openLogDrawer(): void {
     if (isLogDrawerOpen) return;
+    setIsMenuOpen(false);
     setIsLogDrawerOpen(true);
-    showFeedback('Opened action log');
   }
 
   function closeLogDrawer(): void {
     if (!isLogDrawerOpen) return;
     setIsLogDrawerOpen(false);
-    showFeedback('Closed action log');
+  }
+
+  function toggleMenu(): void {
+    if (isLogDrawerOpen) {
+      setIsLogDrawerOpen(false);
+    }
+
+    setIsMenuOpen((current) => !current);
+  }
+
+  function closeMenu(): void {
+    if (!isMenuOpen) return;
+    setIsMenuOpen(false);
+  }
+
+  function handleLeavePress(): void {
+    setIsMenuOpen(false);
+    setIsLogDrawerOpen(false);
+    setIsDebugMode(false);
+    commit(() => {
+      game.cancelSelection();
+    });
+  }
+
+  function handleDebugToggle(): void {
+    setIsDebugMode((current) => !current);
+    setIsMenuOpen(false);
+    commit(() => {
+      game.cancelSelection();
+    });
+  }
+
+  function handleNegativeColorHintsToggle(): void {
+    setShowNegativeColorHints((current) => !current);
+    setIsMenuOpen(false);
+  }
+
+  function handleNegativeNumberHintsToggle(): void {
+    setShowNegativeNumberHints((current) => !current);
+    setIsMenuOpen(false);
   }
 
   useEffect(() => {
@@ -164,14 +291,8 @@ function App() {
     logListRef.current?.scrollTo({ top: 0 });
   }, [isLogDrawerOpen]);
 
-  useEffect(() => {
-    return () => {
-      if (feedbackTimeoutRef.current !== null) window.clearTimeout(feedbackTimeoutRef.current);
-    };
-  }, []);
-
   return (
-    <main className="app">
+    <main className="app" data-testid="app-root">
       <section className="stats">
         <div className="stat hints-stat" data-testid="status-hints">
           <div className="token-grid hints-grid" aria-label="Hint tokens">
@@ -184,12 +305,13 @@ function App() {
               />
             ))}
           </div>
+          <span className="visually-hidden" data-testid="status-hints-count">{perspective.hintTokens}</span>
         </div>
 
         <div className="stat deck-stat" data-testid="status-deck">
           <div className="deck-pill">
             <CardsThree size={17} weight="fill" />
-            <span className="deck-count">{gameState.drawDeck.length}</span>
+            <span className="deck-count" data-testid="status-deck-count">{perspective.drawDeckCount}</span>
           </div>
         </div>
 
@@ -204,25 +326,36 @@ function App() {
               />
             ))}
           </div>
+          <span className="visually-hidden" data-testid="status-fuses-count">{remainingFuses}</span>
         </div>
       </section>
 
-      <section className="fireworks">
-        {SUITS.map((suit) => {
-          const height = getFireworkHeight(suit);
+      <section
+        className="fireworks"
+        style={{ '--suit-count': String(perspective.activeSuits.length) } as React.CSSProperties}
+        data-testid="fireworks-grid"
+      >
+        {perspective.activeSuits.map((suit) => {
+          const height = perspective.fireworksHeights[suit];
           return (
-            <div key={suit} className="tower" style={{ '--suit': suitColors[suit] } as React.CSSProperties}>
+            <div key={suit} className="tower" style={{ '--suit': suitColors[suit] } as React.CSSProperties} data-testid={`tower-${suit}`}>
               <div className="tower-stack">
                 {CARD_NUMBERS.map((num) => {
                   const isLit = num <= height;
-                  const blocked = isBlocked(suit, num);
-                  const remaining = getRemainingCount(suit, num);
-                  const pipStates = getPegPipStates(remaining, cardCopies[num]);
+                  const remaining = perspective.knownRemainingCounts[suit][num];
+                  const knownUnavailable = perspective.knownUnavailableCounts[suit][num];
+                  const totalCopies = remaining + knownUnavailable;
+                  const blocked = num > height && remaining === 0;
+                  const pipStates = getPegPipStates(remaining, totalCopies);
 
                   return (
-                    <div key={num} className={`peg ${isLit ? 'lit' : ''} ${blocked ? 'blocked' : ''}`}>
+                    <div
+                      key={num}
+                      className={`peg ${isLit ? 'lit' : ''} ${blocked ? 'blocked' : ''}`}
+                      data-testid={`peg-${suit}-${num}`}
+                    >
                       <span className="peg-num">{blocked ? '✕' : num}</span>
-                      <span className="peg-pips" aria-label={`${remaining} copies remaining`}>
+                      <span className="peg-pips" aria-label={`${remaining} copies known available`}>
                         {pipStates.map((pipState, pipIndex) => (
                           <span key={`pip-${pipIndex}`} className={`peg-pip ${pipState}`} />
                         ))}
@@ -236,41 +369,42 @@ function App() {
         })}
       </section>
 
-      <section className="table-shell" style={{ '--player-count': String(tablePlayers.length) } as React.CSSProperties}>
-        {tablePlayers.map((player) => {
-          const isCurrentTurn = player.id === currentPlayer.id;
-          const isYou = player.id === you.id;
-          const isTargeted = selectedCard?.playerId === player.id;
-
-          return (
-            <article
-              key={player.id}
-              className={`player ${isCurrentTurn ? 'active' : ''} ${isYou ? 'you-player' : ''} ${isTargeted ? 'targeted' : ''}`}
-            >
-              <header className="player-header">
-                <span className="player-name">{isYou ? 'You' : player.name}</span>
-                {isCurrentTurn && (
-                  <span className="turn-chip">
-                    <span className="turn-chip-dot" />
-                    Turn
-                  </span>
-                )}
-              </header>
-              <div className="cards">
-                {player.cards.map((cardId, cardIndex) => (
-                  <CardView
-                    key={cardId}
-                    card={gameState.cards[cardId]!}
-                    hidden={isYou}
-                    selected={selectedCard?.cardId === cardId}
-                    onSelect={() => handleCardSelect(player.id, cardId)}
-                    testId={`card-${player.id}-${cardIndex}`}
-                  />
-                ))}
-              </div>
-            </article>
-          );
-        })}
+      <section
+        className="table-shell"
+        style={{ '--player-count': String(tablePlayers.length) } as React.CSSProperties}
+        data-testid="table-shell"
+      >
+        {tablePlayers.map((player) => (
+          <article
+            key={player.id}
+            className={`player ${player.isCurrentTurn ? 'active' : ''} ${player.isViewer ? 'you-player' : ''}`}
+            data-testid={`player-${player.id}`}
+          >
+            <header className="player-header">
+              <span className="player-name" data-testid={`player-name-${player.id}`}>
+                {player.isViewer ? `${player.name} (You)` : player.name}
+              </span>
+              {player.isCurrentTurn && (
+                <span className="turn-chip" data-testid={`player-turn-${player.id}`}>
+                  <span className="turn-chip-dot" />
+                  Turn
+                </span>
+              )}
+            </header>
+            <div className="cards">
+              {player.cards.map((card, cardIndex) => (
+                <CardView
+                  key={card.id}
+                  card={card}
+                  showNegativeColorHints={showNegativeColorHints}
+                  showNegativeNumberHints={showNegativeNumberHints}
+                  onSelect={() => handleCardSelect(player.id, card.id)}
+                  testId={`card-${player.id}-${cardIndex}`}
+                />
+              ))}
+            </div>
+          </article>
+        ))}
       </section>
 
       <section className="bottom-panel">
@@ -283,11 +417,12 @@ function App() {
           <div className="action-slot">
             <button
               type="button"
-              className="action-button"
-              data-testid="actions-color"
-              onClick={() => handleActionPress('Color')}
+              className="action-button danger"
+              data-testid="actions-discard"
+              onClick={handleDiscardPress}
+              disabled={gameOver || !isDebugMode}
             >
-              <span className="action-main">Color</span>
+              <span className="action-main">Discard</span>
             </button>
           </div>
 
@@ -296,24 +431,37 @@ function App() {
               type="button"
               className="action-button"
               data-testid="actions-number"
-              onClick={() => handleActionPress('Number')}
+              onClick={handleHintNumberPress}
+              disabled={gameOver || !isDebugMode}
             >
               <span className="action-main">Number</span>
             </button>
           </div>
 
-          <div className="action-slot menu-slot">
+          <div className="action-slot">
             <button
               type="button"
               className="action-button menu-toggle"
               aria-label="Open menu"
-              aria-expanded={isLogDrawerOpen}
+              aria-expanded={isMenuOpen}
               data-testid="actions-menu"
-              onClick={() => (isLogDrawerOpen ? closeLogDrawer() : openLogDrawer())}
+              onClick={toggleMenu}
             >
               <span />
               <span />
               <span />
+            </button>
+          </div>
+
+          <div className="action-slot">
+            <button
+              type="button"
+              className="action-button"
+              data-testid="actions-color"
+              onClick={handleHintColorPress}
+              disabled={gameOver || !isDebugMode}
+            >
+              <span className="action-main">Color</span>
             </button>
           </div>
 
@@ -322,30 +470,54 @@ function App() {
               type="button"
               className="action-button primary"
               data-testid="actions-play"
-              onClick={() => handleActionPress('Play')}
+              onClick={handlePlayPress}
+              disabled={gameOver || !isDebugMode}
             >
               <span className="action-main">Play</span>
-            </button>
-          </div>
-
-          <div className="action-slot">
-            <button
-              type="button"
-              className="action-button danger"
-              data-testid="actions-discard"
-              onClick={() => handleActionPress('Discard')}
-            >
-              <span className="action-main">Discard</span>
             </button>
           </div>
         </section>
       </section>
 
-      {feedbackMessage && (
-        <div className="feedback-toast" role="status" aria-live="polite">
-          {feedbackMessage}
-        </div>
-      )}
+      <button
+        type="button"
+        className={`menu-scrim ${isMenuOpen ? 'open' : ''}`}
+        aria-label="Close menu"
+        aria-hidden={!isMenuOpen}
+        tabIndex={isMenuOpen ? 0 : -1}
+        onClick={closeMenu}
+      />
+
+      <aside className={`menu-panel ${isMenuOpen ? 'open' : ''}`} aria-hidden={!isMenuOpen}>
+        <button type="button" className="menu-item" data-testid="menu-leave" onClick={handleLeavePress}>Leave</button>
+        <button
+          type="button"
+          className="menu-item menu-toggle-item"
+          data-testid="menu-debug-toggle"
+          onClick={handleDebugToggle}
+        >
+          <span>Debug</span>
+          <span data-testid="menu-debug-value">{isDebugMode ? 'On' : 'Off'}</span>
+        </button>
+        <button
+          type="button"
+          className="menu-item menu-toggle-item"
+          data-testid="menu-negative-color-toggle"
+          onClick={handleNegativeColorHintsToggle}
+        >
+          <span>Negative Color Hints</span>
+          <span data-testid="menu-negative-color-value">{showNegativeColorHints ? 'On' : 'Off'}</span>
+        </button>
+        <button
+          type="button"
+          className="menu-item menu-toggle-item"
+          data-testid="menu-negative-number-toggle"
+          onClick={handleNegativeNumberHintsToggle}
+        >
+          <span>Negative Number Hints</span>
+          <span data-testid="menu-negative-number-value">{showNegativeNumberHints ? 'On' : 'Off'}</span>
+        </button>
+      </aside>
 
       <button
         type="button"
@@ -370,7 +542,7 @@ function App() {
         </header>
         <div ref={logListRef} className="log-list" data-testid="log-list">
           {orderedLogs.map((logEntry) => (
-            <article key={logEntry.id} className="log-item">
+            <article key={logEntry.id} className="log-item" data-testid={`log-item-${logEntry.id}`}>
               <span className={`log-kind ${logEntry.type}`}>{getLogBadge(logEntry)}</span>
               <span className="log-item-message">{formatLogMessage(logEntry)}</span>
             </article>
@@ -383,36 +555,47 @@ function App() {
 
 function CardView({
   card,
-  hidden,
-  selected,
+  showNegativeColorHints,
+  showNegativeNumberHints,
   onSelect,
   testId
 }: {
-  card: Card;
-  hidden: boolean;
-  selected: boolean;
+  card: PerspectiveCard;
+  showNegativeColorHints: boolean;
+  showNegativeNumberHints: boolean;
   onSelect: () => void;
   testId: string;
 }) {
   const knownColor = card.hints.color;
   const knownNumber = card.hints.number;
-  const faceValue = hidden ? (knownNumber ?? '?') : card.number;
-  const bgColor = hidden
-    ? (knownColor ? suitColors[knownColor] : (knownNumber ? '#9eb2d4' : undefined))
-    : suitColors[card.suit];
 
-  const notColors = knownColor ? [] : card.hints.notColors;
-  const notNumbers = knownNumber ? [] : card.hints.notNumbers;
+  let faceValue: string | number = '?';
+  let bgColor: string | undefined;
+
+  if (card.isHiddenFromViewer) {
+    faceValue = knownNumber ?? '?';
+    bgColor = knownColor ? suitColors[knownColor] : (knownNumber ? '#9eb2d4' : undefined);
+  } else {
+    if (card.suit === null || card.number === null) {
+      throw new Error(`Visible card ${card.id} is missing face values`);
+    }
+
+    faceValue = card.number;
+    bgColor = suitColors[card.suit];
+  }
+
+  const notColors = knownColor || !showNegativeColorHints ? [] : card.hints.notColors;
+  const notNumbers = knownNumber || !showNegativeNumberHints ? [] : card.hints.notNumbers;
   const hasHints = knownColor || knownNumber || notColors.length > 0 || notNumbers.length > 0;
 
   return (
     <button
       type="button"
-      className={`card ${selected ? 'selected' : ''}`}
+      className="card"
       style={{ '--card-bg': bgColor } as React.CSSProperties}
       onClick={onSelect}
       data-testid={testId}
-      aria-pressed={selected}
+      aria-pressed={false}
     >
       <div className="card-face">
         {faceValue}
@@ -420,6 +603,7 @@ function CardView({
       <div className={`badges ${hasHints ? 'visible' : 'empty'}`}>
         {knownColor && knownNumber && (
           <span className="badge combined" style={{ '--badge-color': suitColors[knownColor] } as React.CSSProperties}>
+            {knownColor}
             {knownNumber}
           </span>
         )}
@@ -431,7 +615,7 @@ function CardView({
         )}
         {notColors.map((color) => (
           <span key={color} className="badge not-color" style={{ '--badge-color': suitColors[color] } as React.CSSProperties}>
-            ✕
+            x
           </span>
         ))}
         {notNumbers.map((number) => (

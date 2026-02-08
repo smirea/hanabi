@@ -15,6 +15,7 @@
 
 ## UI and State
 - Show all gameplay-critical info on the main screen.
+- Keep the UI clean and simple: avoid scoreboard-like side info, extra helper copy, or notification-board clutter unless it is strictly required for immediate gameplay decisions.
 - Own cards are hidden but hint metadata is always visible.
 - Persist clue metadata per card: known color/value and exclusions.
 
