@@ -12,6 +12,7 @@ export type CardHints = {
   number: CardNumber | null;
   notColors: Suit[];
   notNumbers: CardNumber[];
+  recentlyHinted?: boolean;
 };
 
 export type Card = {

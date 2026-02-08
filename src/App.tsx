@@ -1,218 +1,128 @@
-type Suit = 'R' | 'Y' | 'G' | 'B' | 'W' | 'M';
+import { exampleBlockedSummary, exampleDiscardSummary, exampleFireworkStatus, exampleGameState } from './game-state-example';
+import { SUITS, type Card, type Suit } from './types';
 
-type HintMeta = {
-  knownColor: Suit | null;
-  knownValue: 1 | 2 | 3 | 4 | 5 | null;
-  excludedColors: Suit[];
-  excludedValues: Array<1 | 2 | 3 | 4 | 5>;
-  recentlyHinted: boolean;
-};
-
-type Card = {
-  id: string;
-  suit: Suit;
-  value: 1 | 2 | 3 | 4 | 5;
-  hidden: boolean;
-  hint: HintMeta;
-};
-
-type Player = {
-  id: string;
-  name: string;
-  isCurrentTurn: boolean;
-  cards: Card[];
-};
+const roomCode = 'HNB-47';
+const hintTokenLimit = 8;
+const fuseTokenLimit = 3;
 
 const suitColors: Record<Suit, string> = {
-  R: '#d7263d',
-  Y: '#f1c40f',
-  G: '#2db44a',
-  B: '#2f7cf6',
-  W: '#cfd5de',
-  M: '#ff62b0'
+  R: '#e64d5f',
+  Y: '#f4c21b',
+  G: '#2dc96d',
+  B: '#4f8eff',
+  W: '#dce2ec',
+  M: '#ff6db5'
 };
 
-const players: Player[] = [
-  {
-    id: 'you',
-    name: 'You',
-    isCurrentTurn: true,
-    cards: [
-      {
-        id: 'you-0',
-        suit: 'R',
-        value: 2,
-        hidden: true,
-        hint: {
-          knownColor: 'R',
-          knownValue: null,
-          excludedColors: ['Y', 'G'],
-          excludedValues: [1, 5],
-          recentlyHinted: true
-        }
-      },
-      {
-        id: 'you-1',
-        suit: 'B',
-        value: 1,
-        hidden: true,
-        hint: {
-          knownColor: null,
-          knownValue: 1,
-          excludedColors: ['R'],
-          excludedValues: [4, 5],
-          recentlyHinted: false
-        }
-      },
-      {
-        id: 'you-2',
-        suit: 'W',
-        value: 3,
-        hidden: true,
-        hint: {
-          knownColor: null,
-          knownValue: null,
-          excludedColors: ['R', 'B', 'G'],
-          excludedValues: [1, 2],
-          recentlyHinted: false
-        }
-      },
-      {
-        id: 'you-3',
-        suit: 'G',
-        value: 4,
-        hidden: true,
-        hint: {
-          knownColor: 'G',
-          knownValue: 4,
-          excludedColors: [],
-          excludedValues: [],
-          recentlyHinted: false
-        }
-      }
-    ]
-  },
-  {
-    id: 'p2',
-    name: 'Kai',
-    isCurrentTurn: false,
-    cards: [
-      {
-        id: 'p2-0',
-        suit: 'Y',
-        value: 1,
-        hidden: false,
-        hint: {
-          knownColor: 'Y',
-          knownValue: 1,
-          excludedColors: [],
-          excludedValues: [],
-          recentlyHinted: true
-        }
-      },
-      {
-        id: 'p2-1',
-        suit: 'B',
-        value: 3,
-        hidden: false,
-        hint: {
-          knownColor: null,
-          knownValue: 3,
-          excludedColors: ['R'],
-          excludedValues: [1],
-          recentlyHinted: false
-        }
-      },
-      {
-        id: 'p2-2',
-        suit: 'R',
-        value: 2,
-        hidden: false,
-        hint: {
-          knownColor: 'R',
-          knownValue: null,
-          excludedColors: ['B'],
-          excludedValues: [5],
-          recentlyHinted: false
-        }
-      },
-      {
-        id: 'p2-3',
-        suit: 'W',
-        value: 5,
-        hidden: false,
-        hint: {
-          knownColor: null,
-          knownValue: null,
-          excludedColors: ['Y', 'G'],
-          excludedValues: [2, 3],
-          recentlyHinted: false
-        }
-      }
-    ]
-  }
-];
+const suitNames: Record<Suit, string> = {
+  R: 'Red',
+  Y: 'Yellow',
+  G: 'Green',
+  B: 'Blue',
+  W: 'White',
+  M: 'Multi'
+};
 
-const fireworks: Array<{ suit: Suit; top: number }> = [
-  { suit: 'R', top: 1 },
-  { suit: 'Y', top: 0 },
-  { suit: 'G', top: 2 },
-  { suit: 'B', top: 3 },
-  { suit: 'W', top: 1 }
-];
+const gameState = exampleGameState;
 
 function App() {
+  const currentPlayer = gameState.players[gameState.currentTurnPlayerIndex];
+
   return (
     <main className="app" data-testid="app-shell">
       <section className="section header" data-testid="header-strip">
-        <div className="header-item" data-testid="room-code">Room HNB-47</div>
+        <div className="header-item" data-testid="room-code">Room {roomCode}</div>
         <div className="header-item" data-testid="connection-status">Connected</div>
-        <div className="header-item" data-testid="turn-status">Your turn</div>
-        <div className="header-item" data-testid="deck-count">Deck 27</div>
+        <div className="header-item" data-testid="turn-status">{currentPlayer.name}&apos;s turn</div>
+        <div className="header-item" data-testid="deck-count">Deck {gameState.drawDeck.length}</div>
       </section>
 
       <section className="section board" data-testid="board-strip">
         <div className="token-panel" data-testid="hint-tokens">
           <h2>Hints</h2>
-          <strong>6 / 8</strong>
+          <strong>
+            {gameState.hintTokens} / {hintTokenLimit}
+          </strong>
         </div>
         <div className="token-panel" data-testid="fuse-tokens">
           <h2>Fuses</h2>
-          <strong>1 / 3 used</strong>
+          <strong>
+            {gameState.fuseTokensUsed} / {fuseTokenLimit} used
+          </strong>
         </div>
         <div className="fireworks" data-testid="fireworks-strip">
-          {fireworks.map((stack) => (
-            <div
-              key={stack.suit}
-              className="firework"
-              style={{ borderColor: suitColors[stack.suit] }}
-              data-testid={`firework-${stack.suit}`}
-            >
-              <span>{stack.suit}</span>
-              <strong>{stack.top}</strong>
-            </div>
-          ))}
+          {SUITS.map((suit) => {
+            const status = exampleFireworkStatus[suit];
+
+            return (
+              <div
+                key={suit}
+                className={`firework ${status.tone === 'complete' ? 'firework-complete' : ''} ${status.tone === 'blocked' ? 'firework-blocked' : ''}`}
+                style={{ borderColor: suitColors[suit] }}
+                data-testid={`firework-${suit}`}
+              >
+                <span>{suitNames[suit]}</span>
+                <strong>{status.height}</strong>
+                <small data-testid={`firework-status-${suit}`}>{status.statusLabel}</small>
+              </div>
+            );
+          })}
         </div>
+        <div className="board-note" data-testid="blocked-stacks">{exampleBlockedSummary}</div>
       </section>
 
       <section className="section players" data-testid="player-lanes">
-        {players.map((player) => (
-          <article
-            key={player.id}
-            className={`player-lane ${player.isCurrentTurn ? 'current-turn' : ''}`}
-            data-testid={`player-${player.id}`}
-          >
-            <header className="lane-header">
-              <h2>{player.name}</h2>
-              <span>{player.isCurrentTurn ? 'Active' : 'Waiting'}</span>
-            </header>
-            <div className="cards" data-testid={`cards-${player.id}`}>
-              {player.cards.map((card, index) => (
-                <CardView key={card.id} card={card} playerId={player.id} index={index} />
-              ))}
+        {gameState.players.map((player, playerIndex) => {
+          const isCurrentTurn = playerIndex === gameState.currentTurnPlayerIndex;
+          const hideCards = player.id === 'you';
+
+          return (
+            <article
+              key={player.id}
+              className={`player-lane ${isCurrentTurn ? 'current-turn' : ''}`}
+              data-testid={`player-${player.id}`}
+            >
+              <header className="lane-header">
+                <h2>{player.name}</h2>
+                <span>{isCurrentTurn ? 'Active' : 'Waiting'}</span>
+              </header>
+              <div className="cards" data-testid={`cards-${player.id}`}>
+                {player.cards.map((cardId, cardIndex) => (
+                  <CardView
+                    key={cardId}
+                    card={gameState.cards[cardId]!}
+                    playerId={player.id}
+                    index={cardIndex}
+                    hidden={hideCards}
+                  />
+                ))}
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
+      <section className="section discard" data-testid="discard-strip">
+        <header className="discard-header">
+          <h2>Discard ({gameState.discardPile.length})</h2>
+          <span>Cards out</span>
+        </header>
+        <div className="discard-grid" data-testid="discard-grid">
+          {exampleDiscardSummary.map((entry) => (
+            <div
+              key={entry.key}
+              className="discard-chip"
+              style={{ borderColor: suitColors[entry.suit] }}
+              data-testid={`discard-${entry.suit}-${entry.number}`}
+            >
+              <span>
+                {entry.suit}
+                {entry.number}
+              </span>
+              <strong>x{entry.count}</strong>
             </div>
-          </article>
-        ))}
+          ))}
+        </div>
       </section>
 
       <section className="section actions" data-testid="action-strip">
@@ -226,35 +136,37 @@ function App() {
   );
 }
 
-function CardView({ card, playerId, index }: { card: Card; playerId: string; index: number }) {
-  const knownColor = card.hint.knownColor;
+function CardView({ card, playerId, index, hidden }: { card: Card; playerId: string; index: number; hidden: boolean }) {
+  const displayCard = hidden ? '??' : `${card.suit}${card.number}`;
+  const knownColor = card.hints.color;
+  const borderColor = knownColor ? suitColors[knownColor] : hidden ? '#596579' : suitColors[card.suit];
 
   return (
     <div
-      className={`card ${card.hint.recentlyHinted ? 'recent-hint' : ''}`}
-      style={{ borderColor: knownColor ? suitColors[knownColor] : '#546172' }}
+      className={`card ${card.hints.recentlyHinted ? 'recent-hint' : ''}`}
+      style={{ borderColor }}
       data-testid={`card-${playerId}-${index}`}
     >
       <div className="card-main" data-testid={`card-face-${playerId}-${index}`}>
-        {card.hidden ? '??' : `${card.suit}${card.value}`}
+        {displayCard}
       </div>
       <div className="hint-row" data-testid={`card-hints-${playerId}-${index}`}>
         <span className="chip" data-testid={`card-known-color-${playerId}-${index}`}>
-          {card.hint.knownColor ? `C:${card.hint.knownColor}` : 'C:?'}
+          {knownColor ? `C:${knownColor}` : 'C:?'}
         </span>
-        <span className="chip" data-testid={`card-known-value-${playerId}-${index}`}>
-          {card.hint.knownValue ? `V:${card.hint.knownValue}` : 'V:?'}
+        <span className="chip" data-testid={`card-known-number-${playerId}-${index}`}>
+          {card.hints.number ? `V:${card.hints.number}` : 'V:?'}
         </span>
       </div>
       <div className="excluded-row" data-testid={`card-exclusions-${playerId}-${index}`}>
-        {card.hint.excludedColors.map((excludedColor) => (
+        {card.hints.notColors.map((excludedColor) => (
           <span key={excludedColor} className="chip muted" data-testid={`card-excluded-color-${playerId}-${index}-${excludedColor}`}>
-            x{excludedColor}
+            xC:{excludedColor}
           </span>
         ))}
-        {card.hint.excludedValues.map((excludedValue) => (
-          <span key={excludedValue} className="chip muted" data-testid={`card-excluded-value-${playerId}-${index}-${excludedValue}`}>
-            x{excludedValue}
+        {card.hints.notNumbers.map((excludedNumber) => (
+          <span key={excludedNumber} className="chip muted" data-testid={`card-excluded-number-${playerId}-${index}-${excludedNumber}`}>
+            xV:{excludedNumber}
           </span>
         ))}
       </div>
