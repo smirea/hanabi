@@ -1,5 +1,7 @@
 # AGENTS
 
+See `project.md` for overall infrastructure
+
 ## Core Rules
 - Use Bun for all tooling: install, dev, build, test, and serve.
 - Keep architecture frontend-only: no custom backend APIs.
