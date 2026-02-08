@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { CardsThree, Fire, LightbulbFilament } from '@phosphor-icons/react';
 import {
   CARD_NUMBERS,
@@ -9,6 +9,22 @@ import {
   type PlayerId,
   type Suit
 } from './game';
+import {
+  getDebugNetworkPlayerIdFromHash,
+  getDebugNetworkPlayersFromRoom,
+  syncDebugNetworkRoomPlayers,
+  toDebugNetworkPlayerHash,
+  useDebugNetworkSession
+} from './debugNetwork';
+import {
+  DEFAULT_ROOM_ID,
+  useOnlineSession,
+  type LobbySettings,
+  type NetworkAction,
+  type OnlineSession,
+  type OnlineState,
+  type RoomMember
+} from './network';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
 
 const LOCAL_DEBUG_SETUP = {
@@ -18,11 +34,16 @@ const LOCAL_DEBUG_SETUP = {
 };
 
 const DEBUG_MODE_STORAGE_KEY = 'hanabi.debug_mode';
+const DEBUG_NETWORK_SHELL_STORAGE_KEY = 'hanabi.debug_network_shell';
+const DEBUG_NETWORK_PLAYERS_STORAGE_KEY = 'hanabi.debug_network_players';
+const DEBUG_NETWORK_ACTIVE_PLAYER_STORAGE_KEY = 'hanabi.debug_network_active_player';
 const NEGATIVE_COLOR_HINTS_STORAGE_KEY = 'hanabi.negative_color_hints';
 const NEGATIVE_NUMBER_HINTS_STORAGE_KEY = 'hanabi.negative_number_hints';
 const MAX_PEG_PIPS = 4;
 
 type PegPipState = 'filled' | 'hollow' | 'unused';
+type PendingCardAction = 'play' | 'discard' | 'hint-color' | 'hint-number' | null;
+type ClientRuntime = 'standard' | 'debug-network-frame';
 
 const suitColors: Record<Suit, string> = {
   R: '#e64d5f',
@@ -101,16 +122,261 @@ function getLogBadge(log: GameLogEntry): string {
   return 'Status';
 }
 
+function formatPendingAction(action: PendingCardAction): string {
+  if (action === 'play') return 'Play selected';
+  if (action === 'discard') return 'Discard selected';
+  if (action === 'hint-color') return 'Color hint selected';
+  if (action === 'hint-number') return 'Number hint selected';
+  return 'Last';
+}
+
+function normalizeShellPlayers(input: string[]): string[] {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const rawValue of input) {
+    if (typeof rawValue !== 'string') {
+      continue;
+    }
+
+    const value = rawValue.trim();
+    if (value.length === 0 || seen.has(value)) {
+      continue;
+    }
+
+    seen.add(value);
+    normalized.push(value);
+  }
+
+  if (normalized.length === 0) {
+    normalized.push('1');
+  }
+
+  return normalized;
+}
+
+function arraysEqual(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function App() {
+  const [debugFramePlayerId, setDebugFramePlayerId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    return getDebugNetworkPlayerIdFromHash(window.location.hash);
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const onHashChange = (): void => {
+      setDebugFramePlayerId(getDebugNetworkPlayerIdFromHash(window.location.hash));
+    };
+
+    window.addEventListener('hashchange', onHashChange);
+    return () => {
+      window.removeEventListener('hashchange', onHashChange);
+    };
+  }, []);
+
+  const [isDebugNetworkShellOpen, setIsDebugNetworkShellOpen] = useLocalStorageState<boolean>(
+    DEBUG_NETWORK_SHELL_STORAGE_KEY,
+    false
+  );
+
+  if (debugFramePlayerId) {
+    return (
+      <GameClient
+        runtime="debug-network-frame"
+        framePlayerId={debugFramePlayerId}
+        onOpenDebugNetworkShell={null}
+      />
+    );
+  }
+
+  if (isDebugNetworkShellOpen) {
+    return <DebugNetworkShell onExit={() => setIsDebugNetworkShellOpen(false)} />;
+  }
+
+  return (
+    <GameClient
+      runtime="standard"
+      framePlayerId={null}
+      onOpenDebugNetworkShell={() => setIsDebugNetworkShellOpen(true)}
+    />
+  );
+}
+
+function DebugNetworkShell({ onExit }: { onExit: () => void }) {
+  const [storedPlayers, setStoredPlayers] = useLocalStorageState<string[]>(
+    DEBUG_NETWORK_PLAYERS_STORAGE_KEY,
+    getDebugNetworkPlayersFromRoom()
+  );
+  const normalizedPlayers = useMemo(() => normalizeShellPlayers(storedPlayers), [storedPlayers]);
+  const [activePlayer, setActivePlayer] = useLocalStorageState<string>(
+    DEBUG_NETWORK_ACTIVE_PLAYER_STORAGE_KEY,
+    normalizedPlayers[0]
+  );
+
+  useEffect(() => {
+    if (arraysEqual(storedPlayers, normalizedPlayers)) {
+      return;
+    }
+
+    setStoredPlayers(normalizedPlayers);
+  }, [normalizedPlayers, setStoredPlayers, storedPlayers]);
+
+  useEffect(() => {
+    if (normalizedPlayers.includes(activePlayer)) {
+      return;
+    }
+
+    setActivePlayer(normalizedPlayers[0]);
+  }, [activePlayer, normalizedPlayers, setActivePlayer]);
+
+  useEffect(() => {
+    syncDebugNetworkRoomPlayers(normalizedPlayers);
+  }, [normalizedPlayers]);
+
+  const iframeUrl = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return '';
+    }
+
+    const url = new URL(window.location.href);
+    url.hash = toDebugNetworkPlayerHash(activePlayer);
+    return url.toString();
+  }, [activePlayer]);
+
+  function handleAddPlayer(): void {
+    setStoredPlayers((currentPlayers) => {
+      const normalized = normalizeShellPlayers(currentPlayers);
+      const nextNumericId = normalized.reduce((max, playerId) => {
+        const numeric = Number(playerId);
+        if (!Number.isFinite(numeric)) {
+          return max;
+        }
+
+        return Math.max(max, numeric);
+      }, 0) + 1;
+      const nextPlayerId = String(nextNumericId);
+      setActivePlayer(nextPlayerId);
+      return [...normalized, nextPlayerId];
+    });
+  }
+
+  function handleRemovePlayer(): void {
+    setStoredPlayers((currentPlayers) => {
+      const normalized = normalizeShellPlayers(currentPlayers);
+      if (normalized.length <= 1) {
+        return normalized;
+      }
+
+      const activeIndex = normalized.indexOf(activePlayer);
+      if (activeIndex === -1) {
+        return normalized;
+      }
+
+      const nextPlayers = normalized.filter((playerId) => playerId !== activePlayer);
+      const nextIndex = Math.min(activeIndex, nextPlayers.length - 1);
+      setActivePlayer(nextPlayers[nextIndex]);
+      return nextPlayers;
+    });
+  }
+
+  function handleSelectPlayer(playerId: string): void {
+    setActivePlayer(playerId);
+  }
+
+  return (
+    <main className="debug-network-shell" data-testid="debug-network-shell">
+      <iframe
+        title={`Debug Network Player ${activePlayer}`}
+        src={iframeUrl}
+        className="debug-network-frame"
+        data-testid="debug-network-frame"
+      />
+
+      <section className="debug-network-bar" data-testid="debug-network-bar">
+        <div className="debug-network-player-list">
+          {normalizedPlayers.map((playerId, index) => (
+            <button
+              type="button"
+              key={playerId}
+              className={`debug-network-player ${playerId === activePlayer ? 'active' : ''}`}
+              data-testid={`debug-network-player-${playerId}`}
+              onClick={() => handleSelectPlayer(playerId)}
+            >
+              {index + 1}
+            </button>
+          ))}
+        </div>
+
+        <div className="debug-network-controls">
+          <button
+            type="button"
+            className="debug-network-control"
+            onClick={handleAddPlayer}
+            data-testid="debug-network-add"
+          >
+            Add
+          </button>
+          <button
+            type="button"
+            className="debug-network-control"
+            onClick={handleRemovePlayer}
+            data-testid="debug-network-remove"
+          >
+            Remove
+          </button>
+          <button
+            type="button"
+            className="debug-network-control"
+            onClick={onExit}
+            data-testid="debug-network-exit"
+          >
+            Exit
+          </button>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function GameClient({
+  runtime,
+  framePlayerId,
+  onOpenDebugNetworkShell
+}: {
+  runtime: ClientRuntime;
+  framePlayerId: string | null;
+  onOpenDebugNetworkShell: (() => void) | null;
+}) {
+  const isDebugNetworkFrame = runtime === 'debug-network-frame';
+
   const gameRef = useRef<HanabiGame | null>(null);
   if (!gameRef.current) {
     gameRef.current = new HanabiGame(LOCAL_DEBUG_SETUP);
   }
 
-  const game = gameRef.current;
-  const [gameState, setGameState] = useState(() => game.getSnapshot());
+  const debugGame = gameRef.current;
+  const [debugGameState, setDebugGameState] = useState(() => debugGame.getSnapshot());
   const [isLogDrawerOpen, setIsLogDrawerOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingCardAction>(null);
   const [isDebugMode, setIsDebugMode] = useLocalStorageState<boolean>(DEBUG_MODE_STORAGE_KEY, true);
   const [showNegativeColorHints, setShowNegativeColorHints] = useLocalStorageState<boolean>(
     NEGATIVE_COLOR_HINTS_STORAGE_KEY,
@@ -122,117 +388,281 @@ function App() {
   );
   const logListRef = useRef<HTMLDivElement | null>(null);
 
-  const perspectivePlayerId = gameState.players[gameState.currentTurnPlayerIndex]?.id;
-  if (!perspectivePlayerId) {
-    throw new Error('Current turn player is missing');
-  }
+  const isLocalDebugMode = !isDebugNetworkFrame && isDebugMode;
+  const online = useOnlineSession(!isLocalDebugMode && !isDebugNetworkFrame, DEFAULT_ROOM_ID);
+  const debugNetwork = useDebugNetworkSession(isDebugNetworkFrame ? framePlayerId : null);
+  const activeSession: OnlineSession = isDebugNetworkFrame ? debugNetwork : online;
+  const onlineState = activeSession.state;
 
-  const perspective = useMemo(
-    () => game.getPerspectiveState(perspectivePlayerId),
-    [game, gameState, perspectivePlayerId]
+  const activeGameState = isLocalDebugMode ? debugGameState : onlineState.gameState;
+  const activeGame = useMemo(() => {
+    if (isLocalDebugMode) {
+      return debugGame;
+    }
+
+    if (!onlineState.gameState) {
+      return null;
+    }
+
+    return HanabiGame.fromState(onlineState.gameState);
+  }, [debugGame, isLocalDebugMode, onlineState.gameState]);
+
+  const isOnlineParticipant = useMemo(() => {
+    if (isLocalDebugMode || !onlineState.selfId || !onlineState.gameState) {
+      return false;
+    }
+
+    return onlineState.gameState.players.some((player) => player.id === onlineState.selfId);
+  }, [isLocalDebugMode, onlineState.gameState, onlineState.selfId]);
+
+  const showLobby = !isLocalDebugMode && (
+    onlineState.phase === 'lobby'
+    || onlineState.gameState === null
+    || !isOnlineParticipant
   );
-  const others = perspective.players.filter((player) => player.id !== perspective.viewerId);
-  const viewer = perspective.players.find((player) => player.id === perspective.viewerId);
-  if (!viewer) {
-    throw new Error(`Missing viewer ${perspective.viewerId}`);
-  }
 
-  const tablePlayers = [...others, viewer];
-  const lastLog = perspective.logs[perspective.logs.length - 1] ?? null;
-  const orderedLogs = [...perspective.logs].reverse();
-  const hintTokenStates = Array.from({ length: perspective.maxHintTokens }, (_, index) => index < perspective.hintTokens);
-  const remainingFuses = perspective.maxFuseTokens - perspective.fuseTokensUsed;
-  const fuseTokenStates = Array.from({ length: perspective.maxFuseTokens }, (_, index) => index < remainingFuses);
-  const gameOver = isTerminalStatus(perspective.status);
+  const perspectivePlayerId = useMemo(() => {
+    if (!activeGameState) {
+      return null;
+    }
 
-  function commit(command: () => void): void {
+    if (isLocalDebugMode) {
+      return activeGameState.players[activeGameState.currentTurnPlayerIndex]?.id ?? null;
+    }
+
+    if (!onlineState.selfId) {
+      return null;
+    }
+
+    const localPlayer = activeGameState.players.find((player) => player.id === onlineState.selfId);
+    return localPlayer?.id ?? null;
+  }, [activeGameState, isLocalDebugMode, onlineState.selfId]);
+
+  const perspective = useMemo(() => {
+    if (!activeGame || !perspectivePlayerId) {
+      return null;
+    }
+
+    return activeGame.getPerspectiveState(perspectivePlayerId);
+  }, [activeGame, activeGameState, perspectivePlayerId]);
+
+  useEffect(() => {
+    if (!isLogDrawerOpen) return;
+    logListRef.current?.scrollTo({ top: 0 });
+  }, [isLogDrawerOpen]);
+
+  useEffect(() => {
+    setPendingAction(null);
+  }, [isLocalDebugMode, onlineState.snapshotVersion, perspective?.turn]);
+
+  useEffect(() => {
+    if (isLocalDebugMode) {
+      return;
+    }
+
+    setIsMenuOpen(false);
+  }, [isLocalDebugMode]);
+
+  function commitLocal(command: () => void): void {
     try {
       command();
-      setGameState(game.getSnapshot());
+      setDebugGameState(debugGame.getSnapshot());
+      setPendingAction(null);
     } catch {
     }
   }
 
+  function selectOnlineAction(nextAction: PendingCardAction): void {
+    if (isLocalDebugMode || !perspective || !onlineState.selfId) {
+      return;
+    }
+
+    const isTurn = perspective.currentTurnPlayerId === onlineState.selfId;
+    if (!isTurn || onlineState.status !== 'connected' || isTerminalStatus(perspective.status)) {
+      return;
+    }
+
+    if (nextAction === 'discard' && perspective.hintTokens >= perspective.maxHintTokens) {
+      return;
+    }
+
+    if ((nextAction === 'hint-color' || nextAction === 'hint-number') && perspective.hintTokens <= 0) {
+      return;
+    }
+
+    setPendingAction(nextAction);
+  }
+
   function handlePlayPress(): void {
-    if (!isDebugMode) return;
-    setIsMenuOpen(false);
-    commit(() => {
-      game.beginPlaySelection();
-    });
+    if (isLocalDebugMode) {
+      setIsMenuOpen(false);
+      commitLocal(() => {
+        debugGame.beginPlaySelection();
+      });
+      return;
+    }
+
+    selectOnlineAction('play');
   }
 
   function handleDiscardPress(): void {
-    if (!isDebugMode) return;
-    setIsMenuOpen(false);
-    commit(() => {
-      game.beginDiscardSelection();
-    });
+    if (isLocalDebugMode) {
+      setIsMenuOpen(false);
+      commitLocal(() => {
+        debugGame.beginDiscardSelection();
+      });
+      return;
+    }
+
+    selectOnlineAction('discard');
   }
 
   function handleHintColorPress(): void {
-    if (!isDebugMode) return;
-    setIsMenuOpen(false);
-    commit(() => {
-      game.beginColorHintSelection();
-    });
+    if (isLocalDebugMode) {
+      setIsMenuOpen(false);
+      commitLocal(() => {
+        debugGame.beginColorHintSelection();
+      });
+      return;
+    }
+
+    selectOnlineAction('hint-color');
   }
 
   function handleHintNumberPress(): void {
-    if (!isDebugMode) return;
-    setIsMenuOpen(false);
-    commit(() => {
-      game.beginNumberHintSelection();
-    });
+    if (isLocalDebugMode) {
+      setIsMenuOpen(false);
+      commitLocal(() => {
+        debugGame.beginNumberHintSelection();
+      });
+      return;
+    }
+
+    selectOnlineAction('hint-number');
   }
 
   function handleCardSelect(playerId: PlayerId, cardId: string): void {
-    if (!isDebugMode) return;
+    if (isLocalDebugMode) {
+      setIsMenuOpen(false);
+      commitLocal(() => {
+        const pending = debugGame.state.ui.pendingAction;
+        const currentPlayer = debugGame.state.players[debugGame.state.currentTurnPlayerIndex];
+        const selectedCard = debugGame.state.cards[cardId];
 
-    setIsMenuOpen(false);
-    commit(() => {
-      const pendingAction = game.state.ui.pendingAction;
-      const currentPlayer = game.state.players[game.state.currentTurnPlayerIndex];
-      const selectedCard = game.state.cards[cardId];
+        if (!selectedCard) {
+          throw new Error(`Unknown card: ${cardId}`);
+        }
 
-      if (!selectedCard) {
-        throw new Error(`Unknown card: ${cardId}`);
-      }
+        if (pending === 'play') {
+          if (playerId !== currentPlayer.id) {
+            return;
+          }
 
-      if (pendingAction === 'play') {
-        if (playerId !== currentPlayer.id) {
+          debugGame.playCard(cardId);
           return;
         }
 
-        game.playCard(cardId);
+        if (pending === 'discard') {
+          if (playerId !== currentPlayer.id) {
+            return;
+          }
+
+          debugGame.discardCard(cardId);
+          return;
+        }
+
+        if (pending === 'hint-color') {
+          if (playerId === currentPlayer.id) {
+            return;
+          }
+
+          debugGame.giveColorHint(playerId, selectedCard.suit);
+          return;
+        }
+
+        if (pending === 'hint-number') {
+          if (playerId === currentPlayer.id) {
+            return;
+          }
+
+          debugGame.giveNumberHint(playerId, selectedCard.number);
+        }
+      });
+      return;
+    }
+
+    if (!activeGameState || !onlineState.selfId || !pendingAction) {
+      return;
+    }
+
+    const actorId = onlineState.selfId;
+    const currentPlayer = activeGameState.players[activeGameState.currentTurnPlayerIndex];
+    if (!currentPlayer || currentPlayer.id !== actorId) {
+      return;
+    }
+
+    const selectedCard = activeGameState.cards[cardId];
+    if (!selectedCard) {
+      return;
+    }
+
+    let action: NetworkAction | null = null;
+    if (pendingAction === 'play') {
+      if (playerId !== actorId) {
         return;
       }
 
-      if (pendingAction === 'discard') {
-        if (playerId !== currentPlayer.id) {
-          return;
-        }
+      action = {
+        type: 'play',
+        actorId,
+        cardId
+      };
+    }
 
-        game.discardCard(cardId);
+    if (pendingAction === 'discard') {
+      if (playerId !== actorId) {
         return;
       }
 
-      if (pendingAction === 'hint-color') {
-        if (playerId === currentPlayer.id) {
-          return;
-        }
+      action = {
+        type: 'discard',
+        actorId,
+        cardId
+      };
+    }
 
-        game.giveColorHint(playerId, selectedCard.suit);
+    if (pendingAction === 'hint-color') {
+      if (playerId === actorId) {
         return;
       }
 
-      if (pendingAction === 'hint-number') {
-        if (playerId === currentPlayer.id) {
-          return;
-        }
+      action = {
+        type: 'hint-color',
+        actorId,
+        targetPlayerId: playerId,
+        suit: selectedCard.suit
+      };
+    }
 
-        game.giveNumberHint(playerId, selectedCard.number);
+    if (pendingAction === 'hint-number') {
+      if (playerId === actorId) {
+        return;
       }
-    });
+
+      action = {
+        type: 'hint-number',
+        actorId,
+        targetPlayerId: playerId,
+        number: selectedCard.number
+      };
+    }
+
+    if (!action) {
+      return;
+    }
+
+    activeSession.sendAction(action);
+    setPendingAction(null);
   }
 
   function openLogDrawer(): void {
@@ -247,6 +677,10 @@ function App() {
   }
 
   function toggleMenu(): void {
+    if (!isLocalDebugMode) {
+      return;
+    }
+
     if (isLogDrawerOpen) {
       setIsLogDrawerOpen(false);
     }
@@ -263,17 +697,34 @@ function App() {
     setIsMenuOpen(false);
     setIsLogDrawerOpen(false);
     setIsDebugMode(false);
-    commit(() => {
-      game.cancelSelection();
+    commitLocal(() => {
+      debugGame.cancelSelection();
     });
   }
 
   function handleDebugToggle(): void {
     setIsDebugMode((current) => !current);
     setIsMenuOpen(false);
-    commit(() => {
-      game.cancelSelection();
+    commitLocal(() => {
+      debugGame.cancelSelection();
     });
+  }
+
+  function handleEnableDebugMode(): void {
+    if (isDebugNetworkFrame) {
+      return;
+    }
+
+    setIsDebugMode(true);
+  }
+
+  function handleOpenDebugNetworkShell(): void {
+    if (isDebugNetworkFrame || !onOpenDebugNetworkShell) {
+      return;
+    }
+
+    setIsMenuOpen(false);
+    onOpenDebugNetworkShell();
   }
 
   function handleNegativeColorHintsToggle(): void {
@@ -286,10 +737,70 @@ function App() {
     setIsMenuOpen(false);
   }
 
-  useEffect(() => {
-    if (!isLogDrawerOpen) return;
-    logListRef.current?.scrollTo({ top: 0 });
-  }, [isLogDrawerOpen]);
+  function handleReconnectPress(): void {
+    activeSession.requestSync();
+    setPendingAction(null);
+  }
+
+  if (showLobby) {
+    return (
+      <LobbyScreen
+        roomId={onlineState.roomId}
+        status={onlineState.status}
+        error={onlineState.error}
+        members={onlineState.members}
+        hostId={onlineState.hostId}
+        isHost={onlineState.isHost}
+        phase={onlineState.phase}
+        settings={onlineState.settings}
+        isGameInProgress={onlineState.phase === 'playing' && !isOnlineParticipant}
+        onStart={activeSession.startGame}
+        onReconnect={activeSession.requestSync}
+        onEnableDebugMode={isDebugNetworkFrame ? null : handleEnableDebugMode}
+        onEnableDebugNetwork={isDebugNetworkFrame ? null : handleOpenDebugNetworkShell}
+        onUpdateSettings={activeSession.updateSettings}
+      />
+    );
+  }
+
+  if (!activeGameState || !perspective) {
+    return (
+      <main className="lobby" data-testid="lobby-root">
+        <section className="lobby-card">
+          <h1 className="lobby-title">Waiting For Room Snapshot</h1>
+          <button
+            type="button"
+            className="lobby-button"
+            onClick={activeSession.requestSync}
+            data-testid="lobby-reconnect"
+          >
+            Reconnect
+          </button>
+        </section>
+      </main>
+    );
+  }
+
+  const others = perspective.players.filter((player) => player.id !== perspective.viewerId);
+  const viewer = perspective.players.find((player) => player.id === perspective.viewerId);
+  if (!viewer) {
+    throw new Error(`Missing viewer ${perspective.viewerId}`);
+  }
+
+  const tablePlayers = [...others, viewer];
+  const lastLog = perspective.logs[perspective.logs.length - 1] ?? null;
+  const orderedLogs = [...perspective.logs].reverse();
+  const hintTokenStates = Array.from({ length: perspective.maxHintTokens }, (_, index) => index < perspective.hintTokens);
+  const remainingFuses = perspective.maxFuseTokens - perspective.fuseTokensUsed;
+  const fuseTokenStates = Array.from({ length: perspective.maxFuseTokens }, (_, index) => index < remainingFuses);
+  const gameOver = isTerminalStatus(perspective.status);
+  const isOnlineTurn = !isLocalDebugMode && onlineState.selfId !== null && perspective.currentTurnPlayerId === onlineState.selfId;
+  const canAct = isLocalDebugMode || (onlineState.status === 'connected' && isOnlineTurn);
+  const showReconnectAction = !isLocalDebugMode && onlineState.status !== 'connected';
+  const discardDisabled = gameOver || !canAct || perspective.hintTokens >= perspective.maxHintTokens;
+  const colorHintDisabled = gameOver || !canAct || perspective.hintTokens <= 0;
+  const numberHintDisabled = gameOver || !canAct || perspective.hintTokens <= 0;
+  const playDisabled = gameOver || !canAct;
 
   return (
     <main className="app" data-testid="app-root">
@@ -332,13 +843,13 @@ function App() {
 
       <section
         className="fireworks"
-        style={{ '--suit-count': String(perspective.activeSuits.length) } as React.CSSProperties}
+        style={{ '--suit-count': String(perspective.activeSuits.length) } as CSSProperties}
         data-testid="fireworks-grid"
       >
         {perspective.activeSuits.map((suit) => {
           const height = perspective.fireworksHeights[suit];
           return (
-            <div key={suit} className="tower" style={{ '--suit': suitColors[suit] } as React.CSSProperties} data-testid={`tower-${suit}`}>
+            <div key={suit} className="tower" style={{ '--suit': suitColors[suit] } as CSSProperties} data-testid={`tower-${suit}`}>
               <div className="tower-stack">
                 {CARD_NUMBERS.map((num) => {
                   const isLit = num <= height;
@@ -371,7 +882,7 @@ function App() {
 
       <section
         className="table-shell"
-        style={{ '--player-count': String(tablePlayers.length) } as React.CSSProperties}
+        style={{ '--player-count': String(tablePlayers.length) } as CSSProperties}
         data-testid="table-shell"
       >
         {tablePlayers.map((player) => (
@@ -409,7 +920,7 @@ function App() {
 
       <section className="bottom-panel">
         <button type="button" className="last-action" onClick={openLogDrawer} data-testid="status-last-action">
-          <span className="last-action-label">Last</span>
+          <span className="last-action-label">{formatPendingAction(isLocalDebugMode ? debugGame.state.ui.pendingAction : pendingAction)}</span>
           <span className="last-action-message">{lastLog ? formatLogMessage(lastLog) : 'No actions yet'}</span>
         </button>
 
@@ -420,7 +931,7 @@ function App() {
               className="action-button danger"
               data-testid="actions-discard"
               onClick={handleDiscardPress}
-              disabled={gameOver || !isDebugMode}
+              disabled={discardDisabled}
             >
               <span className="action-main">Discard</span>
             </button>
@@ -432,25 +943,38 @@ function App() {
               className="action-button"
               data-testid="actions-number"
               onClick={handleHintNumberPress}
-              disabled={gameOver || !isDebugMode}
+              disabled={numberHintDisabled}
             >
               <span className="action-main">Number</span>
             </button>
           </div>
 
           <div className="action-slot">
-            <button
-              type="button"
-              className="action-button menu-toggle"
-              aria-label="Open menu"
-              aria-expanded={isMenuOpen}
-              data-testid="actions-menu"
-              onClick={toggleMenu}
-            >
-              <span />
-              <span />
-              <span />
-            </button>
+            {isLocalDebugMode ? (
+              <button
+                type="button"
+                className="action-button menu-toggle"
+                aria-label="Open menu"
+                aria-expanded={isMenuOpen}
+                data-testid="actions-menu"
+                onClick={toggleMenu}
+              >
+                <span />
+                <span />
+                <span />
+              </button>
+            ) : showReconnectAction ? (
+              <button
+                type="button"
+                className="action-button"
+                data-testid="actions-reconnect"
+                onClick={handleReconnectPress}
+              >
+                <span className="action-main">Reconnect</span>
+              </button>
+            ) : (
+              <div className="action-spacer" aria-hidden />
+            )}
           </div>
 
           <div className="action-slot">
@@ -459,7 +983,7 @@ function App() {
               className="action-button"
               data-testid="actions-color"
               onClick={handleHintColorPress}
-              disabled={gameOver || !isDebugMode}
+              disabled={colorHintDisabled}
             >
               <span className="action-main">Color</span>
             </button>
@@ -471,7 +995,7 @@ function App() {
               className="action-button primary"
               data-testid="actions-play"
               onClick={handlePlayPress}
-              disabled={gameOver || !isDebugMode}
+              disabled={playDisabled}
             >
               <span className="action-main">Play</span>
             </button>
@@ -479,45 +1003,57 @@ function App() {
         </section>
       </section>
 
-      <button
-        type="button"
-        className={`menu-scrim ${isMenuOpen ? 'open' : ''}`}
-        aria-label="Close menu"
-        aria-hidden={!isMenuOpen}
-        tabIndex={isMenuOpen ? 0 : -1}
-        onClick={closeMenu}
-      />
+      {isLocalDebugMode && (
+        <>
+          <button
+            type="button"
+            className={`menu-scrim ${isMenuOpen ? 'open' : ''}`}
+            aria-label="Close menu"
+            aria-hidden={!isMenuOpen}
+            tabIndex={isMenuOpen ? 0 : -1}
+            onClick={closeMenu}
+          />
 
-      <aside className={`menu-panel ${isMenuOpen ? 'open' : ''}`} aria-hidden={!isMenuOpen}>
-        <button type="button" className="menu-item" data-testid="menu-leave" onClick={handleLeavePress}>Leave</button>
-        <button
-          type="button"
-          className="menu-item menu-toggle-item"
-          data-testid="menu-debug-toggle"
-          onClick={handleDebugToggle}
-        >
-          <span>Debug</span>
-          <span data-testid="menu-debug-value">{isDebugMode ? 'On' : 'Off'}</span>
-        </button>
-        <button
-          type="button"
-          className="menu-item menu-toggle-item"
-          data-testid="menu-negative-color-toggle"
-          onClick={handleNegativeColorHintsToggle}
-        >
-          <span>Negative Color Hints</span>
-          <span data-testid="menu-negative-color-value">{showNegativeColorHints ? 'On' : 'Off'}</span>
-        </button>
-        <button
-          type="button"
-          className="menu-item menu-toggle-item"
-          data-testid="menu-negative-number-toggle"
-          onClick={handleNegativeNumberHintsToggle}
-        >
-          <span>Negative Number Hints</span>
-          <span data-testid="menu-negative-number-value">{showNegativeNumberHints ? 'On' : 'Off'}</span>
-        </button>
-      </aside>
+          <aside className={`menu-panel ${isMenuOpen ? 'open' : ''}`} aria-hidden={!isMenuOpen}>
+            <button type="button" className="menu-item" data-testid="menu-leave" onClick={handleLeavePress}>Leave</button>
+            <button
+              type="button"
+              className="menu-item menu-toggle-item"
+              data-testid="menu-debug-toggle"
+              onClick={handleDebugToggle}
+            >
+              <span>Debug</span>
+              <span data-testid="menu-debug-value">{isLocalDebugMode ? 'On' : 'Off'}</span>
+            </button>
+            <button
+              type="button"
+              className="menu-item"
+              data-testid="menu-debug-network"
+              onClick={handleOpenDebugNetworkShell}
+            >
+              Debug Network
+            </button>
+            <button
+              type="button"
+              className="menu-item menu-toggle-item"
+              data-testid="menu-negative-color-toggle"
+              onClick={handleNegativeColorHintsToggle}
+            >
+              <span>Negative Color Hints</span>
+              <span data-testid="menu-negative-color-value">{showNegativeColorHints ? 'On' : 'Off'}</span>
+            </button>
+            <button
+              type="button"
+              className="menu-item menu-toggle-item"
+              data-testid="menu-negative-number-toggle"
+              onClick={handleNegativeNumberHintsToggle}
+            >
+              <span>Negative Number Hints</span>
+              <span data-testid="menu-negative-number-value">{showNegativeNumberHints ? 'On' : 'Off'}</span>
+            </button>
+          </aside>
+        </>
+      )}
 
       <button
         type="button"
@@ -549,6 +1085,170 @@ function App() {
           ))}
         </div>
       </aside>
+    </main>
+  );
+}
+
+function LobbyScreen({
+  roomId,
+  status,
+  error,
+  members,
+  hostId,
+  isHost,
+  phase,
+  settings,
+  isGameInProgress,
+  onStart,
+  onReconnect,
+  onEnableDebugMode,
+  onEnableDebugNetwork,
+  onUpdateSettings
+}: {
+  roomId: string;
+  status: OnlineState['status'];
+  error: string | null;
+  members: RoomMember[];
+  hostId: string | null;
+  isHost: boolean;
+  phase: 'lobby' | 'playing';
+  settings: LobbySettings;
+  isGameInProgress: boolean;
+  onStart: () => void;
+  onReconnect: () => void;
+  onEnableDebugMode: (() => void) | null;
+  onEnableDebugNetwork: (() => void) | null;
+  onUpdateSettings: (next: Partial<LobbySettings>) => void;
+}) {
+  const host = members.find((member) => member.peerId === hostId) ?? null;
+  const canStart = phase === 'lobby' && members.length >= 2 && members.length <= 5;
+  const showReconnect = status !== 'connected' || error !== null;
+  const playerCountError = members.length > 5 ? 'Max 5 players' : (members.length < 2 ? 'Need at least 2 players' : null);
+
+  return (
+    <main className="lobby" data-testid="lobby-root">
+      <section className="lobby-card">
+        <header className="lobby-header">
+          <h1 className="lobby-title">Room Staging</h1>
+          <div className="lobby-header-actions">
+            {onEnableDebugMode && (
+              <button
+                type="button"
+                className="lobby-button subtle"
+                onClick={onEnableDebugMode}
+                data-testid="lobby-debug-mode"
+              >
+                Debug Local
+              </button>
+            )}
+            {onEnableDebugNetwork && (
+              <button
+                type="button"
+                className="lobby-button subtle"
+                onClick={onEnableDebugNetwork}
+                data-testid="lobby-debug-network"
+              >
+                Debug Network
+              </button>
+            )}
+          </div>
+        </header>
+
+        <p className="lobby-room-line" data-testid="lobby-room-line">Room {roomId}</p>
+
+        {error && (
+          <p className="lobby-note error" data-testid="lobby-error">
+            {error}
+          </p>
+        )}
+
+        {isGameInProgress && (
+          <p className="lobby-note warning" data-testid="lobby-game-progress">
+            Game in progress. You will join next round from this room.
+          </p>
+        )}
+
+        <section className="lobby-players">
+          <h2 className="lobby-section-title">Players ({members.length})</h2>
+          <div className="lobby-player-list">
+            {members.map((member) => (
+              <article key={member.peerId} className="lobby-player" data-testid={`lobby-player-${member.peerId}`}>
+                <div>
+                  <div className="lobby-player-name">{member.name}</div>
+                </div>
+                <div className="lobby-chip-row">
+                  {member.peerId === hostId && <span className="lobby-chip host">Host</span>}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="lobby-settings">
+          <h2 className="lobby-section-title">Configuration</h2>
+          {isHost && phase === 'lobby' ? (
+            <div className="lobby-toggle-list">
+              <button
+                type="button"
+                className="lobby-setting-toggle"
+                onClick={() => onUpdateSettings({ includeMulticolor: !settings.includeMulticolor })}
+                data-testid="lobby-setting-extra-suit"
+              >
+                <span>Extra suit (M)</span>
+                <span>{settings.includeMulticolor ? 'On' : 'Off'}</span>
+              </button>
+              <button
+                type="button"
+                className="lobby-setting-toggle"
+                onClick={() => onUpdateSettings({ multicolorShortDeck: !settings.multicolorShortDeck })}
+                disabled={!settings.includeMulticolor}
+                data-testid="lobby-setting-short-deck"
+              >
+                <span>Multicolor short deck</span>
+                <span>{settings.multicolorShortDeck ? 'On' : 'Off'}</span>
+              </button>
+              <button
+                type="button"
+                className="lobby-setting-toggle"
+                onClick={() => onUpdateSettings({ endlessMode: !settings.endlessMode })}
+                data-testid="lobby-setting-endless"
+              >
+                <span>Endless mode</span>
+                <span>{settings.endlessMode ? 'On' : 'Off'}</span>
+              </button>
+            </div>
+          ) : (
+            <ul className="lobby-settings-list" data-testid="lobby-settings-readonly">
+              <li>Extra suit (M): {settings.includeMulticolor ? 'On' : 'Off'}</li>
+              <li>Multicolor short deck: {settings.multicolorShortDeck ? 'On' : 'Off'}</li>
+              <li>Endless mode: {settings.endlessMode ? 'On' : 'Off'}</li>
+            </ul>
+          )}
+        </section>
+
+        {playerCountError && isHost && phase === 'lobby' && (
+          <p className="lobby-note warning" data-testid="lobby-player-count-warning">
+            {playerCountError}
+          </p>
+        )}
+
+        <section className="lobby-actions">
+          {showReconnect && (
+            <button type="button" className="lobby-button" onClick={onReconnect} data-testid="lobby-reconnect">
+              Reconnect
+            </button>
+          )}
+          {isHost && phase === 'lobby' ? (
+            <button type="button" className="lobby-button primary" onClick={onStart} disabled={!canStart} data-testid="lobby-start">
+              Start Game
+            </button>
+          ) : (
+            <p className="lobby-waiting" data-testid="lobby-waiting-host">
+              Waiting on {host?.name ?? 'host'} to start.
+            </p>
+          )}
+        </section>
+      </section>
     </main>
   );
 }
@@ -592,7 +1292,7 @@ function CardView({
     <button
       type="button"
       className="card"
-      style={{ '--card-bg': bgColor } as React.CSSProperties}
+      style={{ '--card-bg': bgColor } as CSSProperties}
       onClick={onSelect}
       data-testid={testId}
       aria-pressed={false}
@@ -602,19 +1302,19 @@ function CardView({
       </div>
       <div className={`badges ${hasHints ? 'visible' : 'empty'}`}>
         {knownColor && knownNumber && (
-          <span className="badge combined" style={{ '--badge-color': suitColors[knownColor] } as React.CSSProperties}>
+          <span className="badge combined" style={{ '--badge-color': suitColors[knownColor] } as CSSProperties}>
             {knownColor}
             {knownNumber}
           </span>
         )}
         {knownColor && !knownNumber && (
-          <span className="badge color" style={{ '--badge-color': suitColors[knownColor] } as React.CSSProperties} />
+          <span className="badge color" style={{ '--badge-color': suitColors[knownColor] } as CSSProperties} />
         )}
         {!knownColor && knownNumber && (
           <span className="badge number">{knownNumber}</span>
         )}
         {notColors.map((color) => (
-          <span key={color} className="badge not-color" style={{ '--badge-color': suitColors[color] } as React.CSSProperties}>
+          <span key={color} className="badge not-color" style={{ '--badge-color': suitColors[color] } as CSSProperties}>
             x
           </span>
         ))}

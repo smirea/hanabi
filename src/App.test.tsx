@@ -142,10 +142,8 @@ describe('App local debug wiring', () => {
 
     fireEvent.click(screen.getByTestId('menu-debug-toggle'));
     expect(window.localStorage.getItem('hanabi.debug_mode')).toBe('false');
-    expect(screen.getByTestId('actions-play')).toBeDisabled();
-
-    fireEvent.click(screen.getByTestId('actions-menu'));
-    expect(screen.getByTestId('menu-debug-value')).toHaveTextContent('Off');
+    expect(screen.getByTestId('lobby-root')).toBeInTheDocument();
+    expect(screen.queryByTestId('actions-play')).not.toBeInTheDocument();
   });
 
   test('negative hint toggles default to on and persist in local storage', () => {
@@ -186,5 +184,36 @@ describe('App local debug wiring', () => {
     fireEvent.click(screen.getByTestId('actions-menu'));
     fireEvent.click(screen.getByTestId('menu-negative-number-toggle'));
     expect(document.querySelectorAll('.badge.not-number').length).toBe(0);
+  });
+
+  test('non-debug mode renders the staging lobby flow', () => {
+    window.localStorage.setItem('hanabi.debug_mode', 'false');
+    render(<App />);
+
+    expect(screen.getByTestId('lobby-root')).toBeInTheDocument();
+    expect(screen.getByTestId('lobby-waiting-host')).toBeInTheDocument();
+    expect(screen.queryByTestId('lobby-start')).not.toBeInTheDocument();
+  });
+
+  test('debug network shell switches iframe hash between local simulated players', () => {
+    window.localStorage.setItem('hanabi.debug_network_shell', 'true');
+    window.localStorage.setItem('hanabi.debug_network_players', JSON.stringify(['1', '2']));
+    window.localStorage.setItem('hanabi.debug_network_active_player', JSON.stringify('1'));
+
+    render(<App />);
+
+    const frame = screen.getByTestId('debug-network-frame');
+    expect(frame.getAttribute('src')).toContain('#debug-1');
+
+    fireEvent.click(screen.getByTestId('debug-network-player-2'));
+    expect(frame.getAttribute('src')).toContain('#debug-2');
+
+    fireEvent.click(screen.getByTestId('debug-network-add'));
+    expect(screen.getByTestId('debug-network-player-3')).toBeInTheDocument();
+    expect(frame.getAttribute('src')).toContain('#debug-3');
+
+    fireEvent.click(screen.getByTestId('debug-network-remove'));
+    expect(screen.queryByTestId('debug-network-player-3')).not.toBeInTheDocument();
+    expect(frame.getAttribute('src')).toContain('#debug-2');
   });
 });
