@@ -1,0 +1,73 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      S3_BUCKET: stf.lol
+      S3_PREFIX: hanabi
+      CLOUDFRONT_DISTRIBUTION_ID: EF8ZR6OCMZQ48
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Unit tests
+        run: bun run test
+
+      - name: UI tests
+        run: bun run test:ui
+
+      - name: Build
+        run: bun run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload immutable assets
+        run: |
+          aws s3 sync dist/ "s3://${S3_BUCKET}/${S3_PREFIX}/" \
+            --delete \
+            --exclude "index.html" \
+            --cache-control "public,max-age=31536000,immutable"
+
+      - name: Upload index.html
+        run: |
+          aws s3 cp dist/index.html "s3://${S3_BUCKET}/${S3_PREFIX}/index.html" \
+            --cache-control "no-cache,no-store,must-revalidate" \
+            --content-type "text/html; charset=utf-8"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
+            --paths "/" "/index.html"

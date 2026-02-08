@@ -52,5 +52,17 @@ Each card tracks and renders:
 - `bun run preview` to build then serve `dist/index.html`.
 - `bun run lint`, `bun run typecheck`, `bun run test`.
 
-## Deployment (Later)
-- Final deployment target: static assets in an S3 bucket.
+## Deployment (Production)
+- Runtime target: `https://hanabi.stf.lol`.
+- AWS architecture: private S3 bucket `stf.lol` with app assets under `s3://stf.lol/hanabi/`, served through CloudFront distribution `EF8ZR6OCMZQ48` (`d1yq9wamlmytcc.cloudfront.net`).
+- TLS certificate: ACM certificate in `us-east-1` for `*.stf.lol` (also covering `stf.lol`), attached to CloudFront.
+- DNS (Namecheap):
+  - `hanabi` CNAME -> `d1yq9wamlmytcc.cloudfront.net`.
+  - ACM DNS validation CNAME must remain in place for certificate renewals.
+- CI/CD: GitHub Actions workflow in `.github/workflows/deploy.yml`.
+  - Trigger: every push to `master` (plus manual `workflow_dispatch`).
+  - Flow: install -> lint -> typecheck -> tests -> build -> sync `dist` to `s3://stf.lol/hanabi/` -> CloudFront invalidation.
+  - Cache strategy: hashed assets are uploaded with long-lived immutable cache headers; `index.html` is uploaded with no-cache headers.
+- Required GitHub repository secrets:
+  - `AWS_ACCESS_KEY_ID`
+  - `AWS_SECRET_ACCESS_KEY`
