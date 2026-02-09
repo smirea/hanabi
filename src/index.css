@@ -1048,6 +1048,7 @@ body {
 .table-shell.compact .player-name {
   writing-mode: vertical-rl;
   text-orientation: mixed;
+  transform: rotate(180deg);
   font-size: 0.66rem;
   font-weight: 800;
   line-height: 1.1;
