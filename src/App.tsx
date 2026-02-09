@@ -783,6 +783,7 @@ function GameClient({
   const debugGame = gameRef.current;
   const [debugGameState, setDebugGameState] = useState(() => debugGame.getSnapshot());
   const [isLogDrawerOpen, setIsLogDrawerOpen] = useState(false);
+  const [isLogDrawerMounted, setIsLogDrawerMounted] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLeaveGameArmed, setIsLeaveGameArmed] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingCardAction>(null);
@@ -814,6 +815,8 @@ function GameClient({
   const fuseTokenSlotRefs = useRef<Array<HTMLSpanElement | null>>([]);
   const [isActionAnimationRunning, setIsActionAnimationRunning] = useState(false);
   const [turnLockPlayerId, setTurnLockPlayerId] = useState<PlayerId | null>(null);
+  const logDrawerTokenRef = useRef(0);
+  const logDrawerCloseTimeoutRef = useRef<number | null>(null);
   const animationRunIdRef = useRef(0);
   const prevGameStateRef = useRef<HanabiState | null>(null);
   const layoutSnapshotRef = useRef<{ deckRect: DOMRect | null; cardRects: Map<CardId, DOMRect> } | null>(null);
@@ -828,6 +831,7 @@ function GameClient({
     setTurnLockPlayerId(null);
     setIsMenuOpen(false);
     setIsLogDrawerOpen(false);
+    setIsLogDrawerMounted(false);
     setPendingAction(null);
     setWildColorHintTargetPlayerId(null);
     setEndgamePanel('summary');
@@ -1050,6 +1054,15 @@ function GameClient({
     if (!isLogDrawerOpen) return;
     logListRef.current?.scrollTo({ top: 0 });
   }, [isLogDrawerOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (logDrawerCloseTimeoutRef.current !== null) {
+        window.clearTimeout(logDrawerCloseTimeoutRef.current);
+        logDrawerCloseTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     setPendingAction(null);
@@ -1863,17 +1876,47 @@ function GameClient({
     if (isLogDrawerOpen) return;
     setIsMenuOpen(false);
     setIsLeaveGameArmed(false);
-    setIsLogDrawerOpen(true);
+
+    if (logDrawerCloseTimeoutRef.current !== null) {
+      window.clearTimeout(logDrawerCloseTimeoutRef.current);
+      logDrawerCloseTimeoutRef.current = null;
+    }
+
+    const token = logDrawerTokenRef.current + 1;
+    logDrawerTokenRef.current = token;
+    setIsLogDrawerMounted(true);
+
+    const scheduleOpen = typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
+      ? window.requestAnimationFrame
+      : (callback: FrameRequestCallback) => window.setTimeout(() => callback(performance.now()), 0);
+
+    scheduleOpen(() => {
+      if (logDrawerTokenRef.current !== token) {
+        return;
+      }
+
+      setIsLogDrawerOpen(true);
+    });
   }
 
   function closeLogDrawer(): void {
-    if (!isLogDrawerOpen) return;
+    if (!isLogDrawerMounted) return;
+    logDrawerTokenRef.current += 1;
     setIsLogDrawerOpen(false);
+
+    if (logDrawerCloseTimeoutRef.current !== null) {
+      window.clearTimeout(logDrawerCloseTimeoutRef.current);
+    }
+
+    logDrawerCloseTimeoutRef.current = window.setTimeout(() => {
+      logDrawerCloseTimeoutRef.current = null;
+      setIsLogDrawerMounted(false);
+    }, 280);
   }
 
   function toggleMenu(): void {
-    if (isLogDrawerOpen) {
-      setIsLogDrawerOpen(false);
+    if (isLogDrawerMounted) {
+      closeLogDrawer();
     }
 
     setIsMenuOpen((current) => {
@@ -1898,7 +1941,7 @@ function GameClient({
 
     setIsLeaveGameArmed(false);
     setIsMenuOpen(false);
-    setIsLogDrawerOpen(false);
+    closeLogDrawer();
     setPendingAction(null);
 
     const next = !isDebugMode;
@@ -1930,7 +1973,7 @@ function GameClient({
 
     setIsLeaveGameArmed(false);
     setIsMenuOpen(false);
-    setIsLogDrawerOpen(false);
+    closeLogDrawer();
     setPendingAction(null);
     setWildColorHintTargetPlayerId(null);
 
@@ -2015,7 +2058,7 @@ function GameClient({
     }
 
     setIsMenuOpen(false);
-    setIsLogDrawerOpen(false);
+    closeLogDrawer();
     setPendingAction(null);
 
     let loaded: HanabiState | null = null;
@@ -2160,7 +2203,7 @@ function GameClient({
   function backToStart(): void {
     setEndgamePanel('summary');
     setIsMenuOpen(false);
-    setIsLogDrawerOpen(false);
+    closeLogDrawer();
     setPendingAction(null);
     setWildColorHintTargetPlayerId(null);
 
@@ -2540,36 +2583,40 @@ function GameClient({
 	        </aside>
       </>
 
-      <button
-        type="button"
-        className={`drawer-scrim ${isLogDrawerOpen ? 'open' : ''}`}
-        aria-label="Close action log"
-        aria-hidden={!isLogDrawerOpen}
-        tabIndex={isLogDrawerOpen ? 0 : -1}
-        onClick={closeLogDrawer}
-      />
-
-      <aside className={`log-drawer ${isLogDrawerOpen ? 'open' : ''}`} aria-hidden={!isLogDrawerOpen}>
-        <header className="log-drawer-header">
-          <span className="log-drawer-title">Action Log</span>
+      {isLogDrawerMounted && (
+        <>
           <button
             type="button"
-            className="log-drawer-close action-button"
+            className={`drawer-scrim ${isLogDrawerOpen ? 'open' : ''}`}
+            aria-label="Close action log"
+            aria-hidden={!isLogDrawerOpen}
+            tabIndex={isLogDrawerOpen ? 0 : -1}
             onClick={closeLogDrawer}
-            data-testid="log-close"
-          >
-            Close
-          </button>
-        </header>
-        <div ref={logListRef} className="log-list" data-testid="log-list">
-          {orderedLogs.map((logEntry) => (
-            <article key={logEntry.id} className="log-item" data-testid={`log-item-${logEntry.id}`}>
-              <span className={`log-kind ${logEntry.type}`}>{getLogBadge(logEntry)}</span>
-              <span className="log-item-message">{renderLogMessage(logEntry)}</span>
-            </article>
-          ))}
-        </div>
-      </aside>
+          />
+
+          <aside className={`log-drawer ${isLogDrawerOpen ? 'open' : ''}`} aria-hidden={!isLogDrawerOpen}>
+            <header className="log-drawer-header">
+              <span className="log-drawer-title">Action Log</span>
+              <button
+                type="button"
+                className="log-drawer-close action-button"
+                onClick={closeLogDrawer}
+                data-testid="log-close"
+              >
+                Close
+              </button>
+            </header>
+            <div ref={logListRef} className="log-list" data-testid="log-list">
+              {orderedLogs.map((logEntry) => (
+                <article key={logEntry.id} className="log-item" data-testid={`log-item-${logEntry.id}`}>
+                  <span className={`log-kind ${logEntry.type}`}>{getLogBadge(logEntry)}</span>
+                  <span className="log-item-message">{renderLogMessage(logEntry)}</span>
+                </article>
+              ))}
+            </div>
+          </aside>
+        </>
+      )}
 
       <div className="animation-layer" ref={animationLayerRef} aria-hidden data-testid="animation-layer" />
 
