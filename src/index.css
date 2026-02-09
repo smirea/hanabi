@@ -895,6 +895,61 @@ body {
   background: rgba(233, 241, 255, 0.95);
 }
 
+.wild-color-picker {
+  position: fixed;
+  left: var(--screen-pad-x);
+  right: var(--screen-pad-x);
+  bottom: calc(var(--bottom-panel-height) + env(safe-area-inset-bottom) + 0.24rem);
+  z-index: 28;
+  padding: 0.24rem;
+  border-radius: 10px;
+  border: 1px solid rgba(189, 198, 217, 0.94);
+  background: rgba(249, 251, 255, 0.98);
+  box-shadow: 0 8px 20px rgba(27, 37, 56, 0.18);
+}
+
+.wild-color-picker-buttons {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.16rem;
+}
+
+.wild-color-button {
+  min-height: 2rem;
+  border-radius: 8px;
+  border: 1px solid rgba(170, 183, 209, 0.85);
+  background: var(--suit);
+  color: rgba(255, 255, 255, 0.95);
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.wild-color-button:active {
+  transform: scale(0.97);
+}
+
+.wild-color-cancel {
+  min-height: 2rem;
+  border-radius: 8px;
+  border: 1px solid var(--gray-300);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--gray-600);
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.wild-color-cancel:active {
+  transform: scale(0.97);
+}
+
 .menu-scrim {
   all: unset;
   position: fixed;

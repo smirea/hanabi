@@ -94,6 +94,7 @@ function createAlmostWonState(): any {
     settings: {
       includeMulticolor: false,
       multicolorShortDeck: false,
+      multicolorWildHints: false,
       endlessMode: false,
       activeSuits: ['R', 'Y', 'G', 'B', 'W'],
       maxHintTokens: 8,
@@ -728,6 +729,84 @@ describe('HanabiGame', () => {
   test('perspective view rejects unknown viewer ids', () => {
     const game = new HanabiGame({ playerNames: ['A', 'B'] });
     expect(() => game.getPerspectiveState('missing')).toThrow('Unknown perspective player: missing');
+  });
+
+  test('wild multicolor hints treat multicolor cards as matching any color clue', () => {
+    const game = new HanabiGame({
+      playerNames: ['A', 'B'],
+      includeMulticolor: true,
+      multicolorWildHints: true,
+      deck: twoPlayerDeck(
+        [card('W', 1), card('W', 2), card('W', 3), card('W', 4), card('W', 5)],
+        [card('M', 1), card('R', 2), card('Y', 3), card('G', 4), card('B', 5)]
+      )
+    });
+
+    game.beginColorHintSelection();
+    game.selectHintTarget('p2');
+    game.selectHintColor('R');
+
+    const targetCards = game.state.players[1].cards;
+    const expectedHighlighted = targetCards.filter((cardId) => ['R', 'M'].includes(game.state.cards[cardId].suit));
+    expect(game.state.ui.highlightedCardIds).toEqual(expectedHighlighted);
+
+    game.confirmSelection();
+
+    for (const cardId of targetCards) {
+      const hintedCard = game.state.cards[cardId];
+      const touched = hintedCard.suit === 'R' || hintedCard.suit === 'M';
+      if (touched) {
+        expect(hintedCard.hints.recentlyHinted).toBeTrue();
+        expect(hintedCard.hints.color).toBeNull();
+        expect(hintedCard.hints.notColors).toEqual(['Y', 'G', 'B', 'W']);
+      } else {
+        expect(hintedCard.hints.recentlyHinted).toBeFalse();
+        expect(hintedCard.hints.color).toBeNull();
+        expect(hintedCard.hints.notColors).toEqual(['R', 'M']);
+      }
+    }
+
+    expect(() => game.giveColorHint('p2', 'M')).toThrow('Cannot call multicolor when multicolorWildHints=true');
+  });
+
+  test('endless mode loses immediately when discarding an indispensable card', () => {
+    const tail = [
+      card('R', 2), card('R', 3), card('R', 4),
+      card('Y', 2), card('Y', 3), card('Y', 4),
+      card('G', 2), card('G', 3), card('G', 4),
+      card('B', 2), card('B', 3), card('B', 4),
+      card('W', 2), card('W', 3), card('W', 4)
+    ];
+
+    const game = new HanabiGame({
+      playerNames: ['A', 'B'],
+      endlessMode: true,
+      deck: twoPlayerDeck(
+        [card('R', 1), card('Y', 1), card('G', 1), card('B', 1), card('W', 1)],
+        [card('R', 5), card('Y', 5), card('G', 5), card('B', 5), card('W', 5)],
+        tail
+      )
+    });
+
+    game.giveNumberHint('p2', 5);
+
+    const r5CardId = game.state.players[1].cards.find((cardId) => {
+      const entry = game.state.cards[cardId];
+      return entry.suit === 'R' && entry.number === 5;
+    });
+    expect(r5CardId).toBeDefined();
+
+    const deckBefore = game.state.drawDeck.length;
+    game.discardCard(r5CardId!);
+
+    expect(game.state.status).toBe('lost');
+    expect(game.state.players[1].cards).toHaveLength(4);
+    expect(game.state.drawDeck).toHaveLength(deckBefore);
+    expect(game.state.logs.at(-1)).toMatchObject({
+      type: 'status',
+      status: 'lost',
+      reason: 'indispensable_card_discarded'
+    });
   });
 
   test('logs keep sequential ids and expected turn stamps across actions', () => {

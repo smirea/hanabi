@@ -31,6 +31,7 @@ if (DEFAULT_ROOM_ID.trim().length === 0) {
 export type LobbySettings = {
   includeMulticolor: boolean;
   multicolorShortDeck: boolean;
+  multicolorWildHints: boolean;
   endlessMode: boolean;
 };
 
@@ -92,6 +93,7 @@ export type OnlineState = {
 const DEFAULT_SETTINGS: LobbySettings = {
   includeMulticolor: false,
   multicolorShortDeck: false,
+  multicolorWildHints: false,
   endlessMode: false
 };
 
@@ -543,6 +545,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
             playerNames: orderedMembers.map((member) => member.name),
             includeMulticolor: hostedSnapshot.settings.includeMulticolor,
             multicolorShortDeck: hostedSnapshot.settings.multicolorShortDeck,
+            multicolorWildHints: hostedSnapshot.settings.multicolorWildHints,
             endlessMode: hostedSnapshot.settings.endlessMode
           });
 

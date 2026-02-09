@@ -1,6 +1,6 @@
 export const SUITS = ['R', 'Y', 'G', 'B', 'W', 'M'] as const;
 const ALL_SUITS = SUITS;
-const BASE_SUITS = ['R', 'Y', 'G', 'B', 'W'] as const;
+export const BASE_SUITS = ['R', 'Y', 'G', 'B', 'W'] as const;
 export const CARD_NUMBERS = [1, 2, 3, 4, 5] as const;
 
 export type Suit = (typeof ALL_SUITS)[number];
@@ -11,7 +11,11 @@ export type PlayerId = string;
 export type PendingAction = 'play' | 'discard' | 'hint-color' | 'hint-number' | null;
 export type GameStatus = 'active' | 'last_round' | 'won' | 'lost' | 'finished';
 type TerminalGameStatus = Extract<GameStatus, 'won' | 'lost' | 'finished'>;
-type EndReason = 'all_fireworks_completed' | 'fuse_limit_reached' | 'final_round_complete';
+type EndReason =
+  | 'all_fireworks_completed'
+  | 'fuse_limit_reached'
+  | 'final_round_complete'
+  | 'indispensable_card_discarded';
 
 export type CardHints = {
   color: Suit | null;
@@ -107,6 +111,7 @@ export type GameUiState = {
 export type GameSettings = {
   includeMulticolor: boolean;
   multicolorShortDeck: boolean;
+  multicolorWildHints: boolean;
   endlessMode: boolean;
   activeSuits: Suit[];
   maxHintTokens: number;
@@ -146,6 +151,7 @@ type NewGameInput = {
   playerIds?: string[];
   includeMulticolor?: boolean;
   multicolorShortDeck?: boolean;
+  multicolorWildHints?: boolean;
   endlessMode?: boolean;
   maxHintTokens?: number;
   maxFuseTokens?: number;
@@ -296,7 +302,7 @@ export class HanabiGame {
 
   public constructor(input?: GameConstructorInput) {
     if (isRestoreInput(input)) {
-      this.state = deepClone(input.state);
+      this.state = HanabiGame.normalizeRestoredState(input.state);
       HanabiGame.validateState(this.state);
       return;
     }
@@ -505,6 +511,10 @@ export class HanabiGame {
       throw new Error(`Color ${suit} is not active in this game`);
     }
 
+    if (this.state.settings.multicolorWildHints && suit === 'M') {
+      throw new Error('Cannot call multicolor when multicolorWildHints=true');
+    }
+
     this.state.ui.selectedHintSuit = suit;
     this.recomputeHintHighlights();
   }
@@ -596,6 +606,12 @@ export class HanabiGame {
       return;
     }
 
+    if (!success && this.state.settings.endlessMode && !this.isPerfectionStillPossible()) {
+      this.transitionToTerminalState('lost', 'indispensable_card_discarded');
+      this.finalizeAction(false);
+      return;
+    }
+
     if (success && this.areAllFireworksComplete()) {
       this.transitionToTerminalState('won', 'all_fireworks_completed');
       this.finalizeAction(false);
@@ -626,6 +642,12 @@ export class HanabiGame {
     this.state.hintTokens += 1;
 
     this.appendDiscardLog(currentPlayer, card, true);
+    if (this.state.settings.endlessMode && !this.isPerfectionStillPossible()) {
+      this.transitionToTerminalState('lost', 'indispensable_card_discarded');
+      this.finalizeAction(false);
+      return;
+    }
+
     const lastCardDrawnThisTurn = this.drawCardForPlayer(this.state.currentTurnPlayerIndex);
     this.finalizeAction(lastCardDrawnThisTurn);
   }
@@ -637,13 +659,20 @@ export class HanabiGame {
       throw new Error(`Color ${suit} is not active in this game`);
     }
 
+    if (this.state.settings.multicolorWildHints && suit === 'M') {
+      throw new Error('Cannot call multicolor when multicolorWildHints=true');
+    }
+
     const currentPlayer = this.state.players[this.state.currentTurnPlayerIndex];
     const targetPlayer = this.getHintTargetPlayerOrThrow(targetPlayerId);
     if (this.state.hintTokens <= 0) {
       throw new Error('Cannot give a hint with zero hint tokens');
     }
 
-    const touchedCardIds = targetPlayer.cards.filter((cardId) => this.state.cards[cardId].suit === suit);
+    const touchedCardIds = targetPlayer.cards.filter((cardId) => {
+      const card = this.getCardOrThrow(cardId);
+      return this.doesCardMatchColorHint(card.suit, suit);
+    });
     if (touchedCardIds.length === 0) {
       throw new Error(`Hint must touch at least one card (${suit})`);
     }
@@ -652,14 +681,18 @@ export class HanabiGame {
     this.clearRecentHints();
     this.state.hintTokens -= 1;
 
-    for (const cardId of targetPlayer.cards) {
-      const card = this.getCardOrThrow(cardId);
-      if (touchedSet.has(cardId)) {
-        card.hints.color = suit;
-        card.hints.notColors = card.hints.notColors.filter((value) => value !== suit);
-        card.hints.recentlyHinted = true;
-      } else {
-        addUnique(card.hints.notColors, suit);
+    if (this.state.settings.multicolorWildHints) {
+      this.applyWildColorHint(targetPlayer, suit, touchedSet);
+    } else {
+      for (const cardId of targetPlayer.cards) {
+        const card = this.getCardOrThrow(cardId);
+        if (touchedSet.has(cardId)) {
+          card.hints.color = suit;
+          card.hints.notColors = card.hints.notColors.filter((value) => value !== suit);
+          card.hints.recentlyHinted = true;
+        } else {
+          addUnique(card.hints.notColors, suit);
+        }
       }
     }
 
@@ -717,9 +750,18 @@ export class HanabiGame {
 
     const includeMulticolor = input?.includeMulticolor ?? false;
     const multicolorShortDeck = input?.multicolorShortDeck ?? false;
+    const multicolorWildHints = input?.multicolorWildHints ?? false;
     const endlessMode = input?.endlessMode ?? false;
     if (multicolorShortDeck && !includeMulticolor) {
       throw new Error('multicolorShortDeck requires includeMulticolor=true');
+    }
+
+    if (multicolorWildHints && !includeMulticolor) {
+      throw new Error('multicolorWildHints requires includeMulticolor=true');
+    }
+
+    if (multicolorWildHints && multicolorShortDeck) {
+      throw new Error('multicolorWildHints cannot be combined with multicolorShortDeck');
     }
 
     const maxHintTokens = input?.maxHintTokens ?? 8;
@@ -800,6 +842,7 @@ export class HanabiGame {
       settings: {
         includeMulticolor,
         multicolorShortDeck,
+        multicolorWildHints,
         endlessMode,
         activeSuits,
         maxHintTokens,
@@ -916,9 +959,15 @@ export class HanabiGame {
         return;
       }
 
-      this.state.ui.highlightedCardIds = target.cards.filter(
-        (cardId) => this.state.cards[cardId].suit === this.state.ui.selectedHintSuit
-      );
+      const hintSuit = this.state.ui.selectedHintSuit;
+      this.state.ui.highlightedCardIds = target.cards.filter((cardId) => {
+        const card = this.state.cards[cardId];
+        if (!card) {
+          throw new Error(`Unknown card in target hand: ${cardId}`);
+        }
+
+        return this.doesCardMatchColorHint(card.suit, hintSuit);
+      });
       return;
     }
 
@@ -936,6 +985,103 @@ export class HanabiGame {
     for (const card of Object.values(this.state.cards)) {
       card.hints.recentlyHinted = false;
     }
+  }
+
+  private doesCardMatchColorHint(cardSuit: Suit, hintSuit: Suit): boolean {
+    if (cardSuit === hintSuit) {
+      return true;
+    }
+
+    return this.state.settings.multicolorWildHints && cardSuit === 'M' && hintSuit !== 'M';
+  }
+
+  private getPossibleSuits(card: Card): Suit[] {
+    if (card.hints.color !== null) {
+      return [card.hints.color];
+    }
+
+    return this.state.settings.activeSuits.filter((suit) => !card.hints.notColors.includes(suit));
+  }
+
+  private setPossibleSuits(card: Card, possibleSuits: Suit[]): void {
+    const uniquePossibleSuits = [...new Set(possibleSuits)];
+    assert(uniquePossibleSuits.length > 0, 'Card cannot have zero possible suits');
+    for (const suit of uniquePossibleSuits) {
+      assert(this.state.settings.activeSuits.includes(suit), `Invalid possible suit: ${String(suit)}`);
+    }
+
+    card.hints.notColors = this.state.settings.activeSuits.filter((suit) => !uniquePossibleSuits.includes(suit));
+    card.hints.color = uniquePossibleSuits.length === 1 ? uniquePossibleSuits[0] : null;
+  }
+
+  private applyWildColorHint(targetPlayer: Player, suit: Suit, touchedSet: Set<CardId>): void {
+    if (!this.state.settings.includeMulticolor) {
+      throw new Error('multicolorWildHints requires includeMulticolor=true');
+    }
+
+    if (!this.state.settings.activeSuits.includes('M')) {
+      throw new Error('multicolorWildHints requires multicolor suit to be active');
+    }
+
+    if (suit === 'M') {
+      throw new Error('Cannot call multicolor when multicolorWildHints=true');
+    }
+
+    const allowedSuits: Suit[] = [suit, 'M'];
+    for (const cardId of targetPlayer.cards) {
+      const card = this.getCardOrThrow(cardId);
+      const touched = touchedSet.has(cardId);
+      const currentPossibleSuits = this.getPossibleSuits(card);
+      const nextPossibleSuits = touched
+        ? currentPossibleSuits.filter((candidate) => allowedSuits.includes(candidate))
+        : currentPossibleSuits.filter((candidate) => !allowedSuits.includes(candidate));
+
+      if (nextPossibleSuits.length === 0) {
+        throw new Error(`Color hint would make card ${cardId} have no possible suits`);
+      }
+
+      this.setPossibleSuits(card, nextPossibleSuits);
+      card.hints.recentlyHinted = touched;
+    }
+  }
+
+  private isPerfectionStillPossible(): boolean {
+    const remaining = createEmptyCountsBySuit();
+
+    for (const cardId of this.state.drawDeck) {
+      const card = this.state.cards[cardId];
+      if (!card) {
+        throw new Error(`Unknown card in drawDeck: ${cardId}`);
+      }
+
+      remaining[card.suit][card.number] += 1;
+    }
+
+    for (const player of this.state.players) {
+      for (const cardId of player.cards) {
+        const card = this.state.cards[cardId];
+        if (!card) {
+          throw new Error(`Unknown card in player hand: ${cardId}`);
+        }
+
+        remaining[card.suit][card.number] += 1;
+      }
+    }
+
+    for (const suit of this.state.settings.activeSuits) {
+      const height = this.state.fireworks[suit].length;
+      for (const number of CARD_NUMBERS) {
+        if (number <= height) {
+          continue;
+        }
+
+        if (remaining[suit][number] <= 0) {
+          return false;
+        }
+      }
+    }
+
+    return true;
   }
 
   private drawCardForPlayer(playerIndex: number): boolean {
@@ -1068,6 +1214,19 @@ export class HanabiGame {
     });
   }
 
+  private static normalizeRestoredState(state: HanabiState): HanabiState {
+    const cloned = deepClone(state);
+    if (!cloned.settings || typeof cloned.settings !== 'object') {
+      return cloned;
+    }
+
+    if (typeof (cloned.settings as any).multicolorWildHints !== 'boolean') {
+      (cloned.settings as any).multicolorWildHints = false;
+    }
+
+    return cloned;
+  }
+
   private static validateState(state: HanabiState): void {
     assert(state && typeof state === 'object', 'State must be an object');
 
@@ -1084,6 +1243,7 @@ export class HanabiGame {
     assert(isInteger(state.settings.maxFuseTokens) && state.settings.maxFuseTokens > 0, 'Invalid maxFuseTokens');
     assert(isInteger(state.settings.handSize) && state.settings.handSize > 0, 'Invalid handSize');
     assert(typeof state.settings.endlessMode === 'boolean', 'endlessMode must be boolean');
+    assert(typeof state.settings.multicolorWildHints === 'boolean', 'multicolorWildHints must be boolean');
     assert(Array.isArray(state.settings.activeSuits), 'activeSuits must be an array');
     assert(state.settings.activeSuits.length > 0, 'activeSuits cannot be empty');
     const activeSuitSet = new Set<Suit>();
@@ -1101,6 +1261,11 @@ export class HanabiGame {
 
     if (state.settings.multicolorShortDeck) {
       assert(state.settings.includeMulticolor, 'multicolorShortDeck requires includeMulticolor=true');
+    }
+
+    if (state.settings.multicolorWildHints) {
+      assert(state.settings.includeMulticolor, 'multicolorWildHints requires includeMulticolor=true');
+      assert(!state.settings.multicolorShortDeck, 'multicolorWildHints cannot be combined with multicolorShortDeck');
     }
 
     assert(isInteger(state.hintTokens), 'hintTokens must be an integer');

@@ -24,17 +24,20 @@ type DebugNetworkRoomState = {
 const DEFAULT_SETTINGS: LobbySettings = {
   includeMulticolor: false,
   multicolorShortDeck: false,
+  multicolorWildHints: false,
   endlessMode: false
 };
 
 function normalizeSettings(input: Partial<LobbySettings> | undefined): LobbySettings {
   const includeMulticolor = Boolean(input?.includeMulticolor);
-  const multicolorShortDeck = includeMulticolor && Boolean(input?.multicolorShortDeck);
+  const multicolorWildHints = includeMulticolor && Boolean(input?.multicolorWildHints);
+  const multicolorShortDeck = includeMulticolor && !multicolorWildHints && Boolean(input?.multicolorShortDeck);
   const endlessMode = Boolean(input?.endlessMode);
 
   return {
     includeMulticolor,
     multicolorShortDeck,
+    multicolorWildHints,
     endlessMode
   };
 }
@@ -391,6 +394,7 @@ export function useDebugNetworkSession(playerId: string | null): OnlineSession {
         playerNames: memberNames,
         includeMulticolor: draft.settings.includeMulticolor,
         multicolorShortDeck: draft.settings.multicolorShortDeck,
+        multicolorWildHints: draft.settings.multicolorWildHints,
         endlessMode: draft.settings.endlessMode
       });
 
@@ -421,6 +425,7 @@ export function useDebugNetworkSession(playerId: string | null): OnlineSession {
       if (
         previous.includeMulticolor === resolved.includeMulticolor
         && previous.multicolorShortDeck === resolved.multicolorShortDeck
+        && previous.multicolorWildHints === resolved.multicolorWildHints
         && previous.endlessMode === resolved.endlessMode
       ) {
         return false;
