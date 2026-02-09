@@ -49,6 +49,7 @@ export type LobbySettings = {
 export type RoomMember = {
   peerId: string;
   name: string;
+  isTv: boolean;
 };
 
 export type RoomPhase = 'lobby' | 'playing';
@@ -67,6 +68,7 @@ type TrysteroRoom = import('trystero').Room;
 
 type HelloMessage = {
   name: string;
+  isTv: boolean;
 };
 
 type SnapshotMessage = {
@@ -127,7 +129,7 @@ function createInitialSnapshot(selfId: string, selfName: string): RoomSnapshot {
     version: 1,
     hostId: selfId,
     phase: 'lobby',
-    members: [{ peerId: selfId, name: selfName }],
+    members: [{ peerId: selfId, name: selfName, isTv: false }],
     settings: DEFAULT_SETTINGS,
     gameState: null
   };
@@ -189,6 +191,7 @@ export type OnlineSession = {
   sendAction: (action: NetworkAction) => void;
   requestSync: () => void;
   setSelfName: (name: string) => void;
+  setSelfIsTv: (isTv: boolean) => void;
 };
 
 export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): OnlineSession {
@@ -197,12 +200,14 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
     roomId
   }));
   const desiredSelfNameRef = useRef('');
+  const desiredSelfIsTvRef = useRef(false);
   const controllerRef = useRef<{
     requestSync: () => void;
     sendAction: (action: NetworkAction) => void;
     updateSettings: (next: Partial<LobbySettings>) => void;
     startGame: () => void;
     setSelfName: (name: string) => void;
+    setSelfIsTv: (isTv: boolean) => void;
   } | null>(null);
 
   useEffect(() => {
@@ -222,6 +227,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
     let syncIntervalId: ReturnType<typeof setInterval> | null = null;
     let selfId = '';
     const peerNames = new Map<string, string>();
+    const peerIsTv = new Map<string, boolean>();
     let isHost = false;
     let currentSnapshot: RoomSnapshot | null = null;
     let hostedSnapshot: RoomSnapshot | null = null;
@@ -284,7 +290,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
 
       const connected = getConnectedPeerIds(selfId, room);
       const baseline = hostedSnapshot ?? currentSnapshot ?? createInitialSnapshot(selfId, peerNames.get(selfId) ?? formatPeerName(selfId));
-      const members = assignMembers(connected, baseline.members, peerNames);
+      const members = assignMembers(connected, baseline.members, peerNames, peerIsTv);
       if (areMembersEqual(members, baseline.members)) {
         return;
       }
@@ -302,7 +308,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
       isHost = true;
       const base = cloneSnapshot(currentSnapshot ?? createInitialSnapshot(selfId, peerNames.get(selfId) ?? formatPeerName(selfId)));
       const connected = getConnectedPeerIds(selfId, room);
-      base.members = assignMembers(connected, base.members, peerNames);
+      base.members = assignMembers(connected, base.members, peerNames, peerIsTv);
       base.hostId = selfId;
       base.version += 1;
       base.settings = normalizeSettings(base.settings);
@@ -377,6 +383,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
       currentSnapshot = cloneSnapshot(snapshot);
       for (const member of currentSnapshot.members) {
         peerNames.set(member.peerId, member.name);
+        peerIsTv.set(member.peerId, member.isTv);
       }
 
       if (snapshot.hostId !== selfId) {
@@ -401,6 +408,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
       const defaultSelfName = formatPeerName(selfId);
       const selfName = sanitizeName(desiredSelfNameRef.current) ?? defaultSelfName;
       peerNames.set(selfId, selfName);
+      peerIsTv.set(selfId, Boolean(desiredSelfIsTvRef.current));
       setState({
         ...INITIAL_STATE,
         status: 'connecting',
@@ -420,13 +428,18 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
       sendSnapshotRequest = sendRequestSnapshotAction;
       sendPlayerAction = sendPlayerActionImpl;
 
-      const announceSelf = (target?: string): void => {
+      const broadcastHello = (target?: string): void => {
         if (!sendHello) {
           return;
         }
 
         const name = peerNames.get(selfId) ?? selfName;
-        void sendHello({ name }, target ?? null);
+        const isTv = peerIsTv.get(selfId) ?? false;
+        void sendHello({ name, isTv }, target ?? null);
+      };
+
+      const announceSelf = (target?: string): void => {
+        broadcastHello(target);
       };
 
       getHelloAction((message, peerId) => {
@@ -435,6 +448,9 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
         }
 
         peerNames.set(peerId, message.name.trim());
+        if (typeof message?.isTv === 'boolean') {
+          peerIsTv.set(peerId, message.isTv);
+        }
         if (isHost) {
           refreshHostedMembers();
         }
@@ -562,15 +578,15 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
             return;
           }
 
-          const orderedMembers = [...hostedSnapshot.members];
+          const orderedPlayers = hostedSnapshot.members.filter((member) => !member.isTv);
 
-          if (orderedMembers.length < 2 || orderedMembers.length > 5) {
+          if (orderedPlayers.length < 2 || orderedPlayers.length > 5) {
             return;
           }
 
           const game = new HanabiGame({
-            playerIds: orderedMembers.map((member) => member.peerId),
-            playerNames: orderedMembers.map((member) => member.name),
+            playerIds: orderedPlayers.map((member) => member.peerId),
+            playerNames: orderedPlayers.map((member) => member.name),
             includeMulticolor: hostedSnapshot.settings.includeMulticolor,
             multicolorShortDeck: hostedSnapshot.settings.multicolorShortDeck,
             multicolorWildHints: hostedSnapshot.settings.multicolorWildHints,
@@ -590,9 +606,21 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
           }
 
           peerNames.set(selfId, resolvedName);
-          if (sendHello) {
-            void sendHello({ name: resolvedName }, null);
+          broadcastHello();
+
+          if (isHost) {
+            refreshHostedMembers();
           }
+        },
+        setSelfIsTv: (isTv) => {
+          const resolved = Boolean(isTv);
+          const current = peerIsTv.get(selfId) ?? false;
+          if (resolved === current) {
+            return;
+          }
+
+          peerIsTv.set(selfId, resolved);
+          broadcastHello();
 
           if (isHost) {
             refreshHostedMembers();
@@ -672,6 +700,11 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
     controllerRef.current?.setSelfName(name);
   }, []);
 
+  const setSelfIsTv = useCallback((isTv: boolean) => {
+    desiredSelfIsTvRef.current = Boolean(isTv);
+    controllerRef.current?.setSelfIsTv(Boolean(isTv));
+  }, []);
+
   return useMemo(
     () => ({
       state,
@@ -679,9 +712,10 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
       updateSettings,
       sendAction,
       requestSync,
-      setSelfName
+      setSelfName,
+      setSelfIsTv
     }),
-    [requestSync, sendAction, setSelfName, startGame, state, updateSettings]
+    [requestSync, sendAction, setSelfIsTv, setSelfName, startGame, state, updateSettings]
   );
 }
 

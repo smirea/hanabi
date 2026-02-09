@@ -578,6 +578,7 @@ function GameClient({
     [framePlayerId, isDebugNetworkFrame]
   );
   const [playerName, setPlayerName] = useLocalStorageState(storageKeys.playerName, '', storageNamespace);
+  const [isTvMode, setIsTvMode] = useLocalStorageState(storageKeys.tvMode, false, storageNamespace);
   const [showNegativeColorHints, setShowNegativeColorHints] = useLocalStorageState(
     storageKeys.negativeColorHints,
     true,
@@ -596,6 +597,7 @@ function GameClient({
   const activeSession: OnlineSession = isDebugNetworkFrame ? debugNetwork : online;
   const onlineState = activeSession.state;
   const setActiveSelfName = activeSession.setSelfName;
+  const setActiveSelfIsTv = activeSession.setSelfIsTv;
 
   useEffect(() => {
     if (isLocalDebugMode) {
@@ -604,6 +606,14 @@ function GameClient({
 
     setActiveSelfName(playerName);
   }, [isLocalDebugMode, playerName, setActiveSelfName]);
+
+  useEffect(() => {
+    if (isLocalDebugMode) {
+      return;
+    }
+
+    setActiveSelfIsTv(isTvMode);
+  }, [isLocalDebugMode, isTvMode, setActiveSelfIsTv]);
 
   const activeGameState = isLocalDebugMode ? debugGameState : onlineState.gameState;
   const discardCounts = useMemo(() => {
@@ -644,10 +654,21 @@ function GameClient({
     return onlineState.gameState.players.some((player) => player.id === onlineState.selfId);
   }, [isLocalDebugMode, onlineState.gameState, onlineState.selfId]);
 
+  const isOnlineTvMember = useMemo(() => {
+    if (isLocalDebugMode || !onlineState.selfId) {
+      return false;
+    }
+
+    return onlineState.members.find((member) => member.peerId === onlineState.selfId)?.isTv ?? false;
+  }, [isLocalDebugMode, onlineState.members, onlineState.selfId]);
+
+  const isTvClient = !isLocalDebugMode && (isTvMode || isOnlineTvMember);
+  const showTv = isTvClient && !isOnlineParticipant && onlineState.phase === 'playing' && onlineState.gameState !== null;
+
   const showLobby = !isLocalDebugMode && (
     onlineState.phase === 'lobby'
     || onlineState.gameState === null
-    || !isOnlineParticipant
+    || (!isOnlineParticipant && !showTv)
   );
 
   const perspectivePlayerId = useMemo(() => {
@@ -1137,6 +1158,8 @@ function GameClient({
         selfId={onlineState.selfId}
         selfName={playerName}
         onSelfNameChange={setPlayerName}
+        selfIsTv={isTvMode}
+        onSelfIsTvChange={setIsTvMode}
         phase={onlineState.phase}
         settings={onlineState.settings}
         isGameInProgress={onlineState.phase === 'playing' && !isOnlineParticipant}
@@ -1147,6 +1170,20 @@ function GameClient({
         onEnableDebugMode={isDebugNetworkFrame ? null : handleEnableDebugMode}
         onEnableDebugNetwork={isDebugNetworkFrame ? null : handleOpenDebugNetworkShell}
         onUpdateSettings={activeSession.updateSettings}
+      />
+    );
+  }
+
+  if (showTv && activeGameState) {
+    return (
+      <TvScreen
+        gameState={activeGameState}
+        discardCounts={discardCounts}
+        status={onlineState.status}
+        error={onlineState.error}
+        onReconnect={activeSession.requestSync}
+        showNegativeColorHints={showNegativeColorHints}
+        showNegativeNumberHints={showNegativeNumberHints}
       />
     );
   }
@@ -1544,6 +1581,8 @@ function LobbyScreen({
   selfId,
   selfName,
   onSelfNameChange,
+  selfIsTv,
+  onSelfIsTvChange,
   phase,
   settings,
   isGameInProgress,
@@ -1564,6 +1603,8 @@ function LobbyScreen({
   selfId: string | null;
   selfName: string;
   onSelfNameChange: (next: string) => void;
+  selfIsTv: boolean;
+  onSelfIsTvChange: (next: boolean) => void;
   phase: 'lobby' | 'playing';
   settings: LobbySettings;
   isGameInProgress: boolean;
@@ -1575,11 +1616,16 @@ function LobbyScreen({
   onEnableDebugNetwork: (() => void) | null;
   onUpdateSettings: (next: Partial<LobbySettings>) => void;
 }) {
-  const host = members.find((member) => member.peerId === hostId) ?? null;
-  const canStart = phase === 'lobby' && members.length >= 2 && members.length <= 5;
+  const effectiveMembers = selfId
+    ? members.map((member) => (member.peerId === selfId ? { ...member, isTv: selfIsTv } : member))
+    : members;
+  const seatedCount = effectiveMembers.filter((member) => !member.isTv).length;
+  const tvCount = effectiveMembers.length - seatedCount;
+  const host = effectiveMembers.find((member) => member.peerId === hostId) ?? null;
+  const canStart = phase === 'lobby' && seatedCount >= 2 && seatedCount <= 5;
   const showReconnect = status !== 'connected' || error !== null;
-  const playerCountError = members.length > 5 ? 'Max 5 players' : (members.length < 2 ? 'Need at least 2 players' : null);
-  const handSize = members.length <= 3 ? 5 : 4;
+  const playerCountError = seatedCount > 5 ? 'Max 5 players' : (seatedCount < 2 ? 'Need at least 2 players' : null);
+  const handSize = seatedCount <= 3 ? 5 : 4;
   const deckSize = 50 + (settings.includeMulticolor ? (settings.multicolorShortDeck ? 5 : 10) : 0);
   const maxScore = (settings.includeMulticolor ? 6 : 5) * 5;
   const defaultNamePlaceholder = selfId ? `Player ${selfId.slice(-4).toUpperCase()}` : 'Player';
@@ -1654,15 +1700,30 @@ function LobbyScreen({
         </div>
 
         <section className="lobby-players">
-          <h2 className="lobby-section-title">Players ({members.length})</h2>
+          <h2 className="lobby-section-title">
+            Players ({seatedCount}){tvCount > 0 ? ` + TVs (${tvCount})` : ''}
+          </h2>
           <div className="lobby-player-list">
-            {members.map((member) => (
+            {effectiveMembers.map((member) => (
               <article key={member.peerId} className="lobby-player" data-testid={`lobby-player-${member.peerId}`}>
                 <div>
                   <div className="lobby-player-name">{member.name}</div>
                 </div>
                 <div className="lobby-chip-row">
                   {member.peerId === hostId && <span className="lobby-chip host">Host</span>}
+                  {member.isTv && <span className="lobby-chip tv">TV</span>}
+                  {member.peerId === selfId && (
+                    <button
+                      type="button"
+                      className={`lobby-tv-toggle ${selfIsTv ? 'on' : 'off'}`}
+                      onClick={() => onSelfIsTvChange(!selfIsTv)}
+                      aria-pressed={selfIsTv}
+                      data-testid="lobby-tv-toggle"
+                    >
+                      <span>TV</span>
+                      <span>{selfIsTv ? 'On' : 'Off'}</span>
+                    </button>
+                  )}
                 </div>
               </article>
             ))}
@@ -1767,17 +1828,288 @@ function LobbyScreen({
   );
 }
 
+function TvScreen({
+  gameState,
+  discardCounts,
+  status,
+  error,
+  onReconnect,
+  showNegativeColorHints,
+  showNegativeNumberHints
+}: {
+  gameState: HanabiState;
+  discardCounts: Map<string, number>;
+  status: OnlineState['status'];
+  error: string | null;
+  onReconnect: () => void;
+  showNegativeColorHints: boolean;
+  showNegativeNumberHints: boolean;
+}) {
+  const activeSuits = gameState.settings.activeSuits;
+  const currentTurnPlayer = gameState.players[gameState.currentTurnPlayerIndex] ?? null;
+  const hintTokenStates = Array.from({ length: gameState.settings.maxHintTokens }, (_, index) => index < gameState.hintTokens);
+  const remainingFuses = gameState.settings.maxFuseTokens - gameState.fuseTokensUsed;
+  const fuseTokenStates = Array.from({ length: gameState.settings.maxFuseTokens }, (_, index) => index < remainingFuses);
+  const score = activeSuits.reduce((sum, suit) => sum + gameState.fireworks[suit].length, 0);
+  const orderedLogs = [...gameState.logs].reverse();
+  const showReconnect = status !== 'connected' || error !== null;
+
+  const { knownUnavailableCounts, knownRemainingCounts } = useMemo(() => {
+    const copiesByNumber: Record<number, number> = {
+      1: 3,
+      2: 2,
+      3: 2,
+      4: 2,
+      5: 1
+    };
+
+    const createEmptyCounts = (): Record<Suit, Record<number, number>> => {
+      const counts = {} as Record<Suit, Record<number, number>>;
+      for (const suit of activeSuits) {
+        const byNumber: Record<number, number> = {};
+        for (const number of CARD_NUMBERS) {
+          byNumber[number] = 0;
+        }
+        counts[suit] = byNumber;
+      }
+      return counts;
+    };
+
+    const unavailable = createEmptyCounts();
+    for (const cardId of gameState.discardPile) {
+      const card = gameState.cards[cardId];
+      if (!card || !unavailable[card.suit]) {
+        continue;
+      }
+
+      unavailable[card.suit][card.number] = (unavailable[card.suit][card.number] ?? 0) + 1;
+    }
+
+    for (const suit of activeSuits) {
+      for (const cardId of gameState.fireworks[suit]) {
+        const card = gameState.cards[cardId];
+        if (!card || !unavailable[card.suit]) {
+          continue;
+        }
+
+        unavailable[card.suit][card.number] = (unavailable[card.suit][card.number] ?? 0) + 1;
+      }
+    }
+
+    const remaining = createEmptyCounts();
+    for (const suit of activeSuits) {
+      for (const number of CARD_NUMBERS) {
+        const totalCopies = suit === 'M' && gameState.settings.multicolorShortDeck
+          ? 1
+          : (copiesByNumber[number] ?? 0);
+        remaining[suit][number] = Math.max(0, totalCopies - (unavailable[suit][number] ?? 0));
+      }
+    }
+
+    return {
+      knownUnavailableCounts: unavailable,
+      knownRemainingCounts: remaining
+    };
+  }, [activeSuits, gameState.cards, gameState.discardPile, gameState.fireworks, gameState.settings.multicolorShortDeck]);
+
+  const tvPlayers = useMemo(() => {
+    const currentTurnPlayerId = currentTurnPlayer?.id ?? null;
+
+    return gameState.players.map((player) => ({
+      id: player.id,
+      name: player.name,
+      isCurrentTurn: player.id === currentTurnPlayerId,
+      cards: player.cards.map((cardId) => {
+        const card = gameState.cards[cardId];
+        if (!card) {
+          throw new Error(`Missing card ${cardId}`);
+        }
+
+        return {
+          id: card.id,
+          suit: null,
+          number: null,
+          hints: structuredClone(card.hints),
+          isHiddenFromViewer: true
+        } satisfies PerspectiveCard;
+      })
+    }));
+  }, [currentTurnPlayer?.id, gameState.cards, gameState.players]);
+
+  return (
+    <main
+      className="tv"
+      style={{ '--hand-size': String(gameState.settings.handSize) } as CSSProperties}
+      data-testid="tv-root"
+    >
+      <section className="tv-stage">
+        <header className="tv-header">
+          <div className="tv-header-title">
+            <h1 className="tv-title" data-testid="tv-title">TV Mode</h1>
+            <div className="tv-meta">
+              <span className="tv-meta-item" data-testid="tv-score">Score {score}</span>
+              <span className="tv-meta-item" data-testid="tv-turn">Turn {gameState.turn}</span>
+              {currentTurnPlayer && (
+                <span className="tv-meta-item" data-testid="tv-current-player">Turn: {currentTurnPlayer.name}</span>
+              )}
+            </div>
+          </div>
+          <div className={`tv-status ${gameState.status}`} data-testid="tv-status">
+            {gameState.status.replace(/_/g, ' ')}
+          </div>
+        </header>
+
+        <section className="stats tv-stats" data-testid="tv-stats">
+          <div className="stat hints-stat" data-testid="tv-status-hints">
+            <div className="token-grid hints-grid" aria-label="Hint tokens">
+              {hintTokenStates.map((isFilled, index) => (
+                <LightbulbFilament
+                  key={`tv-hint-token-${index}`}
+                  size={15}
+                  weight={isFilled ? 'fill' : 'regular'}
+                  className={isFilled ? 'token-icon filled' : 'token-icon hollow'}
+                />
+              ))}
+            </div>
+            <span className="visually-hidden" data-testid="tv-status-hints-count">{gameState.hintTokens}</span>
+          </div>
+
+          <div className="stat deck-stat" data-testid="tv-status-deck">
+            <div className="deck-pill">
+              <CardsThree size={17} weight="fill" />
+              <span className="deck-count" data-testid="tv-status-deck-count">{gameState.drawDeck.length}</span>
+            </div>
+          </div>
+
+          <div className="stat fuses-stat" data-testid="tv-status-fuses">
+            <div className="token-grid fuses-grid" aria-label="Fuse tokens">
+              {fuseTokenStates.map((isFilled, index) => (
+                <Fire
+                  key={`tv-fuse-token-${index}`}
+                  size={24}
+                  weight={isFilled ? 'fill' : 'regular'}
+                  className={isFilled ? 'token-icon filled danger' : 'token-icon hollow danger'}
+                />
+              ))}
+            </div>
+            <span className="visually-hidden" data-testid="tv-status-fuses-count">{remainingFuses}</span>
+          </div>
+        </section>
+
+        <section
+          className="fireworks tv-fireworks"
+          style={{ '--suit-count': String(activeSuits.length) } as CSSProperties}
+          data-testid="tv-fireworks-grid"
+        >
+          {activeSuits.map((suit) => {
+            const height = gameState.fireworks[suit].length;
+            return (
+              <div key={suit} className="tower" style={{ '--suit': suitColors[suit] } as CSSProperties} data-testid={`tv-tower-${suit}`}>
+                <div className="tower-stack">
+                  {CARD_NUMBERS.map((num) => {
+                    const isLit = num <= height;
+                    const remaining = knownRemainingCounts[suit]?.[num] ?? 0;
+                    const knownUnavailable = knownUnavailableCounts[suit]?.[num] ?? 0;
+                    const totalCopies = remaining + knownUnavailable;
+                    const discarded = discardCounts.get(`${suit}-${num}`) ?? 0;
+                    const blocked = num > height && discarded >= totalCopies;
+                    const pipStates = getPegPipStates(remaining, totalCopies);
+
+                    return (
+                      <div
+                        key={num}
+                        className={`peg ${isLit ? 'lit' : ''} ${blocked ? 'blocked' : ''}`}
+                        data-testid={`tv-peg-${suit}-${num}`}
+                      >
+                        <span className="peg-num">{blocked ? '✕' : num}</span>
+                        <span className="peg-pips" aria-label={`${remaining} copies not visible from TV`}>
+                          <PegPips pipStates={pipStates} />
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </section>
+
+        <section className="tv-players" data-testid="tv-players">
+          {tvPlayers.map((player) => (
+            <article
+              key={player.id}
+              className={`tv-player ${player.isCurrentTurn ? 'active' : ''}`}
+              data-testid={`tv-player-${player.id}`}
+            >
+              <header className="tv-player-header">
+                <span className="tv-player-name" data-testid={`tv-player-name-${player.id}`}>
+                  {player.name}
+                </span>
+                {player.isCurrentTurn && (
+                  <span className="turn-chip" data-testid={`tv-player-turn-${player.id}`}>
+                    <span className="turn-chip-dot" />
+                    Turn
+                  </span>
+                )}
+              </header>
+
+              <div className="cards tv-cards">
+                {player.cards.map((card, cardIndex) => (
+                  <CardView
+                    key={card.id}
+                    card={card}
+                    showNegativeColorHints={showNegativeColorHints}
+                    showNegativeNumberHints={showNegativeNumberHints}
+                    isDisabled
+                    testId={`tv-card-${player.id}-${cardIndex}`}
+                  />
+                ))}
+              </div>
+            </article>
+          ))}
+        </section>
+      </section>
+
+      <aside className="tv-log" data-testid="tv-log">
+        <header className="tv-log-header">
+          <span className="tv-log-title">Action Log</span>
+          {showReconnect && (
+            <button type="button" className="tv-log-reconnect" onClick={onReconnect} data-testid="tv-reconnect">
+              Reconnect
+            </button>
+          )}
+        </header>
+        {error && (
+          <p className="tv-log-error" data-testid="tv-error">
+            {error}
+          </p>
+        )}
+        <div className="tv-log-list" data-testid="tv-log-list">
+          {orderedLogs.map((logEntry) => (
+            <article key={logEntry.id} className="log-item" data-testid={`tv-log-item-${logEntry.id}`}>
+              <span className={`log-kind ${logEntry.type}`}>{getLogBadge(logEntry)}</span>
+              <span className="log-item-message">{renderLogMessage(logEntry)}</span>
+            </article>
+          ))}
+        </div>
+      </aside>
+    </main>
+  );
+}
+
 function CardView({
   card,
   showNegativeColorHints,
   showNegativeNumberHints,
   onSelect,
+  isDisabled = false,
   testId
 }: {
   card: PerspectiveCard;
   showNegativeColorHints: boolean;
   showNegativeNumberHints: boolean;
-  onSelect: () => void;
+  onSelect?: () => void;
+  isDisabled?: boolean;
   testId: string;
 }) {
   const knownColor = card.hints.color;
@@ -1811,8 +2143,10 @@ function CardView({
       type="button"
       className={`card ${card.hints.recentlyHinted ? 'recent' : ''}`}
       style={{ '--card-bg': bgColor } as CSSProperties}
-      onClick={onSelect}
+      onClick={isDisabled ? undefined : onSelect}
       data-testid={testId}
+      disabled={isDisabled}
+      aria-disabled={isDisabled}
       aria-pressed={false}
     >
       <div className="card-face">

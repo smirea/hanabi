@@ -19,6 +19,7 @@ type DebugNetworkRoomState = {
   settings: LobbySettings;
   players: string[];
   names: Record<string, string>;
+  tv: Record<string, boolean>;
   gameState: ReturnType<HanabiGame['getSnapshot']> | null;
 };
 
@@ -88,6 +89,7 @@ function createRoomState(players: string[]): DebugNetworkRoomState {
     settings: DEFAULT_SETTINGS,
     players: normalizePlayerIds(players),
     names: {},
+    tv: {},
     gameState: null
   };
 }
@@ -130,6 +132,28 @@ function normalizeNames(input: unknown, players: string[]): Record<string, strin
   return normalized;
 }
 
+function normalizeTvFlags(input: unknown, players: string[]): Record<string, boolean> {
+  if (!input || typeof input !== 'object') {
+    return {};
+  }
+
+  const allowed = new Set(players);
+  const candidate = input as Record<string, unknown>;
+  const normalized: Record<string, boolean> = {};
+
+  for (const playerId of Object.keys(candidate)) {
+    if (!allowed.has(playerId)) {
+      continue;
+    }
+
+    if (candidate[playerId] === true) {
+      normalized[playerId] = true;
+    }
+  }
+
+  return normalized;
+}
+
 function parseRoomState(raw: string): DebugNetworkRoomState | null {
   let parsed: unknown;
   try {
@@ -162,6 +186,7 @@ function parseRoomState(raw: string): DebugNetworkRoomState | null {
   const players = normalizePlayerIds(candidate.players);
   const settings = normalizeSettings(candidate.settings);
   const names = normalizeNames(candidate.names, players);
+  const tv = normalizeTvFlags(candidate.tv, players);
   const gameState = candidate.gameState ?? null;
   if (gameState !== null && typeof gameState !== 'object') {
     return null;
@@ -173,6 +198,7 @@ function parseRoomState(raw: string): DebugNetworkRoomState | null {
     settings,
     players,
     names,
+    tv,
     gameState
   };
 }
@@ -213,10 +239,11 @@ function getHostId(players: string[]): string | null {
   return electHostId(players);
 }
 
-function buildMembers(players: string[], names: Record<string, string>): RoomMember[] {
+function buildMembers(players: string[], names: Record<string, string>, tvFlags: Record<string, boolean>): RoomMember[] {
   return players.map((peerId, index) => ({
     peerId,
-    name: names[peerId] ?? `Player ${index + 1}`
+    name: names[peerId] ?? `Player ${index + 1}`,
+    isTv: Boolean(tvFlags[peerId])
   }));
 }
 
@@ -237,7 +264,7 @@ function createIdleState(playerId: string | null): OnlineState {
 }
 
 function toOnlineState(playerId: string, roomState: DebugNetworkRoomState): OnlineState {
-  const members = buildMembers(roomState.players, roomState.names);
+  const members = buildMembers(roomState.players, roomState.names, roomState.tv);
   const hostId = getHostId(roomState.players);
   return {
     status: 'connected',
@@ -315,8 +342,10 @@ function commitRoomState(
   draft.players = normalizePlayerIds(draft.players);
   draft.settings = normalizeSettings(draft.settings);
   draft.names = normalizeNames(draft.names, draft.players);
+  draft.tv = normalizeTvFlags(draft.tv, draft.players);
 
-  if (draft.players.length < 2) {
+  const seatedCount = draft.players.filter((peerId) => !draft.tv[peerId]).length;
+  if (seatedCount < 2) {
     draft.phase = 'lobby';
     draft.gameState = null;
   }
@@ -378,6 +407,7 @@ export function syncDebugNetworkRoomPlayers(playerIds: string[]): void {
     phase: 'lobby',
     players: normalizedPlayers,
     names: normalizeNames(currentState.names, normalizedPlayers),
+    tv: normalizeTvFlags(currentState.tv, normalizedPlayers),
     gameState: null
   };
   writeRoomState(nextState);
@@ -428,13 +458,14 @@ export function useDebugNetworkSession(playerId: string | null): OnlineSession {
         return false;
       }
 
-      if (draft.players.length < 2 || draft.players.length > 5) {
+      const seatedPlayers = draft.players.filter((peerId) => !draft.tv[peerId]);
+      if (seatedPlayers.length < 2 || seatedPlayers.length > 5) {
         return false;
       }
 
-      const memberNames = buildMembers(draft.players, draft.names).map((member) => member.name);
+      const memberNames = buildMembers(seatedPlayers, draft.names, draft.tv).map((member) => member.name);
       const game = new HanabiGame({
-        playerIds: draft.players,
+        playerIds: seatedPlayers,
         playerNames: memberNames,
         includeMulticolor: draft.settings.includeMulticolor,
         multicolorShortDeck: draft.settings.multicolorShortDeck,
@@ -539,6 +570,30 @@ export function useDebugNetworkSession(playerId: string | null): OnlineSession {
     setState(toOnlineState(playerId, nextState));
   }, [playerId]);
 
+  const setSelfIsTv = useCallback((isTv: boolean) => {
+    if (!playerId) {
+      return;
+    }
+
+    const resolved = Boolean(isTv);
+    const nextState = commitRoomState(playerId, (draft) => {
+      const current = Boolean(draft.tv[playerId]);
+      if (current === resolved) {
+        return false;
+      }
+
+      if (resolved) {
+        draft.tv[playerId] = true;
+      } else {
+        delete draft.tv[playerId];
+      }
+
+      return true;
+    });
+
+    setState(toOnlineState(playerId, nextState));
+  }, [playerId]);
+
   return useMemo(
     () => ({
       state,
@@ -546,8 +601,9 @@ export function useDebugNetworkSession(playerId: string | null): OnlineSession {
       updateSettings,
       sendAction,
       requestSync,
-      setSelfName
+      setSelfName,
+      setSelfIsTv
     }),
-    [requestSync, sendAction, setSelfName, startGame, state, updateSettings]
+    [requestSync, sendAction, setSelfIsTv, setSelfName, startGame, state, updateSettings]
   );
 }

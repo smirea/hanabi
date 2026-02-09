@@ -4,6 +4,7 @@ export const storageKeys = {
   debugNetworkActivePlayer: 'debug_network_active_player',
   debugMode: 'debug_mode',
   playerName: 'player_name',
+  tvMode: 'tv_mode',
   darkMode: 'dark_mode',
   negativeColorHints: 'negative_color_hints',
   negativeNumberHints: 'negative_number_hints'
@@ -17,6 +18,7 @@ export type StorageValueByKey = {
   debug_network_active_player: string;
   debug_mode: boolean;
   player_name: string;
+  tv_mode: boolean;
   dark_mode: boolean;
   negative_color_hints: boolean;
   negative_number_hints: boolean;
@@ -48,6 +50,7 @@ const storageParsers: { [K in StorageKey]: (value: unknown) => StorageValueByKey
   debug_network_active_player: (value) => (typeof value === 'string' ? value : null),
   debug_mode: (value) => (typeof value === 'boolean' ? value : null),
   player_name: (value) => (typeof value === 'string' ? value : null),
+  tv_mode: (value) => (typeof value === 'boolean' ? value : null),
   dark_mode: (value) => (typeof value === 'boolean' ? value : null),
   negative_color_hints: (value) => (typeof value === 'boolean' ? value : null),
   negative_number_hints: (value) => (typeof value === 'boolean' ? value : null)

@@ -24,10 +24,12 @@ export function formatPeerName(peerId: string): string {
 export function assignMembers(
   connectedPeerIds: Set<string>,
   previousMembers: RoomMember[],
-  namesByPeerId: Map<string, string>
+  namesByPeerId: Map<string, string>,
+  isTvByPeerId: Map<string, boolean>
 ): RoomMember[] {
   const orderedPeerIds: string[] = [];
   const seen = new Set<string>();
+  const previousByPeerId = new Map(previousMembers.map((member) => [member.peerId, member]));
 
   for (const member of previousMembers) {
     if (connectedPeerIds.has(member.peerId) && !seen.has(member.peerId)) {
@@ -45,7 +47,8 @@ export function assignMembers(
 
   return orderedPeerIds.map((peerId) => ({
     peerId,
-    name: namesByPeerId.get(peerId) ?? formatPeerName(peerId)
+    name: namesByPeerId.get(peerId) ?? formatPeerName(peerId),
+    isTv: isTvByPeerId.get(peerId) ?? previousByPeerId.get(peerId)?.isTv ?? false
   }));
 }
 
@@ -57,7 +60,7 @@ export function areMembersEqual(a: RoomMember[], b: RoomMember[]): boolean {
   for (let index = 0; index < a.length; index += 1) {
     const left = a[index];
     const right = b[index];
-    if (left.peerId !== right.peerId || left.name !== right.name) {
+    if (left.peerId !== right.peerId || left.name !== right.name || left.isTv !== right.isTv) {
       return false;
     }
   }
@@ -102,7 +105,8 @@ export function isRoomMember(value: unknown): value is RoomMember {
   return typeof candidate.peerId === 'string'
     && candidate.peerId.length > 0
     && typeof candidate.name === 'string'
-    && candidate.name.trim().length > 0;
+    && candidate.name.trim().length > 0
+    && typeof candidate.isTv === 'boolean';
 }
 
 export function isRoomSnapshot(value: unknown): value is RoomSnapshot {

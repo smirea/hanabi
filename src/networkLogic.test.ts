@@ -15,8 +15,8 @@ function snapshot(overrides: Partial<RoomSnapshot> = {}): RoomSnapshot {
     hostId: 'b',
     phase: 'lobby',
     members: [
-      { peerId: 'b', name: 'B' },
-      { peerId: 'c', name: 'C' }
+      { peerId: 'b', name: 'B', isTv: false },
+      { peerId: 'c', name: 'C', isTv: false }
     ],
     settings: DEFAULT_SETTINGS,
     gameState: null,
@@ -28,32 +28,34 @@ describe('assignMembers', () => {
   test('preserves previous ordering for existing peers and appends new peers sorted by id', () => {
     const connected = new Set(['a', 'b', 'c']);
     const previous = [
-      { peerId: 'b', name: 'Bee' },
-      { peerId: 'a', name: 'Ay' }
+      { peerId: 'b', name: 'Bee', isTv: false },
+      { peerId: 'a', name: 'Ay', isTv: false }
     ];
     const names = new Map<string, string>([
       ['a', 'Ay'],
       ['b', 'Bee'],
       ['c', 'See']
     ]);
+    const tv = new Map<string, boolean>();
 
-    expect(assignMembers(connected, previous, names)).toEqual([
-      { peerId: 'b', name: 'Bee' },
-      { peerId: 'a', name: 'Ay' },
-      { peerId: 'c', name: 'See' }
+    expect(assignMembers(connected, previous, names, tv)).toEqual([
+      { peerId: 'b', name: 'Bee', isTv: false },
+      { peerId: 'a', name: 'Ay', isTv: false },
+      { peerId: 'c', name: 'See', isTv: false }
     ]);
   });
 
   test('drops disconnected peers and preserves known names', () => {
     const connected = new Set(['b']);
     const previous = [
-      { peerId: 'a', name: 'A' },
-      { peerId: 'b', name: 'B' }
+      { peerId: 'a', name: 'A', isTv: false },
+      { peerId: 'b', name: 'B', isTv: false }
     ];
     const names = new Map<string, string>([['b', 'Bravo']]);
+    const tv = new Map<string, boolean>();
 
-    expect(assignMembers(connected, previous, names)).toEqual([
-      { peerId: 'b', name: 'Bravo' }
+    expect(assignMembers(connected, previous, names, tv)).toEqual([
+      { peerId: 'b', name: 'Bravo', isTv: false }
     ]);
   });
 });
@@ -92,8 +94,8 @@ describe('shouldAcceptSnapshot', () => {
       hostId: 'c',
       version: 10,
       members: [
-        { peerId: 'b', name: 'B' },
-        { peerId: 'c', name: 'C' }
+        { peerId: 'b', name: 'B', isTv: false },
+        { peerId: 'c', name: 'C', isTv: false }
       ]
     });
 
@@ -105,16 +107,16 @@ describe('shouldAcceptSnapshot', () => {
       hostId: 'b',
       version: 10,
       members: [
-        { peerId: 'a', name: 'A' },
-        { peerId: 'b', name: 'B' }
+        { peerId: 'a', name: 'A', isTv: false },
+        { peerId: 'b', name: 'B', isTv: false }
       ]
     });
     const incoming = snapshot({
       hostId: 'a',
       version: 1,
       members: [
-        { peerId: 'a', name: 'A' },
-        { peerId: 'b', name: 'B' }
+        { peerId: 'a', name: 'A', isTv: false },
+        { peerId: 'b', name: 'B', isTv: false }
       ]
     });
 
@@ -127,8 +129,8 @@ describe('shouldAcceptSnapshot', () => {
       hostId: 'b',
       version: 1,
       members: [
-        { peerId: 'b', name: 'B' },
-        { peerId: 'c', name: 'C' }
+        { peerId: 'b', name: 'B', isTv: false },
+        { peerId: 'c', name: 'C', isTv: false }
       ]
     });
 
