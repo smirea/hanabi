@@ -118,10 +118,12 @@
 - Layout: full-screen overlay showing:
   - big title (“You win” / “You lost” / “Game over”)
   - score formula (e.g. `5+3+0+1+2 = 11`)
+  - remaining resources: `Hints <current>/<max>` and `Lives <remaining>/<max>`
   - final board (fireworks grid) injected under the score
   - per-player stats table under the board (fills remaining space), columns: `name | given | received | played | discard`
-- Win FX: confetti pieces fall for ~2-4s, then stop.
+- Win FX: confetti pieces fall for ~6-10s, then stop.
 - Lose/finished FX: heavy rain for ~2.4s, then fades out leaving a subtle looping rain.
+- FX layering: confetti/rain render above the endgame UI content (but remain `pointer-events: none`).
 - Buttons:
   - View log: toggles an in-overlay log list (reuses log chip styling).
   - Back to start: local debug resets to a fresh game; online host resets the room to lobby; online non-host reloads to leave the round.
