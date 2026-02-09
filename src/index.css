@@ -2654,6 +2654,16 @@ body {
   color: #0b0d14;
 }
 
+:root[data-theme='dark'] .lobby-name-input {
+  border-color: rgba(90, 112, 168, 0.38);
+  background: rgba(16, 20, 32, 0.78);
+  color: rgba(240, 244, 255, 0.92);
+}
+
+:root[data-theme='dark'] .lobby-name-input::placeholder {
+  color: rgba(210, 228, 255, 0.55);
+}
+
 :root[data-theme='dark'] .stats {
   border-bottom-color: rgba(90, 112, 168, 0.22);
   background: rgba(11, 13, 20, 0.72);
