@@ -256,6 +256,23 @@ describe('App local debug wiring', () => {
     expect(window.localStorage.getItem('hanabi.player_name')).toBe(JSON.stringify('Global'));
   });
 
+  test('debug network frame refreshes namespaced local storage when hash changes', async () => {
+    window.location.hash = '#debug-1';
+    window.localStorage.setItem('hanabi.player_name.dbg-1', JSON.stringify('Alice'));
+    window.localStorage.setItem('hanabi.player_name.dbg-2', JSON.stringify('Blair'));
+
+    render(<App />);
+
+    expect(screen.getByTestId('lobby-name-input')).toHaveValue('Alice');
+
+    window.location.hash = '#debug-2';
+    window.dispatchEvent(new Event('hashchange'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('lobby-name-input')).toHaveValue('Blair');
+    });
+  });
+
   test('debug network shell switches iframe hash between local simulated players', () => {
     window.localStorage.setItem('hanabi.debug_network_shell', 'true');
     window.localStorage.setItem('hanabi.debug_network_players', JSON.stringify(['1', '2']));

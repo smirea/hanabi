@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { parseStoredValue, resolveStorageKey, type StorageKey, type StorageValueByKey } from '../storage';
 
 type SetStateAction<T> = T | ((prev: T) => T);
@@ -36,6 +36,37 @@ export function useLocalStorageState<K extends StorageKey>(
 ): [StorageValueByKey[K], (next: SetStateAction<StorageValueByKey[K]>) => void] {
   const storageKey = resolveStorageKey(key, namespace);
   const [value, setValue] = useState<StorageValueByKey[K]>(() => resolveInitialValue(key, storageKey, initialValue));
+  const initialValueRef = useRef(initialValue);
+  initialValueRef.current = initialValue;
+  const storageKeyRef = useRef(storageKey);
+
+  useEffect(() => {
+    if (storageKeyRef.current === storageKey) {
+      return;
+    }
+
+    storageKeyRef.current = storageKey;
+    setValue(resolveInitialValue(key, storageKey, initialValueRef.current));
+  }, [key, storageKey]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const onStorage = (event: StorageEvent): void => {
+      if (event.key !== storageKey) {
+        return;
+      }
+
+      setValue(resolveInitialValue(key, storageKey, initialValueRef.current));
+    };
+
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [key, storageKey]);
 
   const setStoredValue = useCallback((next: SetStateAction<StorageValueByKey[K]>) => {
     setValue((prev) => {
