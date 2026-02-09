@@ -561,6 +561,11 @@ body {
   gap: 0.4rem;
 }
 
+.lobby-player.self {
+  border-color: rgba(45, 212, 191, 0.7);
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.16);
+}
+
 .lobby-player-name {
   color: var(--gray-600);
   font-size: 0.71rem;
@@ -2733,6 +2738,11 @@ body {
 :root[data-theme='dark'] .lobby-player {
   border-color: rgba(90, 112, 168, 0.28);
   background: rgba(16, 20, 32, 0.72);
+}
+
+:root[data-theme='dark'] .lobby-player.self {
+  border-color: rgba(94, 234, 212, 0.72);
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.18);
 }
 
 :root[data-theme='dark'] .lobby-chip {

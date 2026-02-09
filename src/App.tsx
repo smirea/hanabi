@@ -42,6 +42,7 @@ import {
   type RoomMember
 } from './network';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
+import { useSessionStorageState } from './hooks/useSessionStorageState';
 import { createDebugNamespace, storageKeys } from './storage';
 import { useDebugScreensController } from './debugScreens';
 
@@ -795,7 +796,7 @@ function GameClient({
     [framePlayerId, isDebugNetworkFrame]
   );
   const [playerName, setPlayerName] = useLocalStorageState(storageKeys.playerName, '', storageNamespace);
-  const [isTvMode, setIsTvMode] = useLocalStorageState(storageKeys.tvMode, false, storageNamespace);
+  const [isTvMode, setIsTvMode] = useSessionStorageState(storageKeys.tvMode, false, storageNamespace);
   const [showNegativeColorHints, setShowNegativeColorHints] = useLocalStorageState(
     storageKeys.negativeColorHints,
     true,
@@ -3164,7 +3165,11 @@ function LobbyScreen({
           </h2>
           <div className="lobby-player-list">
             {effectiveMembers.map((member) => (
-              <article key={member.peerId} className="lobby-player" data-testid={`lobby-player-${member.peerId}`}>
+              <article
+                key={member.peerId}
+                className={`lobby-player${member.peerId === selfId ? ' self' : ''}`}
+                data-testid={`lobby-player-${member.peerId}`}
+              >
                 <div>
                   <div className="lobby-player-name">{member.name}</div>
                 </div>
