@@ -76,7 +76,7 @@ const suitNames: Record<Suit, string> = {
   Y: 'yellow',
   G: 'green',
   B: 'blue',
-  W: 'white',
+  W: 'ice',
   M: 'multicolor'
 };
 
@@ -111,7 +111,8 @@ function LogCardChip({ suit, number }: { suit: Suit; number: number }) {
       style={{ '--chip-color': suitColors[suit], '--chip-fg': suitBadgeForeground[suit] } as CSSProperties}
       aria-label={`${suitNames[suit]} ${number}`}
     >
-      {number}
+      <span className="log-card-num">{number}</span>
+      <SuitSymbol suit={suit} size={14} className="log-card-suit" />
     </span>
   );
 }
@@ -131,7 +132,7 @@ function LogHintChipSuit({ suit }: { suit: Suit }) {
       style={{ '--chip-color': suitColors[suit], '--chip-fg': suitBadgeForeground[suit] } as CSSProperties}
       aria-label={suitNames[suit]}
     >
-      <SuitSymbol suit={suit} size={12} />
+      <SuitSymbol suit={suit} size={15} />
     </span>
   );
 }
@@ -176,8 +177,9 @@ function renderLogMessage(log: GameLogEntry): ReactNode {
       if (log.number === null) return `${log.actorName} gave a number hint to ${log.targetName}`;
       return (
         <>
-          {log.actorName} hinted {touchedCount}x
-          <LogHintChipNumber number={log.number} /> to {log.targetName}
+          {log.actorName} hinted {touchedCount}x{' '}
+          <LogHintChipNumber number={log.number} />{' '}
+          to {log.targetName}
         </>
       );
     }
@@ -185,8 +187,9 @@ function renderLogMessage(log: GameLogEntry): ReactNode {
     if (log.suit === null) return `${log.actorName} gave a color hint to ${log.targetName}`;
     return (
       <>
-        {log.actorName} hinted {touchedCount}x
-        <LogHintChipSuit suit={log.suit} /> to {log.targetName}
+        {log.actorName} hinted {touchedCount}x{' '}
+        <LogHintChipSuit suit={log.suit} />{' '}
+        to {log.targetName}
       </>
     );
   }
