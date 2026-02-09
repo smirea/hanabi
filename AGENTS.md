@@ -1,6 +1,7 @@
 # AGENTS
 
 See `project.md` for overall infrastructure
+See `project_animation.md` for what the various animations are and how they are used
 
 ## Core Rules
 - Use Bun for all tooling: install, dev, build, test, and serve.
@@ -26,6 +27,12 @@ See `project.md` for overall infrastructure
 - Test id format: `section-element` or `entity-id-index`.
 - Preferred lightweight UI testing stack: Vitest + Testing Library.
 - Add visual regression checks as screenshot tests for key mobile states once flows stabilize.
+
+## Playwright Guidance
+- When using Playwright (CLI), always resize the viewport to a representative mobile portrait size before debugging flows.
+- Recommended default: `390x844` (common iPhone portrait).
+- Example (CLI): `pwcli resize 390 844`
+- DevTools “device toolbar” emulation is not reliably toggleable via Playwright CLI; prefer viewport sizing, and optionally set `isMobile/hasTouch/deviceScaleFactor` via a `playwright-cli.json` config when needed.
 
 ## Deployment
 - Local runtime uses `bun ./src/index.html` via `bun run start`.

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ComponentType, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ComponentType, type ReactNode } from 'react';
+import { animate } from 'motion';
 import {
   CardsThree,
   Drop,
@@ -15,6 +16,8 @@ import {
   BASE_SUITS,
   CARD_NUMBERS,
   HanabiGame,
+  type CardId,
+  type CardNumber,
   type GameLogEntry,
   type HanabiState,
   type HanabiPerspectiveState,
@@ -40,6 +43,7 @@ import {
 } from './network';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
 import { createDebugNamespace, storageKeys } from './storage';
+import { useDebugScreensController } from './debugScreens';
 
 const LOCAL_DEBUG_SETUP = {
   playerNames: ['Ari', 'Blair', 'Casey'],
@@ -102,6 +106,111 @@ function SuitSymbol({
 }) {
   const Icon = suitIcons[suit];
   return <Icon size={size} weight={weight} className={className} aria-hidden />;
+}
+
+function DeckCount({ value }: { value: number }) {
+  const [previousValue, setPreviousValue] = useState<number | null>(null);
+  const [direction, setDirection] = useState<'up' | 'down' | null>(null);
+  const timeoutRef = useRef<number | null>(null);
+  const lastValueRef = useRef<number>(value);
+
+  useEffect(() => {
+    const last = lastValueRef.current;
+    if (last === value) {
+      return;
+    }
+
+    lastValueRef.current = value;
+    setPreviousValue(last);
+    setDirection(value > last ? 'up' : 'down');
+
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current);
+    }
+
+    timeoutRef.current = window.setTimeout(() => {
+      timeoutRef.current = null;
+      setPreviousValue(null);
+      setDirection(null);
+    }, 260);
+  }, [value]);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  const ticking = previousValue !== null && direction !== null;
+
+  return (
+    <span
+      className={`deck-count ${ticking ? `deck-count-tick ${direction}` : ''}`}
+      data-testid="status-deck-count"
+      aria-label={`Deck ${value}`}
+    >
+      {ticking ? (
+        <>
+          <span className="deck-count-value prev" aria-hidden>{previousValue}</span>
+          <span className="deck-count-value next">{value}</span>
+        </>
+      ) : (
+        <span className="deck-count-value single">{value}</span>
+      )}
+    </span>
+  );
+}
+
+function LastActionTicker({ id, message }: { id: string; message: ReactNode }) {
+  const [previous, setPrevious] = useState<ReactNode | null>(null);
+  const [current, setCurrent] = useState<ReactNode>(message);
+  const [currentId, setCurrentId] = useState(id);
+  const [isTicking, setIsTicking] = useState(false);
+  const timeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (currentId === id) {
+      return;
+    }
+
+    setPrevious(current);
+    setCurrent(message);
+    setCurrentId(id);
+    setIsTicking(true);
+
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current);
+    }
+
+    timeoutRef.current = window.setTimeout(() => {
+      timeoutRef.current = null;
+      setIsTicking(false);
+      setPrevious(null);
+    }, 320);
+  }, [currentId, id, message]);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  return (
+    <span className={`last-action-ticker ${isTicking ? 'ticking' : ''}`}>
+      {previous !== null && (
+        <span className="last-action-message leaving" aria-hidden>
+          {previous}
+        </span>
+      )}
+      <span className={`last-action-message ${previous !== null ? 'entering' : ''}`}>
+        {current}
+      </span>
+    </span>
+  );
 }
 
 function LogCardChip({ suit, number }: { suit: Suit; number: number }) {
@@ -253,12 +362,112 @@ function getLogBadge(log: GameLogEntry): string {
   return 'Status';
 }
 
-function formatPendingAction(action: PendingCardAction): string {
-  if (action === 'play') return 'Play selected';
-  if (action === 'discard') return 'Discard selected';
-  if (action === 'hint-color') return 'Color hint selected';
-  if (action === 'hint-number') return 'Number hint selected';
-  return 'Last';
+function doesCardMatchColorHint(settings: HanabiState['settings'], cardSuit: Suit, hintSuit: Suit): boolean {
+  if (cardSuit === hintSuit) {
+    return true;
+  }
+
+  return settings.multicolorWildHints && cardSuit === 'M' && hintSuit !== 'M';
+}
+
+type HintRedundancy =
+  | { hintType: 'number'; number: CardNumber }
+  | { hintType: 'color'; suit: Suit };
+
+function getHintTouchedCardIds(state: HanabiState, targetPlayerId: PlayerId, hint: HintRedundancy): CardId[] {
+  const target = state.players.find((player) => player.id === targetPlayerId);
+  if (!target) {
+    return [];
+  }
+
+  if (hint.hintType === 'number') {
+    return target.cards.filter((cardId) => state.cards[cardId]?.number === hint.number);
+  }
+
+  return target.cards.filter((cardId) => {
+    const card = state.cards[cardId];
+    if (!card) {
+      return false;
+    }
+
+    return doesCardMatchColorHint(state.settings, card.suit, hint.suit);
+  });
+}
+
+function isRedundantHint(state: HanabiState, targetPlayerId: PlayerId, hint: HintRedundancy): { redundant: boolean; touchedCardIds: CardId[] } {
+  const target = state.players.find((player) => player.id === targetPlayerId);
+  if (!target) {
+    return { redundant: false, touchedCardIds: [] };
+  }
+
+  const touchedCardIds = getHintTouchedCardIds(state, targetPlayerId, hint);
+  const touchedSet = new Set(touchedCardIds);
+
+  let wouldChange = false;
+  if (hint.hintType === 'number') {
+    for (const cardId of target.cards) {
+      const card = state.cards[cardId];
+      if (!card) {
+        continue;
+      }
+
+      if (touchedSet.has(cardId)) {
+        if (card.hints.number !== hint.number || card.hints.notNumbers.includes(hint.number)) {
+          wouldChange = true;
+          break;
+        }
+      } else if (!card.hints.notNumbers.includes(hint.number)) {
+        wouldChange = true;
+        break;
+      }
+    }
+
+    return { redundant: !wouldChange, touchedCardIds };
+  }
+
+  if (state.settings.multicolorWildHints && hint.suit !== 'M') {
+    const allowedSuits: Suit[] = [hint.suit, 'M'];
+    for (const cardId of target.cards) {
+      const card = state.cards[cardId];
+      if (!card) {
+        continue;
+      }
+
+      const touched = touchedSet.has(cardId);
+      const currentPossibleSuits = card.hints.color !== null
+        ? [card.hints.color]
+        : state.settings.activeSuits.filter((suit) => !card.hints.notColors.includes(suit));
+      const nextPossibleSuits = touched
+        ? currentPossibleSuits.filter((candidate) => allowedSuits.includes(candidate))
+        : currentPossibleSuits.filter((candidate) => !allowedSuits.includes(candidate));
+
+      if (!arraysEqual(currentPossibleSuits, nextPossibleSuits)) {
+        wouldChange = true;
+        break;
+      }
+    }
+
+    return { redundant: !wouldChange, touchedCardIds };
+  }
+
+  for (const cardId of target.cards) {
+    const card = state.cards[cardId];
+    if (!card) {
+      continue;
+    }
+
+    if (touchedSet.has(cardId)) {
+      if (card.hints.color !== hint.suit || card.hints.notColors.includes(hint.suit)) {
+        wouldChange = true;
+        break;
+      }
+    } else if (!card.hints.notColors.includes(hint.suit)) {
+      wouldChange = true;
+      break;
+    }
+  }
+
+  return { redundant: !wouldChange, touchedCardIds };
 }
 
 function normalizeShellPlayers(input: string[]): string[] {
@@ -285,7 +494,7 @@ function normalizeShellPlayers(input: string[]): string[] {
   return normalized;
 }
 
-function arraysEqual(left: string[], right: string[]): boolean {
+function arraysEqual<T>(left: readonly T[], right: readonly T[]): boolean {
   if (left.length !== right.length) {
     return false;
   }
@@ -571,6 +780,7 @@ function GameClient({
   const [isLogDrawerOpen, setIsLogDrawerOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingCardAction>(null);
+  const [endgamePanel, setEndgamePanel] = useState<'summary' | 'log'>('summary');
   const [wildColorHintTargetPlayerId, setWildColorHintTargetPlayerId] = useState<PlayerId | null>(null);
   const [isDebugMode, setIsDebugMode] = useLocalStorageState(storageKeys.debugMode, true);
   const storageNamespace = useMemo(
@@ -590,6 +800,43 @@ function GameClient({
     storageNamespace
   );
   const logListRef = useRef<HTMLDivElement | null>(null);
+  const animationLayerRef = useRef<HTMLDivElement | null>(null);
+  const deckPillRef = useRef<HTMLDivElement | null>(null);
+  const cardNodeByIdRef = useRef<Map<CardId, HTMLButtonElement>>(new Map());
+  const cardFxListenerByNodeRef = useRef<WeakMap<HTMLButtonElement, Map<string, (event: AnimationEvent) => void>>>(new WeakMap());
+  const hintTokenSlotRefs = useRef<Array<HTMLSpanElement | null>>([]);
+  const fuseTokenSlotRefs = useRef<Array<HTMLSpanElement | null>>([]);
+  const [isActionAnimationRunning, setIsActionAnimationRunning] = useState(false);
+  const [turnLockPlayerId, setTurnLockPlayerId] = useState<PlayerId | null>(null);
+  const animationRunIdRef = useRef(0);
+  const prevGameStateRef = useRef<HanabiState | null>(null);
+  const layoutSnapshotRef = useRef<{ deckRect: DOMRect | null; cardRects: Map<CardId, DOMRect> } | null>(null);
+  const prevLayoutSnapshotRef = useRef<{ deckRect: DOMRect | null; cardRects: Map<CardId, DOMRect> } | null>(null);
+
+  const resetUiForDebugScreens = useCallback(() => {
+    animationRunIdRef.current += 1;
+    prevGameStateRef.current = null;
+    layoutSnapshotRef.current = null;
+    prevLayoutSnapshotRef.current = null;
+    setIsActionAnimationRunning(false);
+    setTurnLockPlayerId(null);
+    setIsMenuOpen(false);
+    setIsLogDrawerOpen(false);
+    setPendingAction(null);
+    setWildColorHintTargetPlayerId(null);
+    setEndgamePanel('summary');
+    if (animationLayerRef.current) {
+      animationLayerRef.current.innerHTML = '';
+    }
+  }, []);
+
+  useDebugScreensController({
+    enabled: !isDebugNetworkFrame,
+    setIsDebugMode,
+    debugGame,
+    setDebugGameState,
+    resetUi: resetUiForDebugScreens
+  });
 
   const isLocalDebugMode = !isDebugNetworkFrame && isDebugMode;
   const online = useOnlineSession(!isLocalDebugMode && !isDebugNetworkFrame, DEFAULT_ROOM_ID);
@@ -616,6 +863,56 @@ function GameClient({
   }, [isLocalDebugMode, isTvMode, setActiveSelfIsTv]);
 
   const activeGameState = isLocalDebugMode ? debugGameState : onlineState.gameState;
+  const terminalStatusLogId = useMemo(() => {
+    if (!activeGameState) {
+      return null;
+    }
+
+    for (let index = activeGameState.logs.length - 1; index >= 0; index -= 1) {
+      const log = activeGameState.logs[index];
+      if (log.type === 'status') {
+        return log.id;
+      }
+    }
+
+    return null;
+  }, [activeGameState]);
+  const endgameStatsByPlayerId = useMemo(() => {
+    const stats = new Map<PlayerId, { hintsGiven: number; hintsReceived: number; plays: number; discards: number }>();
+    if (!activeGameState) {
+      return stats;
+    }
+
+    for (const player of activeGameState.players) {
+      stats.set(player.id, { hintsGiven: 0, hintsReceived: 0, plays: 0, discards: 0 });
+    }
+
+    for (const log of activeGameState.logs) {
+      if (log.type === 'hint') {
+        const actor = stats.get(log.actorId);
+        const target = stats.get(log.targetId);
+        if (actor) actor.hintsGiven += 1;
+        if (target) target.hintsReceived += 1;
+        continue;
+      }
+
+      if (log.type === 'play') {
+        const actor = stats.get(log.actorId);
+        if (actor) actor.plays += 1;
+        continue;
+      }
+
+      if (log.type === 'discard') {
+        const actor = stats.get(log.actorId);
+        if (actor) actor.discards += 1;
+      }
+    }
+
+    return stats;
+  }, [activeGameState]);
+  useEffect(() => {
+    setEndgamePanel('summary');
+  }, [terminalStatusLogId]);
   const discardCounts = useMemo(() => {
     const counts = new Map<string, number>();
     if (!activeGameState) {
@@ -696,6 +993,17 @@ function GameClient({
     return activeGame.getPerspectiveState(perspectivePlayerId);
   }, [activeGame, activeGameState, perspectivePlayerId]);
 
+  useLayoutEffect(() => {
+    prevLayoutSnapshotRef.current = layoutSnapshotRef.current;
+    const deckRect = deckPillRef.current?.getBoundingClientRect() ?? null;
+    const cardRects = new Map<CardId, DOMRect>();
+    for (const [cardId, node] of cardNodeByIdRef.current) {
+      cardRects.set(cardId, node.getBoundingClientRect());
+    }
+
+    layoutSnapshotRef.current = { deckRect, cardRects };
+  });
+
   useEffect(() => {
     if (!isLogDrawerOpen) return;
     logListRef.current?.scrollTo({ top: 0 });
@@ -713,6 +1021,469 @@ function GameClient({
 
     setIsMenuOpen(false);
   }, [isLocalDebugMode]);
+
+  function triggerSvgFx(svg: SVGElement, fxClass: string): void {
+    svg.classList.remove(fxClass);
+    void svg.getBoundingClientRect();
+    svg.classList.add(fxClass);
+    svg.addEventListener('animationend', () => svg.classList.remove(fxClass), { once: true });
+  }
+
+  function triggerTokenFx(slot: HTMLSpanElement | null, fxClass: string): void {
+    const svg = slot?.querySelector('svg');
+    if (!(svg instanceof SVGElement)) {
+      return;
+    }
+
+    triggerSvgFx(svg, fxClass);
+  }
+
+  function triggerCardFx(cardId: CardId, fxClass: string): void {
+    const node = cardNodeByIdRef.current.get(cardId);
+    if (!node) {
+      return;
+    }
+
+    const expectedAnimationName =
+      fxClass === 'hint-enter'
+        ? 'hint-ring'
+        : fxClass === 'hint-redundant'
+          ? 'hint-redundant-ring'
+          : null;
+
+    const listenerMap = cardFxListenerByNodeRef.current.get(node) ?? new Map();
+    const existingListener = listenerMap.get(fxClass);
+    if (existingListener) {
+      node.removeEventListener('animationend', existingListener);
+    }
+
+    node.classList.remove(fxClass);
+    void node.getBoundingClientRect();
+    node.classList.add(fxClass);
+
+    const onEnd = (event: AnimationEvent): void => {
+      if (expectedAnimationName && event.animationName !== expectedAnimationName) {
+        return;
+      }
+
+      node.classList.remove(fxClass);
+      node.removeEventListener('animationend', onEnd);
+      listenerMap.delete(fxClass);
+    };
+
+    listenerMap.set(fxClass, onEnd);
+    cardFxListenerByNodeRef.current.set(node, listenerMap);
+    node.addEventListener('animationend', onEnd);
+  }
+
+  function createGhostCardElement({
+    suit,
+    number,
+    face
+  }: {
+    suit: Suit | null;
+    number: number | null;
+    face: 'front' | 'back';
+  }): { root: HTMLDivElement; inner: HTMLDivElement; crack: HTMLDivElement } | null {
+    if (typeof document === 'undefined') {
+      return null;
+    }
+
+    const root = document.createElement('div');
+    root.className = 'ghost-card';
+
+    if (suit) {
+      root.style.setProperty('--card-bg', suitColors[suit]);
+      root.style.setProperty('--card-fg', suitBadgeForeground[suit]);
+    } else {
+      root.style.setProperty('--card-bg', '#9eb2d4');
+      root.style.setProperty('--card-fg', '#101114');
+    }
+
+    const inner = document.createElement('div');
+    inner.className = 'ghost-card-inner';
+    inner.style.transform = face === 'front' ? 'rotateY(180deg)' : 'rotateY(0deg)';
+
+    const back = document.createElement('div');
+    back.className = 'ghost-card-face back';
+    const backMark = document.createElement('div');
+    backMark.className = 'ghost-card-back-mark';
+    backMark.textContent = 'H';
+    back.appendChild(backMark);
+
+    const front = document.createElement('div');
+    front.className = 'ghost-card-face front';
+    const frontValue = document.createElement('div');
+    frontValue.className = 'ghost-card-front-value';
+    frontValue.textContent = number === null ? '?' : String(number);
+    const frontSuit = document.createElement('div');
+    frontSuit.className = 'ghost-card-front-suit';
+    frontSuit.textContent = suit === null ? '' : suit;
+    front.appendChild(frontValue);
+    front.appendChild(frontSuit);
+
+    const crack = document.createElement('div');
+    crack.className = 'ghost-card-crack';
+
+    inner.appendChild(back);
+    inner.appendChild(front);
+    root.appendChild(inner);
+    root.appendChild(crack);
+
+    return { root, inner, crack };
+  }
+
+  async function animateDrawCard({
+    drawnCardId,
+    actorId,
+    viewerIdForVisibility
+  }: {
+    drawnCardId: CardId;
+    actorId: PlayerId;
+    viewerIdForVisibility: PlayerId | null;
+  }): Promise<void> {
+    const layer = animationLayerRef.current;
+    const deckRect = layoutSnapshotRef.current?.deckRect ?? null;
+    const destRect = layoutSnapshotRef.current?.cardRects.get(drawnCardId) ?? null;
+    const destNode = cardNodeByIdRef.current.get(drawnCardId) ?? null;
+
+    if (!layer || !deckRect || !destRect || !destNode) {
+      return;
+    }
+
+    const card = activeGameState?.cards[drawnCardId] ?? null;
+    const showFront = card && actorId !== viewerIdForVisibility;
+    const ghost = createGhostCardElement({
+      suit: showFront ? card.suit : null,
+      number: showFront ? card.number : null,
+      face: showFront ? 'front' : 'back'
+    });
+    if (!ghost) {
+      return;
+    }
+
+    const startLeft = deckRect.left + deckRect.width / 2 - destRect.width / 2;
+    const startTop = deckRect.top + deckRect.height / 2 - destRect.height / 2;
+
+    ghost.root.style.left = `${startLeft}px`;
+    ghost.root.style.top = `${startTop}px`;
+    ghost.root.style.width = `${destRect.width}px`;
+    ghost.root.style.height = `${destRect.height}px`;
+
+    layer.appendChild(ghost.root);
+
+    const dx = destRect.left - startLeft;
+    const dy = destRect.top - startTop;
+
+    const originalOpacity = destNode.style.opacity;
+    destNode.style.opacity = '0';
+
+    try {
+      await animate(
+        ghost.root,
+        {
+          x: [0, dx * 0.86, dx],
+          y: [0, dy * 0.86, dy],
+          scale: [0.14, 1.08, 1],
+          rotate: [-10, 2, 0],
+          opacity: [0.6, 1, 1]
+        },
+        { duration: 0.5, ease: [0.2, 0.85, 0.2, 1] }
+      ).finished;
+
+      await animate(destNode, { opacity: [0, 1], scale: [0.98, 1] }, { duration: 0.16, ease: [0.2, 0.85, 0.2, 1] }).finished;
+    } finally {
+      ghost.root.remove();
+      destNode.style.opacity = originalOpacity;
+      destNode.style.removeProperty('scale');
+    }
+  }
+
+  async function animatePlayToPeg({
+    cardId,
+    suit,
+    number,
+    shouldFlip
+  }: {
+    cardId: CardId;
+    suit: Suit;
+    number: number;
+    shouldFlip: boolean;
+  }): Promise<void> {
+    const layer = animationLayerRef.current;
+    const fromRect = prevLayoutSnapshotRef.current?.cardRects.get(cardId) ?? null;
+    const peg = typeof document === 'undefined'
+      ? null
+      : document.querySelector<HTMLElement>(`[data-testid="peg-${suit}-${number}"]`);
+    const toRect = peg?.getBoundingClientRect() ?? null;
+
+    if (!layer || !fromRect || !peg || !toRect) {
+      return;
+    }
+
+    const ghost = createGhostCardElement({ suit, number, face: shouldFlip ? 'back' : 'front' });
+    if (!ghost) {
+      return;
+    }
+
+    ghost.root.style.left = `${fromRect.left}px`;
+    ghost.root.style.top = `${fromRect.top}px`;
+    ghost.root.style.width = `${fromRect.width}px`;
+    ghost.root.style.height = `${fromRect.height}px`;
+
+    layer.appendChild(ghost.root);
+
+    const dx = toRect.left + toRect.width / 2 - (fromRect.left + fromRect.width / 2);
+    const dy = toRect.top + toRect.height / 2 - (fromRect.top + fromRect.height / 2);
+    const scaleTo = Math.max(0.22, Math.min(0.42, toRect.width / fromRect.width));
+
+    try {
+      const zoomControls = animate(ghost.root, { y: -14, scale: 1.1, rotate: -2 }, { duration: 0.34, ease: [0.2, 0.85, 0.2, 1] });
+      const flipControls = shouldFlip
+        ? animate(ghost.inner, { rotateY: [0, 180] }, { duration: 0.34, ease: [0.2, 0.85, 0.2, 1] })
+        : null;
+
+      await Promise.all([zoomControls.finished, flipControls?.finished]);
+
+      await animate(
+        ghost.root,
+        { x: dx, y: dy, scale: scaleTo, rotate: 0, opacity: [1, 0.2] },
+        { duration: 0.66, ease: [0.2, 0.85, 0.2, 1] }
+      ).finished;
+
+      peg.classList.remove('peg-hit');
+      void peg.getBoundingClientRect();
+      peg.classList.add('peg-hit');
+      peg.addEventListener('animationend', () => peg.classList.remove('peg-hit'), { once: true });
+    } finally {
+      ghost.root.remove();
+    }
+  }
+
+  async function animateMisplay({
+    cardId,
+    suit,
+    number,
+    shouldFlip,
+    spentFuseIndex
+  }: {
+    cardId: CardId;
+    suit: Suit;
+    number: number;
+    shouldFlip: boolean;
+    spentFuseIndex: number | null;
+  }): Promise<void> {
+    const layer = animationLayerRef.current;
+    const fromRect = prevLayoutSnapshotRef.current?.cardRects.get(cardId) ?? null;
+    if (!layer || !fromRect) {
+      return;
+    }
+
+    const ghost = createGhostCardElement({ suit, number, face: shouldFlip ? 'back' : 'front' });
+    if (!ghost) {
+      return;
+    }
+
+    ghost.root.classList.add('misplay');
+    ghost.root.style.left = `${fromRect.left}px`;
+    ghost.root.style.top = `${fromRect.top}px`;
+    ghost.root.style.width = `${fromRect.width}px`;
+    ghost.root.style.height = `${fromRect.height}px`;
+
+    layer.appendChild(ghost.root);
+
+    try {
+      const zoomControls = animate(ghost.root, { y: -14, scale: 1.1, rotate: -2 }, { duration: 0.34, ease: [0.2, 0.85, 0.2, 1] });
+      const flipControls = shouldFlip
+        ? animate(ghost.inner, { rotateY: [0, 180] }, { duration: 0.34, ease: [0.2, 0.85, 0.2, 1] })
+        : null;
+
+      await Promise.all([zoomControls.finished, flipControls?.finished]);
+
+      ghost.root.classList.add('cracked');
+      if (spentFuseIndex !== null) {
+        triggerTokenFx(fuseTokenSlotRefs.current[spentFuseIndex] ?? null, 'token-fx-extinguish');
+      }
+      await animate(
+        ghost.root,
+        { y: [-14, -18, -10], scale: [1.1, 1.26, 0.86], rotate: [-2, 3, -4], opacity: [1, 1, 0] },
+        { duration: 0.66, ease: [0.2, 0.85, 0.2, 1] }
+      ).finished;
+    } finally {
+      ghost.root.remove();
+    }
+  }
+
+  async function animateDiscardExplode({
+    cardId,
+    suit,
+    number,
+    shouldFlip
+  }: {
+    cardId: CardId;
+    suit: Suit;
+    number: number;
+    shouldFlip: boolean;
+  }): Promise<void> {
+    const layer = animationLayerRef.current;
+    const fromRect = prevLayoutSnapshotRef.current?.cardRects.get(cardId) ?? null;
+    if (!layer || !fromRect) {
+      return;
+    }
+
+    const ghost = createGhostCardElement({ suit, number, face: shouldFlip ? 'back' : 'front' });
+    if (!ghost) {
+      return;
+    }
+
+    ghost.root.style.left = `${fromRect.left}px`;
+    ghost.root.style.top = `${fromRect.top}px`;
+    ghost.root.style.width = `${fromRect.width}px`;
+    ghost.root.style.height = `${fromRect.height}px`;
+
+    layer.appendChild(ghost.root);
+
+    try {
+      const zoomControls = animate(ghost.root, { y: -12, scale: 1.1, rotate: -2 }, { duration: 0.34, ease: [0.2, 0.85, 0.2, 1] });
+      const flipControls = shouldFlip
+        ? animate(ghost.inner, { rotateY: [0, 180] }, { duration: 0.34, ease: [0.2, 0.85, 0.2, 1] })
+        : null;
+
+      await Promise.all([zoomControls.finished, flipControls?.finished]);
+
+      ghost.root.classList.add('cracked');
+      await animate(
+        ghost.root,
+        { y: [-12, -18, -10], scale: [1.1, 1.28, 0.86], rotate: [-2, 4, -6], opacity: [1, 1, 0] },
+        { duration: 0.66, ease: [0.2, 0.85, 0.2, 1] }
+      ).finished;
+    } finally {
+      ghost.root.remove();
+    }
+  }
+
+  useEffect(() => {
+    if (!activeGameState) {
+      prevGameStateRef.current = null;
+      return;
+    }
+
+    const previous = prevGameStateRef.current;
+    prevGameStateRef.current = activeGameState;
+
+    if (!previous) {
+      return;
+    }
+
+    if (activeGameState.turn - previous.turn !== 1) {
+      return;
+    }
+
+    const newLogs = activeGameState.logs.slice(previous.logs.length);
+    if (newLogs.length === 0) {
+      return;
+    }
+
+    const actionLog = [...newLogs].reverse().find((log) => log.type !== 'status') ?? null;
+    if (!actionLog) {
+      return;
+    }
+
+    const prevHintTokens = previous.hintTokens;
+    const nextHintTokens = activeGameState.hintTokens;
+    if (nextHintTokens < prevHintTokens) {
+      triggerTokenFx(hintTokenSlotRefs.current[nextHintTokens] ?? null, 'token-fx-spend');
+    } else if (nextHintTokens > prevHintTokens) {
+      triggerTokenFx(hintTokenSlotRefs.current[prevHintTokens] ?? null, 'token-fx-gain');
+    }
+
+    if (actionLog.type === 'hint') {
+      for (const cardId of actionLog.touchedCardIds) {
+        triggerCardFx(cardId, 'hint-enter');
+      }
+      return;
+    }
+
+    if (actionLog.type !== 'play' && actionLog.type !== 'discard') {
+      return;
+    }
+
+    const reduceMotion = typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const canRunMotion = !reduceMotion
+      && typeof document !== 'undefined'
+      && typeof document.createElement('div').animate === 'function';
+    if (!canRunMotion) {
+      return;
+    }
+
+    const runId = animationRunIdRef.current + 1;
+    animationRunIdRef.current = runId;
+    setIsActionAnimationRunning(true);
+    setTurnLockPlayerId(actionLog.actorId);
+
+    const viewerIdAtAction = isLocalDebugMode
+      ? previous.players[previous.currentTurnPlayerIndex]?.id ?? null
+      : (perspective?.viewerId ?? null);
+
+    const prevActor = previous.players.find((player) => player.id === actionLog.actorId);
+    const nextActor = activeGameState.players.find((player) => player.id === actionLog.actorId);
+    const prevHand = prevActor?.cards ?? [];
+    const nextHand = nextActor?.cards ?? [];
+    const prevHandSet = new Set(prevHand);
+    const drawnCardId = nextHand.find((cardId) => !prevHandSet.has(cardId)) ?? null;
+
+    const deckDelta = activeGameState.drawDeck.length - previous.drawDeck.length;
+    const didDraw = deckDelta === -1 && drawnCardId !== null;
+
+    const spentFuseIndex = (() => {
+      const prevRemaining = previous.settings.maxFuseTokens - previous.fuseTokensUsed;
+      const nextRemaining = activeGameState.settings.maxFuseTokens - activeGameState.fuseTokensUsed;
+      if (nextRemaining !== prevRemaining - 1) {
+        return null;
+      }
+
+      return nextRemaining;
+    })();
+
+    void (async () => {
+      try {
+        if (actionLog.type === 'play') {
+          const shouldFlip = viewerIdAtAction !== null && actionLog.actorId === viewerIdAtAction;
+          if (actionLog.success) {
+            await animatePlayToPeg({ cardId: actionLog.cardId, suit: actionLog.suit, number: actionLog.number, shouldFlip });
+          } else {
+            await animateMisplay({
+              cardId: actionLog.cardId,
+              suit: actionLog.suit,
+              number: actionLog.number,
+              shouldFlip,
+              spentFuseIndex
+            });
+          }
+        }
+
+        if (actionLog.type === 'discard') {
+          const shouldFlip = viewerIdAtAction !== null && actionLog.actorId === viewerIdAtAction;
+          await animateDiscardExplode({ cardId: actionLog.cardId, suit: actionLog.suit, number: actionLog.number, shouldFlip });
+        }
+
+        if (didDraw && drawnCardId) {
+          await animateDrawCard({
+            drawnCardId,
+            actorId: actionLog.actorId,
+            viewerIdForVisibility: perspective?.viewerId ?? null
+          });
+        }
+      } finally {
+        if (animationRunIdRef.current === runId) {
+          setIsActionAnimationRunning(false);
+          setTurnLockPlayerId(null);
+        }
+      }
+    })();
+  }, [activeGameState, isLocalDebugMode, perspective?.viewerId]);
 
   function commitLocal(command: () => void): void {
     try {
@@ -821,42 +1592,64 @@ function GameClient({
       const selectedSuit = selectedCard.suit;
       const selectedNumber = selectedCard.number;
 
-      commitLocal(() => {
-        if (pending === 'play') {
-          if (playerId !== currentPlayer.id) {
-            return;
-          }
+      if (pending === 'play') {
+        if (playerId !== currentPlayer.id) {
+          return;
+        }
 
+        commitLocal(() => {
           debugGame.playCard(cardId);
+        });
+        return;
+      }
+
+      if (pending === 'discard') {
+        if (playerId !== currentPlayer.id) {
           return;
         }
 
-        if (pending === 'discard') {
-          if (playerId !== currentPlayer.id) {
-            return;
-          }
-
+        commitLocal(() => {
           debugGame.discardCard(cardId);
+        });
+        return;
+      }
+
+      if (pending === 'hint-color') {
+        if (playerId === currentPlayer.id) {
           return;
         }
 
-        if (pending === 'hint-color') {
-          if (playerId === currentPlayer.id) {
-            return;
+        const { redundant, touchedCardIds } = isRedundantHint(debugGame.state, playerId, { hintType: 'color', suit: selectedSuit });
+        if (redundant) {
+          for (const touchedId of touchedCardIds) {
+            triggerCardFx(touchedId, 'hint-redundant');
           }
+          return;
+        }
 
+        commitLocal(() => {
           debugGame.giveColorHint(playerId, selectedSuit);
+        });
+        return;
+      }
+
+      if (pending === 'hint-number') {
+        if (playerId === currentPlayer.id) {
           return;
         }
 
-        if (pending === 'hint-number') {
-          if (playerId === currentPlayer.id) {
-            return;
+        const { redundant, touchedCardIds } = isRedundantHint(debugGame.state, playerId, { hintType: 'number', number: selectedNumber });
+        if (redundant) {
+          for (const touchedId of touchedCardIds) {
+            triggerCardFx(touchedId, 'hint-redundant');
           }
-
-          debugGame.giveNumberHint(playerId, selectedNumber);
+          return;
         }
-      });
+
+        commitLocal(() => {
+          debugGame.giveNumberHint(playerId, selectedNumber);
+        });
+      }
       return;
     }
 
@@ -910,6 +1703,14 @@ function GameClient({
         return;
       }
 
+      const { redundant, touchedCardIds } = isRedundantHint(activeGameState, playerId, { hintType: 'color', suit: selectedCard.suit });
+      if (redundant) {
+        for (const touchedId of touchedCardIds) {
+          triggerCardFx(touchedId, 'hint-redundant');
+        }
+        return;
+      }
+
       action = {
         type: 'hint-color',
         actorId,
@@ -920,6 +1721,14 @@ function GameClient({
 
     if (pendingAction === 'hint-number') {
       if (playerId === actorId) {
+        return;
+      }
+
+      const { redundant, touchedCardIds } = isRedundantHint(activeGameState, playerId, { hintType: 'number', number: selectedCard.number });
+      if (redundant) {
+        for (const touchedId of touchedCardIds) {
+          triggerCardFx(touchedId, 'hint-redundant');
+        }
         return;
       }
 
@@ -963,6 +1772,14 @@ function GameClient({
     }
 
     if (isLocalDebugMode) {
+      const { redundant, touchedCardIds } = isRedundantHint(debugGame.state, targetPlayerId, { hintType: 'color', suit });
+      if (redundant) {
+        for (const touchedId of touchedCardIds) {
+          triggerCardFx(touchedId, 'hint-redundant');
+        }
+        return;
+      }
+
       commitLocal(() => {
         debugGame.giveColorHint(targetPlayerId, suit);
       });
@@ -979,6 +1796,14 @@ function GameClient({
     if (!currentPlayer || currentPlayer.id !== actorId) {
       setPendingAction(null);
       setWildColorHintTargetPlayerId(null);
+      return;
+    }
+
+    const { redundant, touchedCardIds } = isRedundantHint(activeGameState, targetPlayerId, { hintType: 'color', suit });
+    if (redundant) {
+      for (const touchedId of touchedCardIds) {
+        triggerCardFx(touchedId, 'hint-redundant');
+      }
       return;
     }
 
@@ -1206,27 +2031,69 @@ function GameClient({
     );
   }
 
-  const others = perspective.players.filter((player) => player.id !== perspective.viewerId);
-  const viewer = perspective.players.find((player) => player.id === perspective.viewerId);
+  const effectiveTurnPlayerId = isActionAnimationRunning && turnLockPlayerId
+    ? turnLockPlayerId
+    : perspective.currentTurnPlayerId;
+  const effectivePlayers = perspective.players.map((player) => ({
+    ...player,
+    isCurrentTurn: player.id === effectiveTurnPlayerId
+  }));
+
+  const others = effectivePlayers.filter((player) => player.id !== perspective.viewerId);
+  const viewer = effectivePlayers.find((player) => player.id === perspective.viewerId);
   if (!viewer) {
     throw new Error(`Missing viewer ${perspective.viewerId}`);
   }
 
   const tablePlayers = [...others, viewer];
-  const activeTurnIndex = tablePlayers.findIndex((player) => player.isCurrentTurn);
+  const activeTurnIndex = tablePlayers.findIndex((player) => player.id === effectiveTurnPlayerId);
+  const isCompactPlayersLayout = tablePlayers.length >= 4;
   const lastLog = perspective.logs[perspective.logs.length - 1] ?? null;
   const orderedLogs = [...perspective.logs].reverse();
   const hintTokenStates = Array.from({ length: perspective.maxHintTokens }, (_, index) => index < perspective.hintTokens);
   const remainingFuses = perspective.maxFuseTokens - perspective.fuseTokensUsed;
   const fuseTokenStates = Array.from({ length: perspective.maxFuseTokens }, (_, index) => index < remainingFuses);
   const gameOver = isTerminalStatus(perspective.status);
+  const endgameOutcome: 'win' | 'lose' = perspective.status === 'won' ? 'win' : 'lose';
+  const showEndgameOverlay = gameOver && !isActionAnimationRunning;
+  const reduceMotion = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const isOnlineTurn = !isLocalDebugMode && onlineState.selfId !== null && perspective.currentTurnPlayerId === onlineState.selfId;
-  const canAct = isLocalDebugMode || (onlineState.status === 'connected' && isOnlineTurn);
+  const canAct = (isLocalDebugMode || (onlineState.status === 'connected' && isOnlineTurn)) && !isActionAnimationRunning;
+  const selectedAction: PendingCardAction = isLocalDebugMode ? debugGame.state.ui.pendingAction : pendingAction;
   const showReconnectAction = !isLocalDebugMode && onlineState.status !== 'connected';
   const discardDisabled = gameOver || !canAct || perspective.hintTokens >= perspective.maxHintTokens;
   const colorHintDisabled = gameOver || !canAct || perspective.hintTokens <= 0;
   const numberHintDisabled = gameOver || !canAct || perspective.hintTokens <= 0;
   const playDisabled = gameOver || !canAct;
+
+  function toggleEndgameLog(): void {
+    setEndgamePanel((current) => (current === 'log' ? 'summary' : 'log'));
+  }
+
+  function backToStart(): void {
+    setEndgamePanel('summary');
+    setIsMenuOpen(false);
+    setIsLogDrawerOpen(false);
+    setPendingAction(null);
+    setWildColorHintTargetPlayerId(null);
+
+    if (isLocalDebugMode) {
+      debugGame.replaceState(new HanabiGame(LOCAL_DEBUG_SETUP).getSnapshot());
+      setDebugGameState(debugGame.getSnapshot());
+      return;
+    }
+
+    if (onlineState.isHost) {
+      activeSession.updateSettings({});
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    }
+  }
 
   return (
     <main className="app" data-testid="app-root">
@@ -1234,33 +2101,49 @@ function GameClient({
         <div className="stat hints-stat" data-testid="status-hints">
           <div className="token-grid hints-grid" aria-label="Hint tokens">
             {hintTokenStates.map((isFilled, index) => (
-              <LightbulbFilament
+              <span
                 key={`hint-token-${index}`}
-                size={15}
-                weight={isFilled ? 'fill' : 'regular'}
-                className={isFilled ? 'token-icon filled' : 'token-icon hollow'}
-              />
+                className="token-slot"
+                ref={(node) => {
+                  hintTokenSlotRefs.current[index] = node;
+                }}
+                data-testid={`hint-token-${index}`}
+              >
+                <LightbulbFilament
+                  size={15}
+                  weight={isFilled ? 'fill' : 'regular'}
+                  className={isFilled ? 'token-icon filled' : 'token-icon hollow'}
+                />
+              </span>
             ))}
           </div>
           <span className="visually-hidden" data-testid="status-hints-count">{perspective.hintTokens}</span>
         </div>
 
         <div className="stat deck-stat" data-testid="status-deck">
-          <div className="deck-pill">
+          <div className="deck-pill" ref={deckPillRef} data-testid="deck-pill">
             <CardsThree size={17} weight="fill" />
-            <span className="deck-count" data-testid="status-deck-count">{perspective.drawDeckCount}</span>
+            <DeckCount value={perspective.drawDeckCount} />
           </div>
         </div>
 
         <div className="stat fuses-stat" data-testid="status-fuses">
           <div className="token-grid fuses-grid" aria-label="Fuse tokens">
             {fuseTokenStates.map((isFilled, index) => (
-              <Fire
+              <span
                 key={`fuse-token-${index}`}
-                size={24}
-                weight={isFilled ? 'fill' : 'regular'}
-                className={isFilled ? 'token-icon filled danger' : 'token-icon hollow danger'}
-              />
+                className="token-slot"
+                ref={(node) => {
+                  fuseTokenSlotRefs.current[index] = node;
+                }}
+                data-testid={`fuse-token-${index}`}
+              >
+                <Fire
+                  size={24}
+                  weight={isFilled ? 'fill' : 'regular'}
+                  className={isFilled ? 'token-icon filled danger' : 'token-icon hollow danger'}
+                />
+              </span>
             ))}
           </div>
           <span className="visually-hidden" data-testid="status-fuses-count">{remainingFuses}</span>
@@ -1305,38 +2188,45 @@ function GameClient({
         })}
       </section>
 
-	      <section
-	        className="table-shell"
-	        style={{ '--player-count': String(tablePlayers.length), '--active-index': String(activeTurnIndex) } as CSSProperties}
-	        data-testid="table-shell"
-	      >
-	        {activeTurnIndex >= 0 && <div className="turn-indicator" aria-hidden data-testid="turn-indicator" />}
-	        {tablePlayers.map((player) => (
+		      <section
+		        className={`table-shell ${isCompactPlayersLayout ? 'compact' : ''}`}
+		        style={{ '--player-count': String(tablePlayers.length), '--active-index': String(activeTurnIndex) } as CSSProperties}
+		        data-testid="table-shell"
+		      >
+		        {activeTurnIndex >= 0 && <div className="turn-indicator" aria-hidden data-testid="turn-indicator" />}
+		        {tablePlayers.map((player) => (
 	          <article
 	            key={player.id}
 	            className={`player ${player.isCurrentTurn ? 'active' : ''} ${player.isViewer ? 'you-player' : ''}`}
 	            data-testid={`player-${player.id}`}
           >
-            <header className="player-header">
-              <span className="player-name" data-testid={`player-name-${player.id}`}>
-                {player.isViewer ? `${player.name} (You)` : player.name}
-              </span>
-              {player.isCurrentTurn && (
-                <span className="turn-chip" data-testid={`player-turn-${player.id}`}>
-                  <span className="turn-chip-dot" />
-                  Turn
-                </span>
-              )}
-            </header>
-            <div className="cards">
-              {player.cards.map((card, cardIndex) => (
-                <CardView
-                  key={card.id}
+	            <header className="player-header">
+	              <span className="player-name" data-testid={`player-name-${player.id}`}>
+	                {player.isViewer && !isCompactPlayersLayout ? `${player.name} (You)` : player.name}
+	              </span>
+	              {player.isCurrentTurn && (
+	                <span className="turn-chip" data-testid={`player-turn-${player.id}`}>
+	                  <span className="turn-chip-dot" />
+	                  Turn
+	                </span>
+	              )}
+	            </header>
+	            <div className="cards" style={{ '--hand-size': String(player.cards.length) } as CSSProperties}>
+	              {player.cards.map((card, cardIndex) => (
+	                <CardView
+	                  key={card.id}
                   card={card}
                   showNegativeColorHints={showNegativeColorHints}
                   showNegativeNumberHints={showNegativeNumberHints}
                   onSelect={() => handleCardSelect(player.id, card.id)}
                   testId={`card-${player.id}-${cardIndex}`}
+                  onNode={(node) => {
+                    if (node) {
+                      cardNodeByIdRef.current.set(card.id, node);
+                    } else {
+                      cardNodeByIdRef.current.delete(card.id);
+                    }
+                  }}
                 />
               ))}
             </div>
@@ -1346,15 +2236,18 @@ function GameClient({
 
       <section className="bottom-panel">
         <button type="button" className="last-action" onClick={openLogDrawer} data-testid="status-last-action">
-          <span className="last-action-label">{formatPendingAction(isLocalDebugMode ? debugGame.state.ui.pendingAction : pendingAction)}</span>
-          <span className="last-action-message">{lastLog ? renderLogMessage(lastLog) : 'No actions yet'}</span>
+          <span className="last-action-label">Last</span>
+          <LastActionTicker
+            id={lastLog?.id ?? 'none'}
+            message={lastLog ? renderLogMessage(lastLog) : 'No actions yet'}
+          />
         </button>
 
         <section className="actions">
           <div className="action-slot">
             <button
               type="button"
-              className="action-button danger"
+              className={`action-button danger ${selectedAction === 'discard' ? 'selected' : ''}`}
               data-testid="actions-discard"
               onClick={handleDiscardPress}
               disabled={discardDisabled}
@@ -1366,7 +2259,7 @@ function GameClient({
           <div className="action-slot">
             <button
               type="button"
-              className="action-button"
+              className={`action-button ${selectedAction === 'hint-number' ? 'selected' : ''}`}
               data-testid="actions-number"
               onClick={handleHintNumberPress}
               disabled={numberHintDisabled}
@@ -1393,7 +2286,7 @@ function GameClient({
           <div className="action-slot">
             <button
               type="button"
-              className="action-button"
+              className={`action-button ${selectedAction === 'hint-color' ? 'selected' : ''}`}
               data-testid="actions-color"
               onClick={handleHintColorPress}
               disabled={colorHintDisabled}
@@ -1405,7 +2298,7 @@ function GameClient({
           <div className="action-slot">
             <button
               type="button"
-              className="action-button primary"
+              className={`action-button primary ${selectedAction === 'play' ? 'selected' : ''}`}
               data-testid="actions-play"
               onClick={handlePlayPress}
               disabled={playDisabled}
@@ -1567,7 +2460,354 @@ function GameClient({
           ))}
         </div>
       </aside>
+
+      <div className="animation-layer" ref={animationLayerRef} aria-hidden data-testid="animation-layer" />
+
+      {showEndgameOverlay && (
+        <EndgameOverlay
+          outcome={endgameOutcome}
+          status={perspective.status}
+          score={perspective.score}
+          perspective={perspective}
+          discardCounts={discardCounts}
+          players={activeGameState.players}
+          viewerId={perspective.viewerId}
+          statsByPlayerId={endgameStatsByPlayerId}
+          logs={orderedLogs}
+          panel={endgamePanel}
+          reduceMotion={reduceMotion}
+          onToggleLog={toggleEndgameLog}
+          onBackToStart={backToStart}
+        />
+      )}
     </main>
+  );
+}
+
+function hashSeed(input: string): number {
+  let hash = 5381;
+  for (let index = 0; index < input.length; index += 1) {
+    hash = ((hash << 5) + hash) ^ input.charCodeAt(index);
+  }
+  return hash >>> 0;
+}
+
+function mulberry32(seed: number): () => number {
+  let value = seed >>> 0;
+  return () => {
+    value = (value + 0x6D2B79F5) >>> 0;
+    let t = value;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function EndgameOverlay({
+  outcome,
+  status,
+  score,
+  perspective,
+  discardCounts,
+  players,
+  viewerId,
+  statsByPlayerId,
+  logs,
+  panel,
+  reduceMotion,
+  onToggleLog,
+  onBackToStart
+}: {
+  outcome: 'win' | 'lose';
+  status: HanabiPerspectiveState['status'];
+  score: number;
+  perspective: HanabiPerspectiveState;
+  discardCounts: Map<string, number>;
+  players: Array<{ id: PlayerId; name: string }>;
+  viewerId: PlayerId;
+  statsByPlayerId: Map<PlayerId, { hintsGiven: number; hintsReceived: number; plays: number; discards: number }>;
+  logs: GameLogEntry[];
+  panel: 'summary' | 'log';
+  reduceMotion: boolean;
+  onToggleLog: () => void;
+  onBackToStart: () => void;
+}) {
+  const title = status === 'won'
+    ? 'You win'
+    : status === 'lost'
+      ? 'You lost'
+      : 'Game over';
+
+  const scoreBreakdown = perspective.activeSuits.map((suit) => perspective.fireworksHeights[suit]);
+  const scoreFormula = `${scoreBreakdown.join('+')} = ${score}`;
+  const remainingLives = Math.max(0, perspective.maxFuseTokens - perspective.fuseTokensUsed);
+
+  const seedKey = `${outcome}:${status}:${score}:${logs[0]?.id ?? 'none'}`;
+
+  const confettiPieces = useMemo(() => {
+    if (outcome !== 'win' || reduceMotion) {
+      return [];
+    }
+
+	    const rand = mulberry32(hashSeed(seedKey));
+	    const count = 78;
+	    return Array.from({ length: count }, (_, index) => ({
+	      key: `confetti-${index}`,
+	      left: rand() * 100,
+	      delay: rand() * 2.2,
+	      duration: 3.2 + rand() * 3.8,
+	      drift: (rand() - 0.5) * 220,
+	      hue: Math.floor(rand() * 360),
+	      size: 6 + rand() * 8,
+	      radius: 1 + rand() * 6
+	    }));
+	  }, [outcome, reduceMotion, seedKey]);
+
+  const rainIntroDrops = useMemo(() => {
+    if (outcome !== 'lose' || reduceMotion) {
+      return [];
+    }
+
+    const rand = mulberry32(hashSeed(seedKey) ^ 0x9E3779B9);
+    const count = 110;
+    return Array.from({ length: count }, (_, index) => ({
+      key: `rain-intro-${index}`,
+      left: rand() * 100,
+      delay: rand() * 0.4,
+      duration: 0.55 + rand() * 0.55,
+      height: 22 + rand() * 44,
+      opacity: 0.32 + rand() * 0.42,
+      drift: (rand() - 0.5) * 30
+    }));
+  }, [outcome, reduceMotion, seedKey]);
+
+  const rainLoopDrops = useMemo(() => {
+    if (outcome !== 'lose' || reduceMotion) {
+      return [];
+    }
+
+    const rand = mulberry32(hashSeed(seedKey) ^ 0xB7E15162);
+    const count = 56;
+    return Array.from({ length: count }, (_, index) => ({
+      key: `rain-loop-${index}`,
+      left: rand() * 100,
+      delay: rand() * 1.2,
+      duration: 0.92 + rand() * 0.82,
+      height: 22 + rand() * 38,
+      opacity: 0.16 + rand() * 0.22,
+      drift: (rand() - 0.5) * 20
+    }));
+  }, [outcome, reduceMotion, seedKey]);
+
+  return (
+    <aside
+      className={`endgame-overlay ${outcome}`}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Game over"
+      data-testid="endgame-screen"
+    >
+      <div className={`endgame-fx ${outcome}`} aria-hidden>
+        {outcome === 'win' && (
+          <div className="endgame-confetti">
+            {confettiPieces.map((piece) => (
+              <span
+                key={piece.key}
+                className="endgame-confetti-piece"
+                style={{
+                  '--x': `${piece.left}%`,
+                  '--delay': `${piece.delay}s`,
+                  '--dur': `${piece.duration}s`,
+                  '--drift': `${piece.drift}px`,
+                  '--hue': String(piece.hue),
+                  '--size': `${piece.size}px`,
+                  '--radius': `${piece.radius}px`
+                } as CSSProperties}
+              />
+            ))}
+          </div>
+        )}
+
+        {outcome === 'lose' && (
+          <>
+            <div className="endgame-rain intro">
+              {rainIntroDrops.map((drop) => (
+                <span
+                  key={drop.key}
+                  className="endgame-rain-drop"
+                  style={{
+                    '--x': `${drop.left}%`,
+                    '--delay': `${drop.delay}s`,
+                    '--dur': `${drop.duration}s`,
+                    '--h': `${drop.height}px`,
+                    '--o': String(drop.opacity),
+                    '--drift': `${drop.drift}px`
+                  } as CSSProperties}
+                />
+              ))}
+            </div>
+            <div className="endgame-rain loop">
+              {rainLoopDrops.map((drop) => (
+                <span
+                  key={drop.key}
+                  className="endgame-rain-drop"
+                  style={{
+                    '--x': `${drop.left}%`,
+                    '--delay': `${drop.delay}s`,
+                    '--dur': `${drop.duration}s`,
+                    '--h': `${drop.height}px`,
+                    '--o': String(drop.opacity),
+                    '--drift': `${drop.drift}px`
+                  } as CSSProperties}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      <section className="endgame-shell">
+        <header className="endgame-header">
+          <h2 className="endgame-title" data-testid="endgame-title">{title}</h2>
+          <p className="endgame-score" data-testid="endgame-score">{scoreFormula}</p>
+          <div className="endgame-resources" data-testid="endgame-resources">
+            <div className="endgame-resource" data-testid="endgame-hints-remaining">
+              <LightbulbFilament size={18} weight="fill" aria-hidden />
+              <span>Hints</span>
+              <span className="endgame-resource-value">{perspective.hintTokens}/{perspective.maxHintTokens}</span>
+            </div>
+            <div className="endgame-resource" data-testid="endgame-lives-remaining">
+              <Fire size={18} weight="fill" aria-hidden />
+              <span>Lives</span>
+              <span className="endgame-resource-value">{remainingLives}/{perspective.maxFuseTokens}</span>
+            </div>
+          </div>
+        </header>
+
+        <section className="endgame-board" data-testid="endgame-board">
+          <section
+            className="fireworks endgame-fireworks"
+            style={{ '--suit-count': String(perspective.activeSuits.length) } as CSSProperties}
+            data-testid="endgame-fireworks-grid"
+          >
+            {perspective.activeSuits.map((suit) => {
+              const height = perspective.fireworksHeights[suit];
+              return (
+                <div
+                  key={suit}
+                  className="tower"
+                  style={{ '--suit': suitColors[suit] } as CSSProperties}
+                  data-testid={`endgame-tower-${suit}`}
+                >
+                  <div className="tower-stack">
+                    {CARD_NUMBERS.map((num) => {
+                      const isLit = num <= height;
+                      const remaining = perspective.knownRemainingCounts[suit][num];
+                      const knownUnavailable = perspective.knownUnavailableCounts[suit][num];
+                      const totalCopies = remaining + knownUnavailable;
+                      const discarded = discardCounts.get(`${suit}-${num}`) ?? 0;
+                      const blocked = num > height && discarded >= totalCopies;
+                      const pipStates = getPegPipStates(remaining, totalCopies);
+
+                      return (
+                        <div
+                          key={num}
+                          className={`peg ${isLit ? 'lit' : ''} ${blocked ? 'blocked' : ''}`}
+                          data-testid={`endgame-peg-${suit}-${num}`}
+                        >
+                          <span className="peg-num">{blocked ? '✕' : num}</span>
+                          <span className="peg-pips" aria-label={`${remaining} copies not visible to you`}>
+                            <PegPips pipStates={pipStates} />
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </section>
+        </section>
+
+        <section className="endgame-panel" data-testid="endgame-panel">
+          {panel === 'log' ? (
+            <section className="endgame-log" data-testid="endgame-log">
+              <h3 className="endgame-log-title">Action Log</h3>
+              <div className="endgame-log-list">
+                {logs.map((logEntry) => (
+                  <article key={logEntry.id} className="log-item" data-testid={`endgame-log-${logEntry.id}`}>
+                    <span className={`log-kind ${logEntry.type}`}>{getLogBadge(logEntry)}</span>
+                    <span className="log-item-message">{renderLogMessage(logEntry)}</span>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : (
+            <section className="endgame-stats" data-testid="endgame-stats">
+              <table className="endgame-table" data-testid="endgame-stats-table">
+                <colgroup>
+                  <col className="col-name" />
+                  <col className="col-num" />
+                  <col className="col-num" />
+                  <col className="col-num" />
+                  <col className="col-num" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col">name</th>
+                    <th scope="col" className="num">given</th>
+                    <th scope="col" className="num">received</th>
+                    <th scope="col" className="num">played</th>
+                    <th scope="col" className="num">discard</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {players.map((player) => {
+                    const stats = statsByPlayerId.get(player.id) ?? { hintsGiven: 0, hintsReceived: 0, plays: 0, discards: 0 };
+                    const isViewer = player.id === viewerId;
+                    return (
+                      <tr
+                        key={player.id}
+                        className={isViewer ? 'you' : undefined}
+                        data-testid={`endgame-player-${player.id}`}
+                      >
+                        <td className="name" data-testid={`endgame-player-name-${player.id}`}>
+                          {player.name}
+                          {isViewer ? <span className="you-tag">you</span> : null}
+                        </td>
+                        <td className="num" data-testid={`endgame-hints-given-${player.id}`}>{stats.hintsGiven}</td>
+                        <td className="num" data-testid={`endgame-hints-received-${player.id}`}>{stats.hintsReceived}</td>
+                        <td className="num" data-testid={`endgame-plays-${player.id}`}>{stats.plays}</td>
+                        <td className="num" data-testid={`endgame-discards-${player.id}`}>{stats.discards}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </section>
+          )}
+        </section>
+
+        <footer className="endgame-actions">
+          <button
+            type="button"
+            className="endgame-button subtle"
+            onClick={onToggleLog}
+            data-testid="endgame-view-log"
+          >
+            {panel === 'log' ? 'Hide Log' : 'View Log'}
+          </button>
+          <button
+            type="button"
+            className="endgame-button primary"
+            onClick={onBackToStart}
+            data-testid="endgame-back-start"
+          >
+            Back to Start
+          </button>
+        </footer>
+      </section>
+    </aside>
   );
 }
 
@@ -2103,7 +3343,8 @@ function CardView({
   showNegativeNumberHints,
   onSelect,
   isDisabled = false,
-  testId
+  testId,
+  onNode
 }: {
   card: PerspectiveCard;
   showNegativeColorHints: boolean;
@@ -2111,6 +3352,7 @@ function CardView({
   onSelect?: () => void;
   isDisabled?: boolean;
   testId: string;
+  onNode?: (node: HTMLButtonElement | null) => void;
 }) {
   const knownColor = card.hints.color;
   const knownNumber = card.hints.number;
@@ -2145,6 +3387,8 @@ function CardView({
       style={{ '--card-bg': bgColor } as CSSProperties}
       onClick={isDisabled ? undefined : onSelect}
       data-testid={testId}
+      data-card-id={card.id}
+      ref={onNode}
       disabled={isDisabled}
       aria-disabled={isDisabled}
       aria-pressed={false}
