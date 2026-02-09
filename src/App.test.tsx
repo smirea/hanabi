@@ -2,7 +2,7 @@
 
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import App from './App';
 
 function getHintCount(): number {
@@ -92,6 +92,10 @@ afterEach(() => {
 });
 
 describe('App local debug wiring', () => {
+  beforeEach(() => {
+    window.localStorage.setItem('hanabi.debug_mode', 'true');
+  });
+
   test('play action resolves on card tap and swaps perspective to the next player', () => {
     render(<App />);
 
@@ -293,5 +297,20 @@ describe('App local debug wiring', () => {
     fireEvent.click(screen.getByTestId('debug-network-remove'));
     expect(screen.queryByTestId('debug-network-player-3')).not.toBeInTheDocument();
     expect(frame.getAttribute('src')).toContain('#debug-2');
+  });
+});
+
+describe('App session hash namespaces local storage', () => {
+  test('player name writes to the session namespace when #session_* is present', () => {
+    window.location.hash = '#session_123';
+    window.localStorage.setItem('hanabi.debug_mode.sess-session_123', 'false');
+
+    render(<App roomCode="ABCD" />);
+
+    const input = screen.getByTestId('lobby-name-input') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'Alice' } });
+
+    expect(window.localStorage.getItem('hanabi.player_name.sess-session_123')).toBe(JSON.stringify('Alice'));
+    expect(window.localStorage.getItem('hanabi.player_name')).toBeNull();
   });
 });

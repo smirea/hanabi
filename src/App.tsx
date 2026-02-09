@@ -38,8 +38,10 @@ import {
   type OnlineState,
   type RoomMember
 } from './network';
+import { useRoomDirectoryAdvertiser } from './roomDirectory';
+import { isValidRoomCode } from './roomCodes';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
-import { createDebugNamespace, storageKeys } from './storage';
+import { createDebugNamespace, createSessionNamespace, getSessionIdFromHash, storageKeys } from './storage';
 
 const LOCAL_DEBUG_SETUP = {
   playerNames: ['Ari', 'Blair', 'Casey'],
@@ -348,7 +350,20 @@ function parseHanabiStatePayload(rawText: string): HanabiState {
   return HanabiGame.fromState(candidate as HanabiState).getSnapshot();
 }
 
-function App() {
+function App({
+  roomCode = DEFAULT_ROOM_ID,
+  onLeaveRoom
+}: {
+  roomCode?: string;
+  onLeaveRoom?: () => void;
+}) {
+  const [hash, setHash] = useState(() => {
+    if (typeof window === 'undefined') {
+      return '';
+    }
+
+    return window.location.hash;
+  });
   const [debugFramePlayerId, setDebugFramePlayerId] = useState<string | null>(() => {
     if (typeof window === 'undefined') {
       return null;
@@ -363,7 +378,9 @@ function App() {
     }
 
     const onHashChange = (): void => {
-      setDebugFramePlayerId(getDebugNetworkPlayerIdFromHash(window.location.hash));
+      const nextHash = window.location.hash;
+      setHash(nextHash);
+      setDebugFramePlayerId(getDebugNetworkPlayerIdFromHash(nextHash));
     };
 
     window.addEventListener('hashchange', onHashChange);
@@ -372,8 +389,21 @@ function App() {
     };
   }, []);
 
-  const [isDebugNetworkShellOpen, setIsDebugNetworkShellOpen] = useLocalStorageState(storageKeys.debugNetworkShell, false);
-  const [isDarkMode, setIsDarkMode] = useLocalStorageState(storageKeys.darkMode, prefersDarkMode());
+  const storageNamespace = useMemo(() => {
+    if (debugFramePlayerId) {
+      return createDebugNamespace(debugFramePlayerId);
+    }
+
+    const sessionId = getSessionIdFromHash(hash);
+    return sessionId ? createSessionNamespace(sessionId) : null;
+  }, [debugFramePlayerId, hash]);
+
+  const [isDebugNetworkShellOpen, setIsDebugNetworkShellOpen] = useLocalStorageState(
+    storageKeys.debugNetworkShell,
+    false,
+    storageNamespace
+  );
+  const [isDarkMode, setIsDarkMode] = useLocalStorageState(storageKeys.darkMode, prefersDarkMode(), storageNamespace);
 
   useEffect(() => {
     if (typeof document === 'undefined') {
@@ -394,12 +424,20 @@ function App() {
         onOpenDebugNetworkShell={null}
         isDarkMode={isDarkMode}
         onToggleDarkMode={() => setIsDarkMode((current) => !current)}
+        roomId={roomCode}
+        onLeaveRoom={onLeaveRoom ?? null}
+        storageNamespace={storageNamespace}
       />
     );
   }
 
   if (isDebugNetworkShellOpen) {
-    return <DebugNetworkShell onExit={() => setIsDebugNetworkShellOpen(false)} />;
+    return (
+      <DebugNetworkShell
+        onExit={() => setIsDebugNetworkShellOpen(false)}
+        storageNamespace={storageNamespace}
+      />
+    );
   }
 
   return (
@@ -409,17 +447,26 @@ function App() {
       onOpenDebugNetworkShell={() => setIsDebugNetworkShellOpen(true)}
       isDarkMode={isDarkMode}
       onToggleDarkMode={() => setIsDarkMode((current) => !current)}
+      roomId={roomCode}
+      onLeaveRoom={onLeaveRoom ?? null}
+      storageNamespace={storageNamespace}
     />
   );
 }
 
-function DebugNetworkShell({ onExit }: { onExit: () => void }) {
+function DebugNetworkShell({ onExit, storageNamespace }: { onExit: () => void; storageNamespace: string | null }) {
   const [storedPlayers, setStoredPlayers] = useLocalStorageState(
     storageKeys.debugNetworkPlayers,
     getDebugNetworkPlayersFromRoom()
+    ,
+    storageNamespace
   );
   const normalizedPlayers = useMemo(() => normalizeShellPlayers(storedPlayers), [storedPlayers]);
-  const [activePlayer, setActivePlayer] = useLocalStorageState(storageKeys.debugNetworkActivePlayer, normalizedPlayers[0]);
+  const [activePlayer, setActivePlayer] = useLocalStorageState(
+    storageKeys.debugNetworkActivePlayer,
+    normalizedPlayers[0],
+    storageNamespace
+  );
 
   useEffect(() => {
     if (arraysEqual(storedPlayers, normalizedPlayers)) {
@@ -551,13 +598,19 @@ function GameClient({
   framePlayerId,
   onOpenDebugNetworkShell,
   isDarkMode,
-  onToggleDarkMode
+  onToggleDarkMode,
+  roomId,
+  onLeaveRoom,
+  storageNamespace
 }: {
   runtime: ClientRuntime;
   framePlayerId: string | null;
   onOpenDebugNetworkShell: (() => void) | null;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
+  roomId: string;
+  onLeaveRoom: (() => void) | null;
+  storageNamespace: string | null;
 }) {
   const isDebugNetworkFrame = runtime === 'debug-network-frame';
 
@@ -572,11 +625,7 @@ function GameClient({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingCardAction>(null);
   const [wildColorHintTargetPlayerId, setWildColorHintTargetPlayerId] = useState<PlayerId | null>(null);
-  const [isDebugMode, setIsDebugMode] = useLocalStorageState(storageKeys.debugMode, true);
-  const storageNamespace = useMemo(
-    () => (isDebugNetworkFrame && framePlayerId ? createDebugNamespace(framePlayerId) : null),
-    [framePlayerId, isDebugNetworkFrame]
-  );
+  const [isDebugMode, setIsDebugMode] = useLocalStorageState(storageKeys.debugMode, false, storageNamespace);
   const [playerName, setPlayerName] = useLocalStorageState(storageKeys.playerName, '', storageNamespace);
   const [isTvMode, setIsTvMode] = useLocalStorageState(storageKeys.tvMode, false, storageNamespace);
   const [showNegativeColorHints, setShowNegativeColorHints] = useLocalStorageState(
@@ -592,7 +641,7 @@ function GameClient({
   const logListRef = useRef<HTMLDivElement | null>(null);
 
   const isLocalDebugMode = !isDebugNetworkFrame && isDebugMode;
-  const online = useOnlineSession(!isLocalDebugMode && !isDebugNetworkFrame, DEFAULT_ROOM_ID);
+  const online = useOnlineSession(!isLocalDebugMode && !isDebugNetworkFrame, roomId);
   const debugNetwork = useDebugNetworkSession(isDebugNetworkFrame ? framePlayerId : null);
   const activeSession: OnlineSession = isDebugNetworkFrame ? debugNetwork : online;
   const onlineState = activeSession.state;
@@ -670,6 +719,25 @@ function GameClient({
     || onlineState.gameState === null
     || (!isOnlineParticipant && !showTv)
   );
+
+  const shouldAdvertiseRoom = !isLocalDebugMode
+    && !isDebugNetworkFrame
+    && onlineState.status === 'connected'
+    && onlineState.isHost
+    && onlineState.phase === 'lobby'
+    && isValidRoomCode(roomId);
+
+  const directoryMembers = useMemo(
+    () => onlineState.members.map((member) => ({ name: member.name, isTv: member.isTv })),
+    [onlineState.members]
+  );
+
+  useRoomDirectoryAdvertiser({
+    enabled: shouldAdvertiseRoom,
+    code: roomId,
+    snapshotVersion: onlineState.snapshotVersion,
+    members: directoryMembers
+  });
 
   const perspectivePlayerId = useMemo(() => {
     if (!activeGameState) {
@@ -1165,6 +1233,7 @@ function GameClient({
         isGameInProgress={onlineState.phase === 'playing' && !isOnlineParticipant}
         onStart={activeSession.startGame}
         onReconnect={activeSession.requestSync}
+        onLeaveRoom={onLeaveRoom}
         isDarkMode={isDarkMode}
         onToggleDarkMode={onToggleDarkMode}
         onEnableDebugMode={isDebugNetworkFrame ? null : handleEnableDebugMode}
@@ -1193,14 +1262,26 @@ function GameClient({
       <main className="lobby" data-testid="lobby-root">
         <section className="lobby-card">
           <h1 className="lobby-title">Waiting For Room Snapshot</h1>
-          <button
-            type="button"
-            className="lobby-button"
-            onClick={activeSession.requestSync}
-            data-testid="lobby-reconnect"
-          >
-            Reconnect
-          </button>
+          <div className="room-wait-actions">
+            <button
+              type="button"
+              className="lobby-button"
+              onClick={activeSession.requestSync}
+              data-testid="lobby-reconnect"
+            >
+              Reconnect
+            </button>
+            {onLeaveRoom && (
+              <button
+                type="button"
+                className="lobby-button subtle"
+                onClick={onLeaveRoom}
+                data-testid="lobby-leave-room"
+              >
+                Leave
+              </button>
+            )}
+          </div>
         </section>
       </main>
     );
@@ -1506,6 +1587,19 @@ function GameClient({
               Reconnect
             </button>
           )}
+          {!isLocalDebugMode && !isDebugNetworkFrame && onLeaveRoom && (
+            <button
+              type="button"
+              className="menu-item"
+              data-testid="menu-leave-room"
+              onClick={() => {
+                setIsMenuOpen(false);
+                onLeaveRoom();
+              }}
+            >
+              Leave Room
+            </button>
+          )}
           {onOpenDebugNetworkShell && (
             <button
               type="button"
@@ -1588,6 +1682,7 @@ function LobbyScreen({
   isGameInProgress,
   onStart,
   onReconnect,
+  onLeaveRoom,
   isDarkMode,
   onToggleDarkMode,
   onEnableDebugMode,
@@ -1610,6 +1705,7 @@ function LobbyScreen({
   isGameInProgress: boolean;
   onStart: () => void;
   onReconnect: () => void;
+  onLeaveRoom: (() => void) | null;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
   onEnableDebugMode: (() => void) | null;
@@ -1637,6 +1733,16 @@ function LobbyScreen({
           <header className="lobby-header">
             <h1 className="lobby-title">Room Staging</h1>
             <div className="lobby-header-actions">
+              {onLeaveRoom && (
+                <button
+                  type="button"
+                  className="lobby-button subtle"
+                  onClick={onLeaveRoom}
+                  data-testid="lobby-leave-room"
+                >
+                  Leave
+                </button>
+              )}
               <button
                 type="button"
                 className="lobby-button subtle"

@@ -1,11 +1,21 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App';
+import { RouterProvider } from '@tanstack/react-router';
+import { router } from './router';
 import './index.css';
+import { getDebugNetworkPlayerIdFromHash } from './debugNetwork';
+import { createDebugNamespace, createSessionNamespace, getSessionIdFromHash, resolveStorageKey, storageKeys } from './storage';
 
 function resolveInitialDarkMode(): boolean {
   try {
-    const raw = window.localStorage.getItem('hanabi.dark_mode');
+    const hash = window.location.hash ?? '';
+    const debugId = getDebugNetworkPlayerIdFromHash(hash);
+    const sessionId = getSessionIdFromHash(hash);
+    const namespace = debugId
+      ? createDebugNamespace(debugId)
+      : (sessionId ? createSessionNamespace(sessionId) : null);
+
+    const raw = window.localStorage.getItem(resolveStorageKey(storageKeys.darkMode, namespace));
     if (raw !== null) {
       return JSON.parse(raw) === true;
     }
@@ -29,6 +39,6 @@ document
 
 createRoot(rootElement).render(
   <StrictMode>
-    <App />
+    <RouterProvider router={router} />
   </StrictMode>
 );

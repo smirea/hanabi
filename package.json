@@ -3,9 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "bun --port ${PORT:-3000} ./src/index.html",
-    "dev": "bun --hot --port ${CLIENT_PORT:-3000} ./src/index.html",
-    "build": "bun build ./src/index.html --outdir ./dist --minify --asset-naming='[name].[ext]'",
+    "routes:gen": "bunx tsr generate",
+    "routes:watch": "bunx tsr watch",
+    "start": "bun run routes:gen && bun --port ${PORT:-3000} ./src/index.html",
+    "dev": "bun run routes:gen && bun --hot --port ${CLIENT_PORT:-3000} ./src/index.html",
+    "build": "bun run routes:gen && bun build ./src/index.html --outdir ./dist --minify --asset-naming='[name].[ext]'",
     "preview": "bun run build && cd dist && bun --port ${PORT:-3000} ./index.html",
     "lint": "bunx oxlint --fix .",
     "lint:ci": "bunx oxlint .",
@@ -15,11 +17,13 @@
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
+    "@tanstack/react-router": "^1.159.5",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "trystero": "^0.21.4"
   },
   "devDependencies": {
+    "@tanstack/router-cli": "^1.159.4",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@types/bun": "^1.3.8",

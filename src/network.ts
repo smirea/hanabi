@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HanabiGame, type CardNumber, type HanabiState, type Suit } from './game';
 import { electHostId } from './hostElection';
+import { NETWORK_APP_ID } from './networkConstants';
 import {
   applyNetworkAction,
   assignMembers,
@@ -11,7 +12,6 @@ import {
   shouldAcceptSnapshot
 } from './networkLogic';
 
-const NETWORK_APP_ID = 'hanabi-mobile-web';
 const DEFAULT_ROOM_ID = 'default-room';
 const SNAPSHOT_NAMESPACE = 'snapshot';
 const REQUEST_SNAPSHOT_NAMESPACE = 'snap-req';
@@ -21,10 +21,6 @@ const SNAPSHOT_HEARTBEAT_MS = 4_000;
 const SNAPSHOT_SYNC_MS = 2_000;
 
 const TRYSTERO_ACTION_NAME_MAX_BYTES = 12;
-
-if (NETWORK_APP_ID.trim().length === 0) {
-  throw new Error('NETWORK_APP_ID must not be empty');
-}
 
 if (DEFAULT_ROOM_ID.trim().length === 0) {
   throw new Error('DEFAULT_ROOM_ID must not be empty');
