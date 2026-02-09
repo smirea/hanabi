@@ -58,8 +58,8 @@ const suitColors: Record<Suit, string> = {
   Y: '#f4c21b',
   G: '#2dc96d',
   B: '#4f8eff',
-  W: '#a8b8cc',
-  M: '#d46eb3'
+  W: '#2dd4bf',
+  M: '#8b5cf6'
 };
 
 const suitBadgeForeground: Record<Suit, string> = {
@@ -147,43 +147,21 @@ function getPegPipStates(remaining: number, total: number): PegPipState[] {
   });
 }
 
-function PegPie({ pipStates }: { pipStates: PegPipState[] }) {
-  const slices = pipStates.filter((state) => state !== 'unused');
-  if (slices.length === 0) return null;
+function PegPips({ pipStates }: { pipStates: PegPipState[] }) {
+  const visible = pipStates
+    .map((state, index) => ({ state, index }))
+    .filter((pip) => pip.state !== 'unused');
 
-  const center = 8;
-  const radius = 7;
-  const sliceAngle = 360 / slices.length;
-  const gapAngle = slices.length > 1 ? 8 : 0;
-
-  function toPoint(angleDegrees: number) {
-    const angleRadians = ((angleDegrees - 90) * Math.PI) / 180;
-    return {
-      x: center + radius * Math.cos(angleRadians),
-      y: center + radius * Math.sin(angleRadians)
-    };
-  }
-
-  function describeWedge(index: number) {
-    const halfGap = gapAngle / 2;
-    const startAngle = index * sliceAngle + halfGap;
-    const endAngle = (index + 1) * sliceAngle - halfGap;
-    const start = toPoint(startAngle);
-    const end = toPoint(endAngle);
-    const largeArcFlag = (endAngle - startAngle) > 180 ? 1 : 0;
-    return `M ${center} ${center} L ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${end.x} ${end.y} Z`;
+  if (visible.length === 0) {
+    return null;
   }
 
   return (
-    <svg className="peg-pie" viewBox="0 0 16 16" aria-hidden>
-      {slices.length === 1 ? (
-        <circle className={`peg-slice ${slices[0]}`} cx={center} cy={center} r={radius} />
-      ) : (
-        slices.map((state, index) => (
-          <path key={`slice-${index}`} className={`peg-slice ${state}`} d={describeWedge(index)} />
-        ))
-      )}
-    </svg>
+    <>
+      {[...visible].reverse().map((pip) => (
+        <span key={`pip-${pip.index}`} className={`peg-pip ${pip.state}`} aria-hidden />
+      ))}
+    </>
   );
 }
 
@@ -1276,7 +1254,7 @@ function GameClient({
                     >
                       <span className="peg-num">{blocked ? '✕' : num}</span>
                       <span className="peg-pips" aria-label={`${remaining} copies not visible to you`}>
-                        <PegPie pipStates={pipStates} />
+                        <PegPips pipStates={pipStates} />
                       </span>
                     </div>
                   );
