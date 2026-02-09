@@ -17,6 +17,8 @@
   --actions-height: 3.2rem;
   --last-action-height: 2.1rem;
   --bottom-panel-height: calc(var(--actions-height) + var(--last-action-height));
+  --app-max-width: 26rem;
+  --app-inline: clamp(0px, calc((100vw - var(--app-max-width)) / 2), 999px);
 }
 
 :root[data-theme='dark'] {
@@ -96,6 +98,14 @@ body {
     linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
     radial-gradient(150% 120% at 50% 0%, rgba(44, 62, 112, 0.68) 0%, rgba(11, 13, 20, 0.98) 78%);
   background-size: 20px 20px, 20px 20px, 100% 100%;
+}
+
+.app > .stats,
+.app > .fireworks,
+.app > .table-shell {
+  width: 100%;
+  max-width: var(--app-max-width);
+  margin: 0 auto;
 }
 
 .app > * {
@@ -1428,8 +1438,8 @@ body {
 
 .bottom-panel {
   position: fixed;
-  left: 0;
-  right: 0;
+  left: var(--app-inline);
+  right: var(--app-inline);
   bottom: 0;
   z-index: 20;
   display: grid;
@@ -1592,8 +1602,8 @@ body {
 
 .wild-color-picker {
   position: fixed;
-  left: var(--screen-pad-x);
-  right: var(--screen-pad-x);
+  left: calc(var(--app-inline) + var(--screen-pad-x));
+  right: calc(var(--app-inline) + var(--screen-pad-x));
   bottom: calc(var(--bottom-panel-height) + env(safe-area-inset-bottom) + 0.24rem);
   z-index: 28;
   padding: 0.24rem;
@@ -1662,7 +1672,7 @@ body {
 
 .menu-panel {
   position: fixed;
-  right: var(--screen-pad-x);
+  right: calc(var(--app-inline) + var(--screen-pad-x));
   bottom: calc(var(--bottom-panel-height) + env(safe-area-inset-bottom) + 0.24rem);
   z-index: 31;
   width: min(12.5rem, 86vw);
@@ -1722,8 +1732,8 @@ body {
 
 .log-drawer {
   position: fixed;
-  left: 0;
-  right: 0;
+  left: var(--app-inline);
+  right: var(--app-inline);
   bottom: 0;
   z-index: 32;
   height: min(56dvh, 25rem);
