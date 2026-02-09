@@ -815,6 +815,9 @@ function GameClient({
 
   const resetUiForDebugScreens = useCallback(() => {
     animationRunIdRef.current += 1;
+    prevGameStateRef.current = null;
+    layoutSnapshotRef.current = null;
+    prevLayoutSnapshotRef.current = null;
     setIsActionAnimationRunning(false);
     setTurnLockPlayerId(null);
     setIsMenuOpen(false);
