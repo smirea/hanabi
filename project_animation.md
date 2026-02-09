@@ -30,6 +30,13 @@
 5. Last action ticker
 - When a new (potentially long) entry appears in the bottom "Last" strip, slide the new one in and slide the old one out.
 
+6. UX polish + guards
+- Prevent redundant hints (no-op color/number hints) and provide animated feedback on the already-hinted cards.
+- Selection state should be shown via animated/selected action buttons (not by writing "Number hint selected" in the last-action strip).
+- Last-action strip should be tall enough that log chips (card symbols) are not clipped.
+- Discarding should reveal the card and use an explosion/crack animation.
+- Increase play/discard/misplay animation sequences to ~1.0s (draw stays 0.5s).
+
 ## Implementation Notes
 
 - Prefer animation driven by state deltas + logs (play/discard/hint logs exist; draw is inferred by hand/deck diff).
@@ -51,6 +58,12 @@
 - [x] Turn freeze gating (no turn advance in UI until animation done).
 - [x] Last-action ticker slide in/out.
 - [x] Playwright verification + screenshots/traces.
+- [x] Redundant hint guard + "shake red" feedback (cards touched).
+- [x] Action button selected/pulse UX (remove pending-action text from last strip).
+- [x] Fix last-action strip clipping (increase height for chips).
+- [x] Discard animation: flip reveal (own hand) + explode/crack.
+- [x] Increase play/discard/misplay sequences to ~1.0s.
+- [x] Playwright verification update for the new sequences.
 
 ## Progress Log
 
@@ -63,3 +76,8 @@
 - 2026-02-09: Implemented play success (zoom + optional flip + traverse/shrink into peg + peg pulse) and misplay (zoom + optional flip + crack/explode + fuse extinguish).
 - 2026-02-09: Turn gating: while play/discard animations run, keep turn indicator on actor and disable actions. This is skipped when `prefers-reduced-motion` is on or WAAPI is unavailable (keeps unit/UI tests stable).
 - 2026-02-09: Playwright artifacts captured under `output/playwright/animations/.playwright-cli/` (screenshots, 2 videos, and one trace file).
+- 2026-02-09: Prevented redundant hints (UI + game rules); redundant attempts shake + highlight the already-hinted badges in red and do not consume a token or advance the turn.
+- 2026-02-09: Removed pending-action text from the bottom "Last" strip; action selection is now represented via animated/selected action buttons.
+- 2026-02-09: Fixed bottom "Last" strip clipping by increasing ticker/row height to fit log chips.
+- 2026-02-09: Added discard explosion animation (with flip reveal for the acting player's hidden hand) and increased play/discard/misplay sequences to ~1.0s (draw stays 0.5s).
+- 2026-02-09: Playwright update artifacts captured under `output/playwright/animations-ux/`, `output/playwright/animations-actions/`, and `output/playwright/animations-misplay2/`.
