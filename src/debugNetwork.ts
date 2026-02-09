@@ -103,6 +103,30 @@ function sanitizeName(raw: string): string | null {
   return trimmed.slice(0, 24);
 }
 
+function normalizeUniqueKey(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function resolveUniqueName(baseName: string, used: Set<string>): string {
+  const normalizedBase = normalizeUniqueKey(baseName);
+  if (!used.has(normalizedBase)) {
+    return baseName;
+  }
+
+  for (let suffix = 2; suffix < 100; suffix += 1) {
+    const suffixText = ` ${suffix}`;
+    const maxBaseLength = Math.max(1, 24 - suffixText.length);
+    const trimmedBase = baseName.slice(0, maxBaseLength).trimEnd();
+    const candidate = `${trimmedBase}${suffixText}`;
+    const normalizedCandidate = normalizeUniqueKey(candidate);
+    if (!used.has(normalizedCandidate)) {
+      return candidate;
+    }
+  }
+
+  return `${baseName.slice(0, 23).trimEnd()}*`;
+}
+
 function normalizeNames(input: unknown, players: string[]): Record<string, string> {
   if (!input || typeof input !== 'object') {
     return {};
@@ -240,11 +264,18 @@ function getHostId(players: string[]): string | null {
 }
 
 function buildMembers(players: string[], names: Record<string, string>, tvFlags: Record<string, boolean>): RoomMember[] {
-  return players.map((peerId, index) => ({
-    peerId,
-    name: names[peerId] ?? `Player ${index + 1}`,
-    isTv: Boolean(tvFlags[peerId])
-  }));
+  const used = new Set<string>();
+  return players.map((peerId, index) => {
+    const baseName = sanitizeName(names[peerId] ?? `Player ${index + 1}`) ?? `Player ${index + 1}`;
+    const uniqueName = resolveUniqueName(baseName, used);
+    used.add(normalizeUniqueKey(uniqueName));
+
+    return {
+      peerId,
+      name: uniqueName,
+      isTv: Boolean(tvFlags[peerId])
+    };
+  });
 }
 
 function createIdleState(playerId: string | null): OnlineState {

@@ -58,6 +58,24 @@ describe('assignMembers', () => {
       { peerId: 'b', name: 'Bravo', isTv: false }
     ]);
   });
+
+  test('ensures member names are unique by suffixing duplicates', () => {
+    const connected = new Set(['a', 'b']);
+    const previous = [
+      { peerId: 'a', name: 'Alex', isTv: false },
+      { peerId: 'b', name: 'Alex', isTv: false }
+    ];
+    const names = new Map<string, string>([
+      ['a', 'Alex'],
+      ['b', 'Alex']
+    ]);
+    const tv = new Map<string, boolean>();
+
+    expect(assignMembers(connected, previous, names, tv)).toEqual([
+      { peerId: 'a', name: 'Alex', isTv: false },
+      { peerId: 'b', name: 'Alex 2', isTv: false }
+    ]);
+  });
 });
 
 describe('isRoomSnapshot', () => {

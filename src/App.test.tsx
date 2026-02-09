@@ -2,7 +2,7 @@
 
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import App from './App';
 
 function getHintCount(): number {
@@ -92,6 +92,10 @@ afterEach(() => {
 });
 
 describe('App local debug wiring', () => {
+  beforeEach(() => {
+    window.localStorage.setItem('hanabi.debug_mode', 'true');
+  });
+
   test('play action resolves on card tap and swaps perspective to the next player', () => {
     render(<App />);
 

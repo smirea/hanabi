@@ -468,11 +468,24 @@ body {
 }
 
 .lobby-name-label {
+  display: grid;
+  gap: 0.12rem;
   color: var(--gray-600);
+  text-transform: none;
+}
+
+.lobby-name-label-title {
   font-size: 0.58rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.lobby-name-label-subtitle {
+  font-size: 0.52rem;
+  font-weight: 650;
+  line-height: 1.15;
+  color: rgba(95, 109, 135, 0.78);
 }
 
 .lobby-name-input {
@@ -502,6 +515,8 @@ body {
 .lobby-header-actions {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.26rem;
 }
 
@@ -635,7 +650,7 @@ body {
 
 .lobby-setting-toggle {
   width: 100%;
-  min-height: 2.44rem;
+  min-height: 2.7rem;
   border-radius: 8px;
   border: 1px solid rgba(192, 201, 220, 0.94);
   background: rgba(255, 255, 255, 0.92);
@@ -644,14 +659,83 @@ body {
   font-size: 0.63rem;
   font-weight: 700;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
   gap: 0.14rem;
-  padding: 0 0.55rem;
+  padding: 0.38rem 0.55rem;
 }
 
 .lobby-setting-toggle:disabled {
   opacity: 0.5;
+}
+
+.lobby-setting-toggle.readonly {
+  opacity: 0.78;
+}
+
+.lobby-setting-text {
+  min-width: 0;
+  display: grid;
+  gap: 0.14rem;
+  text-align: left;
+}
+
+.lobby-setting-label {
+  font-size: 0.64rem;
+  font-weight: 800;
+  line-height: 1.12;
+}
+
+.lobby-setting-subtitle {
+  font-size: 0.55rem;
+  font-weight: 650;
+  line-height: 1.2;
+  color: rgba(95, 109, 135, 0.86);
+}
+
+.lobby-setting-value {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.62rem;
+  font-weight: 900;
+  white-space: nowrap;
+  padding-left: 0.4rem;
+}
+
+.lobby-button.subtle.lobby-quick-toggle {
+  display: inline-flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 0.46rem;
+  padding: 0.32rem 0.54rem;
+  min-height: 2.02rem;
+  text-align: left;
+}
+
+.lobby-quick-text {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.lobby-quick-label {
+  font-size: 0.6rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.lobby-quick-subtitle {
+  font-size: 0.5rem;
+  font-weight: 650;
+  line-height: 1.15;
+  color: rgba(95, 109, 135, 0.82);
+}
+
+.lobby-quick-value {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.58rem;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .lobby-settings-list {
@@ -1680,7 +1764,7 @@ body {
   z-index: 31;
   width: min(12.5rem, 86vw);
   display: grid;
-  gap: 0.18rem;
+  gap: 0.24rem;
   padding: 0.24rem;
   border-radius: 10px;
   border: 1px solid rgba(189, 198, 217, 0.94);
@@ -1710,12 +1794,47 @@ body {
   font-weight: 700;
   text-align: left;
   padding: 0 0.58rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.menu-item.menu-link {
+  display: flex;
+  align-items: center;
 }
 
 .menu-toggle-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.menu-danger {
+  border-color: rgba(215, 68, 75, 0.38);
+  background: rgba(255, 88, 79, 0.1);
+  color: #c0383d;
+  font-weight: 900;
+}
+
+.menu-danger.armed {
+  background: rgba(255, 88, 79, 0.18);
+  border-color: rgba(215, 68, 75, 0.6);
+}
+
+.menu-section {
+  display: grid;
+  gap: 0.18rem;
+  padding-top: 0.12rem;
+  border-top: 1px solid rgba(189, 198, 217, 0.5);
+}
+
+.menu-section-title {
+  padding: 0.14rem 0.38rem 0;
+  color: rgba(95, 109, 135, 0.82);
+  font-size: 0.54rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .drawer-scrim {
@@ -2823,6 +2942,25 @@ body {
   border-color: rgba(90, 112, 168, 0.28);
   background: rgba(16, 20, 32, 0.86);
   color: rgba(240, 244, 255, 0.92);
+}
+
+:root[data-theme='dark'] .menu-danger {
+  border-color: rgba(255, 88, 79, 0.35);
+  background: rgba(255, 88, 79, 0.14);
+  color: rgba(255, 164, 160, 0.95);
+}
+
+:root[data-theme='dark'] .menu-danger.armed {
+  background: rgba(255, 88, 79, 0.22);
+  border-color: rgba(255, 88, 79, 0.55);
+}
+
+:root[data-theme='dark'] .menu-section {
+  border-top-color: rgba(90, 112, 168, 0.28);
+}
+
+:root[data-theme='dark'] .menu-section-title {
+  color: rgba(176, 196, 240, 0.78);
 }
 
 :root[data-theme='dark'] .log-drawer {

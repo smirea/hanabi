@@ -508,12 +508,17 @@ function arraysEqual<T>(left: readonly T[], right: readonly T[]): boolean {
   return true;
 }
 
-function prefersDarkMode(): boolean {
-  if (typeof window === 'undefined') {
-    return false;
+function sanitizeLobbyName(raw: string): string | null {
+  if (typeof raw !== 'string') {
+    return null;
   }
 
-  return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? false;
+  const trimmed = raw.trim().replace(/\s+/g, ' ');
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  return trimmed.slice(0, 24);
 }
 
 async function writeToClipboard(text: string): Promise<void> {
@@ -582,7 +587,7 @@ function App() {
   }, []);
 
   const [isDebugNetworkShellOpen, setIsDebugNetworkShellOpen] = useLocalStorageState(storageKeys.debugNetworkShell, false);
-  const [isDarkMode, setIsDarkMode] = useLocalStorageState(storageKeys.darkMode, prefersDarkMode());
+  const [isDarkMode, setIsDarkMode] = useLocalStorageState(storageKeys.darkMode, false);
 
   useEffect(() => {
     if (typeof document === 'undefined') {
@@ -779,10 +784,11 @@ function GameClient({
   const [debugGameState, setDebugGameState] = useState(() => debugGame.getSnapshot());
   const [isLogDrawerOpen, setIsLogDrawerOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isLeaveGameArmed, setIsLeaveGameArmed] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingCardAction>(null);
   const [endgamePanel, setEndgamePanel] = useState<'summary' | 'log'>('summary');
   const [wildColorHintTargetPlayerId, setWildColorHintTargetPlayerId] = useState<PlayerId | null>(null);
-  const [isDebugMode, setIsDebugMode] = useLocalStorageState(storageKeys.debugMode, true);
+  const [isDebugMode, setIsDebugMode] = useLocalStorageState(storageKeys.debugMode, false);
   const storageNamespace = useMemo(
     () => (isDebugNetworkFrame && framePlayerId ? createDebugNamespace(framePlayerId) : null),
     [framePlayerId, isDebugNetworkFrame]
@@ -853,6 +859,42 @@ function GameClient({
 
     setActiveSelfName(playerName);
   }, [isLocalDebugMode, playerName, setActiveSelfName]);
+
+  useEffect(() => {
+    if (isLocalDebugMode || !onlineState.selfId) {
+      return;
+    }
+
+    if (onlineState.phase !== 'lobby') {
+      return;
+    }
+
+    const memberName = onlineState.members.find((member) => member.peerId === onlineState.selfId)?.name ?? null;
+    if (!memberName) {
+      return;
+    }
+
+    const sanitizedLocalName = sanitizeLobbyName(playerName);
+    if (!sanitizedLocalName || memberName === sanitizedLocalName || memberName === playerName) {
+      return;
+    }
+
+    const normalizedMemberName = memberName.trim().replace(/\s+/g, ' ').toLowerCase();
+    const normalizedDesiredName = sanitizedLocalName.trim().replace(/\s+/g, ' ').toLowerCase();
+    const disambiguated = normalizedMemberName.match(/^(.*) (\d+)$/);
+    if (!disambiguated) {
+      return;
+    }
+
+    const base = disambiguated[1]?.trim() ?? '';
+    if (base.length === 0) {
+      return;
+    }
+
+    if (normalizedDesiredName === base || normalizedDesiredName.startsWith(base)) {
+      setPlayerName(memberName);
+    }
+  }, [isLocalDebugMode, onlineState.members, onlineState.phase, onlineState.selfId, playerName, setPlayerName]);
 
   useEffect(() => {
     if (isLocalDebugMode) {
@@ -1820,6 +1862,7 @@ function GameClient({
   function openLogDrawer(): void {
     if (isLogDrawerOpen) return;
     setIsMenuOpen(false);
+    setIsLeaveGameArmed(false);
     setIsLogDrawerOpen(true);
   }
 
@@ -1833,12 +1876,19 @@ function GameClient({
       setIsLogDrawerOpen(false);
     }
 
-    setIsMenuOpen((current) => !current);
+    setIsMenuOpen((current) => {
+      const next = !current;
+      if (!next) {
+        setIsLeaveGameArmed(false);
+      }
+      return next;
+    });
   }
 
   function closeMenu(): void {
     if (!isMenuOpen) return;
     setIsMenuOpen(false);
+    setIsLeaveGameArmed(false);
   }
 
   function handleLocalDebugToggle(): void {
@@ -1846,6 +1896,7 @@ function GameClient({
       return;
     }
 
+    setIsLeaveGameArmed(false);
     setIsMenuOpen(false);
     setIsLogDrawerOpen(false);
     setPendingAction(null);
@@ -1871,11 +1922,39 @@ function GameClient({
     setIsDebugMode(next);
   }
 
+  function handleLeaveGamePress(): void {
+    if (!isLeaveGameArmed) {
+      setIsLeaveGameArmed(true);
+      return;
+    }
+
+    setIsLeaveGameArmed(false);
+    setIsMenuOpen(false);
+    setIsLogDrawerOpen(false);
+    setPendingAction(null);
+    setWildColorHintTargetPlayerId(null);
+
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (isLocalDebugMode) {
+      debugGame.cancelSelection();
+      setDebugGameState(debugGame.getSnapshot());
+      setIsDebugMode(false);
+      return;
+    }
+
+    window.location.hash = '';
+    window.location.reload();
+  }
+
   function handleEnableDebugMode(): void {
     if (isDebugNetworkFrame) {
       return;
     }
 
+    setIsLeaveGameArmed(false);
     setIsDebugMode(true);
   }
 
@@ -1884,29 +1963,35 @@ function GameClient({
       return;
     }
 
+    setIsLeaveGameArmed(false);
     setIsMenuOpen(false);
     onOpenDebugNetworkShell();
   }
 
   function handleNegativeColorHintsToggle(): void {
+    setIsLeaveGameArmed(false);
     setShowNegativeColorHints((current) => !current);
     setIsMenuOpen(false);
   }
 
   function handleNegativeNumberHintsToggle(): void {
+    setIsLeaveGameArmed(false);
     setShowNegativeNumberHints((current) => !current);
     setIsMenuOpen(false);
   }
 
   function handleDarkModeToggle(): void {
+    setIsLeaveGameArmed(false);
     onToggleDarkMode();
     setIsMenuOpen(false);
   }
 
   function handleReconnectPress(): void {
+    setIsLeaveGameArmed(false);
     activeSession.requestSync();
     setPendingAction(null);
     setWildColorHintTargetPlayerId(null);
+    setIsMenuOpen(false);
   }
 
   async function handleCopyStatePress(): Promise<void> {
@@ -2348,86 +2433,111 @@ function GameClient({
           onClick={closeMenu}
         />
 
-        <aside className={`menu-panel ${isMenuOpen ? 'open' : ''}`} aria-hidden={!isMenuOpen}>
-          <button
-            type="button"
-            className="menu-item menu-toggle-item"
-            data-testid="menu-dark-mode-toggle"
-            aria-pressed={isDarkMode}
-            onClick={handleDarkModeToggle}
-          >
-            <span>Dark Mode</span>
-            <span data-testid="menu-dark-mode-value">{isDarkMode ? 'On' : 'Off'}</span>
-          </button>
-
-          {!isDebugNetworkFrame && (
-            <button
-              type="button"
-              className="menu-item menu-toggle-item"
-              data-testid="menu-local-debug-toggle"
-              onClick={handleLocalDebugToggle}
-            >
-              <span>Local Debug</span>
-              <span data-testid="menu-local-debug-value">{isLocalDebugMode ? 'On' : 'Off'}</span>
-            </button>
-          )}
-          <button
-            type="button"
-            className="menu-item"
-            data-testid="menu-debug-copy-state"
-            onClick={() => void handleCopyStatePress()}
-          >
-            Debug: Copy State
-          </button>
-          {!isDebugNetworkFrame && (
-            <button
-              type="button"
-              className="menu-item"
-              data-testid="menu-debug-load-state"
-              onClick={() => void handleLoadStatePress()}
-            >
-              Debug: Load State
-            </button>
-          )}
-          {!isLocalDebugMode && showReconnectAction && (
-            <button
-              type="button"
-              className="menu-item"
-              data-testid="menu-reconnect"
-              onClick={handleReconnectPress}
-            >
-              Reconnect
-            </button>
-          )}
-          {onOpenDebugNetworkShell && (
-            <button
-              type="button"
-              className="menu-item"
-              data-testid="menu-debug-network"
-              onClick={handleOpenDebugNetworkShell}
-            >
-              Debug Network
-            </button>
-          )}
-          <button
-            type="button"
-            className="menu-item menu-toggle-item"
-            data-testid="menu-negative-color-toggle"
-            onClick={handleNegativeColorHintsToggle}
-          >
-            <span>Negative Color Hints</span>
-            <span data-testid="menu-negative-color-value">{showNegativeColorHints ? 'On' : 'Off'}</span>
-          </button>
-          <button
-            type="button"
-            className="menu-item menu-toggle-item"
-            data-testid="menu-negative-number-toggle"
-            onClick={handleNegativeNumberHintsToggle}
-          >
-            <span>Negative Number Hints</span>
-            <span data-testid="menu-negative-number-value">{showNegativeNumberHints ? 'On' : 'Off'}</span>
-          </button>
-        </aside>
+	        <aside className={`menu-panel ${isMenuOpen ? 'open' : ''}`} aria-hidden={!isMenuOpen}>
+	          <button
+	            type="button"
+	            className={`menu-item menu-danger ${isLeaveGameArmed ? 'armed' : ''}`}
+	            data-testid="menu-leave-game"
+	            onClick={handleLeaveGamePress}
+	          >
+	            {isLeaveGameArmed ? 'Are you sure?' : 'Leave game'}
+	          </button>
+	
+	          <section className="menu-section" aria-label="Configuration">
+	            <div className="menu-section-title">Config</div>
+	            <button
+	              type="button"
+	              className="menu-item menu-toggle-item"
+	              data-testid="menu-dark-mode-toggle"
+	              aria-pressed={isDarkMode}
+	              onClick={handleDarkModeToggle}
+	            >
+	              <span>Dark Mode</span>
+	              <span data-testid="menu-dark-mode-value">{isDarkMode ? 'On' : 'Off'}</span>
+	            </button>
+	            <button
+	              type="button"
+	              className="menu-item menu-toggle-item"
+	              data-testid="menu-negative-color-toggle"
+	              onClick={handleNegativeColorHintsToggle}
+	            >
+	              <span>Negative Color Hints</span>
+	              <span data-testid="menu-negative-color-value">{showNegativeColorHints ? 'On' : 'Off'}</span>
+	            </button>
+	            <button
+	              type="button"
+	              className="menu-item menu-toggle-item"
+	              data-testid="menu-negative-number-toggle"
+	              onClick={handleNegativeNumberHintsToggle}
+	            >
+	              <span>Negative Number Hints</span>
+	              <span data-testid="menu-negative-number-value">{showNegativeNumberHints ? 'On' : 'Off'}</span>
+	            </button>
+	            {!isLocalDebugMode && showReconnectAction && (
+	              <button
+	                type="button"
+	                className="menu-item"
+	                data-testid="menu-reconnect"
+	                onClick={handleReconnectPress}
+	              >
+	                Reconnect
+	              </button>
+	            )}
+	          </section>
+	
+	          <section className="menu-section" aria-label="Debug">
+	            <div className="menu-section-title">Debug</div>
+	            {!isDebugNetworkFrame && (
+	              <button
+	                type="button"
+	                className="menu-item menu-toggle-item"
+	                data-testid="menu-local-debug-toggle"
+	                onClick={handleLocalDebugToggle}
+	              >
+	                <span>Local Debug</span>
+	                <span data-testid="menu-local-debug-value">{isLocalDebugMode ? 'On' : 'Off'}</span>
+	              </button>
+	            )}
+	            <button
+	              type="button"
+	              className="menu-item"
+	              data-testid="menu-debug-copy-state"
+	              onClick={() => void handleCopyStatePress()}
+	            >
+	              Debug: Copy State
+	            </button>
+	            {!isDebugNetworkFrame && (
+	              <button
+	                type="button"
+	                className="menu-item"
+	                data-testid="menu-debug-load-state"
+	                onClick={() => void handleLoadStatePress()}
+	              >
+	                Debug: Load State
+	              </button>
+	            )}
+	            {onOpenDebugNetworkShell && (
+	              <button
+	                type="button"
+	                className="menu-item"
+	                data-testid="menu-debug-network"
+	                onClick={handleOpenDebugNetworkShell}
+	              >
+	                Debug Network
+	              </button>
+	            )}
+	          </section>
+	
+	          <a
+	            className="menu-item menu-link"
+	            data-testid="menu-view-github"
+	            href="https://github.com/smirea/hanabi"
+	            target="_blank"
+	            rel="noreferrer noopener"
+	          >
+	            View on GitHub
+	          </a>
+	        </aside>
       </>
 
       <button
@@ -2869,6 +2979,53 @@ function LobbyScreen({
   const deckSize = 50 + (settings.includeMulticolor ? (settings.multicolorShortDeck ? 5 : 10) : 0);
   const maxScore = (settings.includeMulticolor ? 6 : 5) * 5;
   const defaultNamePlaceholder = selfId ? `Player ${selfId.slice(-4).toUpperCase()}` : 'Player';
+  const configRows = [
+    {
+      id: 'extra-suit',
+      label: 'Extra suit (M)',
+      subtitle: 'Adds the multicolor suit (M) to the deck and fireworks.',
+      value: settings.includeMulticolor ? 'On' : 'Off',
+      disabled: false,
+      onClick: () => {
+        const nextIncludeMulticolor = !settings.includeMulticolor;
+        onUpdateSettings({
+          includeMulticolor: nextIncludeMulticolor,
+          multicolorShortDeck: nextIncludeMulticolor ? settings.multicolorShortDeck : false,
+          multicolorWildHints: nextIncludeMulticolor ? settings.multicolorWildHints : false
+        });
+      }
+    },
+    {
+      id: 'short-deck',
+      label: 'Multicolor short deck',
+      subtitle: 'Uses 5 multicolor cards instead of the full 10.',
+      value: settings.multicolorShortDeck ? 'On' : 'Off',
+      disabled: !settings.includeMulticolor,
+      onClick: () => onUpdateSettings({
+        multicolorShortDeck: !settings.multicolorShortDeck,
+        multicolorWildHints: false
+      })
+    },
+    {
+      id: 'wild-multicolor',
+      label: 'Wild multicolor hints',
+      subtitle: 'Color hints can point at any multicolor card (M).',
+      value: settings.multicolorWildHints ? 'On' : 'Off',
+      disabled: !settings.includeMulticolor,
+      onClick: () => onUpdateSettings({
+        multicolorWildHints: !settings.multicolorWildHints,
+        multicolorShortDeck: false
+      })
+    },
+    {
+      id: 'endless',
+      label: 'Endless mode',
+      subtitle: 'Keep playing after the deck runs out.',
+      value: settings.endlessMode ? 'On' : 'Off',
+      disabled: false,
+      onClick: () => onUpdateSettings({ endlessMode: !settings.endlessMode })
+    }
+  ] as const;
 
   return (
     <main className="lobby" data-testid="lobby-root">
@@ -2879,31 +3036,43 @@ function LobbyScreen({
             <div className="lobby-header-actions">
               <button
                 type="button"
-                className="lobby-button subtle"
+                className="lobby-button subtle lobby-quick-toggle"
                 onClick={onToggleDarkMode}
                 aria-pressed={isDarkMode}
                 data-testid="lobby-theme-toggle"
               >
-                Dark: {isDarkMode ? 'On' : 'Off'}
+                <span className="lobby-quick-text">
+                  <span className="lobby-quick-label">Dark mode</span>
+                  <span className="lobby-quick-subtitle">Applies on this device only.</span>
+                </span>
+                <span className="lobby-quick-value">{isDarkMode ? 'On' : 'Off'}</span>
               </button>
               {onEnableDebugMode && (
                 <button
                   type="button"
-                  className="lobby-button subtle"
+                  className="lobby-button subtle lobby-quick-toggle"
                   onClick={onEnableDebugMode}
                   data-testid="lobby-debug-mode"
                 >
-                  Debug Local
+                  <span className="lobby-quick-text">
+                    <span className="lobby-quick-label">Debug local</span>
+                    <span className="lobby-quick-subtitle">Switch to a local sandbox game.</span>
+                  </span>
+                  <span className="lobby-quick-value">Enable</span>
                 </button>
               )}
               {onEnableDebugNetwork && (
                 <button
                   type="button"
-                  className="lobby-button subtle"
+                  className="lobby-button subtle lobby-quick-toggle"
                   onClick={onEnableDebugNetwork}
                   data-testid="lobby-debug-network"
                 >
-                  Debug Network
+                  <span className="lobby-quick-text">
+                    <span className="lobby-quick-label">Debug network</span>
+                    <span className="lobby-quick-subtitle">Open the multi-client simulator.</span>
+                  </span>
+                  <span className="lobby-quick-value">Open</span>
                 </button>
               )}
             </div>
@@ -2912,7 +3081,10 @@ function LobbyScreen({
           <p className="lobby-room-line" data-testid="lobby-room-line">Room {roomId}</p>
 
           <div className="lobby-name-row" data-testid="lobby-name-row">
-            <label className="lobby-name-label" htmlFor="lobby-name-input">Name</label>
+            <label className="lobby-name-label" htmlFor="lobby-name-input">
+              <span className="lobby-name-label-title">Name</span>
+              <span className="lobby-name-label-subtitle">Shown to other players.</span>
+            </label>
             <input
               id="lobby-name-input"
               className="lobby-name-input"
@@ -2974,65 +3146,35 @@ function LobbyScreen({
           <h2 className="lobby-section-title">Configuration</h2>
           {isHost && phase === 'lobby' ? (
             <div className="lobby-toggle-list">
-              <button
-                type="button"
-                className="lobby-setting-toggle"
-                onClick={() => {
-                  const nextIncludeMulticolor = !settings.includeMulticolor;
-                  onUpdateSettings({
-                    includeMulticolor: nextIncludeMulticolor,
-                    multicolorShortDeck: nextIncludeMulticolor ? settings.multicolorShortDeck : false,
-                    multicolorWildHints: nextIncludeMulticolor ? settings.multicolorWildHints : false
-                  });
-                }}
-                data-testid="lobby-setting-extra-suit"
-              >
-                <span>Extra suit (M)</span>
-                <span>{settings.includeMulticolor ? 'On' : 'Off'}</span>
-              </button>
-              <button
-                type="button"
-                className="lobby-setting-toggle"
-                onClick={() => onUpdateSettings({
-                  multicolorShortDeck: !settings.multicolorShortDeck,
-                  multicolorWildHints: false
-                })}
-                disabled={!settings.includeMulticolor}
-                data-testid="lobby-setting-short-deck"
-              >
-                <span>Multicolor short deck</span>
-                <span>{settings.multicolorShortDeck ? 'On' : 'Off'}</span>
-              </button>
-              <button
-                type="button"
-                className="lobby-setting-toggle"
-                onClick={() => onUpdateSettings({
-                  multicolorWildHints: !settings.multicolorWildHints,
-                  multicolorShortDeck: false
-                })}
-                disabled={!settings.includeMulticolor}
-                data-testid="lobby-setting-wild-multicolor"
-              >
-                <span>Wild multicolor hints</span>
-                <span>{settings.multicolorWildHints ? 'On' : 'Off'}</span>
-              </button>
-              <button
-                type="button"
-                className="lobby-setting-toggle"
-                onClick={() => onUpdateSettings({ endlessMode: !settings.endlessMode })}
-                data-testid="lobby-setting-endless"
-              >
-                <span>Endless mode</span>
-                <span>{settings.endlessMode ? 'On' : 'Off'}</span>
-              </button>
+              {configRows.map((row) => (
+                <button
+                  key={row.id}
+                  type="button"
+                  className="lobby-setting-toggle"
+                  onClick={row.onClick}
+                  disabled={row.disabled}
+                  data-testid={`lobby-setting-${row.id}`}
+                >
+                  <span className="lobby-setting-text">
+                    <span className="lobby-setting-label">{row.label}</span>
+                    <span className="lobby-setting-subtitle">{row.subtitle}</span>
+                  </span>
+                  <span className="lobby-setting-value">{row.value}</span>
+                </button>
+              ))}
             </div>
           ) : (
-            <ul className="lobby-settings-list" data-testid="lobby-settings-readonly">
-              <li>Extra suit (M): {settings.includeMulticolor ? 'On' : 'Off'}</li>
-              <li>Multicolor short deck: {settings.multicolorShortDeck ? 'On' : 'Off'}</li>
-              <li>Wild multicolor hints: {settings.multicolorWildHints ? 'On' : 'Off'}</li>
-              <li>Endless mode: {settings.endlessMode ? 'On' : 'Off'}</li>
-            </ul>
+            <div className="lobby-toggle-list" data-testid="lobby-settings-readonly">
+              {configRows.map((row) => (
+                <div key={row.id} className="lobby-setting-toggle readonly" aria-disabled="true">
+                  <span className="lobby-setting-text">
+                    <span className="lobby-setting-label">{row.label}</span>
+                    <span className="lobby-setting-subtitle">{row.subtitle}</span>
+                  </span>
+                  <span className="lobby-setting-value">{row.value}</span>
+                </div>
+              ))}
+            </div>
           )}
           <ul className="lobby-settings-list" data-testid="lobby-settings-derived">
             <li>Hand size: {handSize}</li>

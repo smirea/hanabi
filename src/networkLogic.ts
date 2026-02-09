@@ -45,11 +45,19 @@ export function assignMembers(
     }
   }
 
-  return orderedPeerIds.map((peerId) => ({
-    peerId,
-    name: namesByPeerId.get(peerId) ?? formatPeerName(peerId),
-    isTv: isTvByPeerId.get(peerId) ?? previousByPeerId.get(peerId)?.isTv ?? false
-  }));
+  const used = new Set<string>();
+  return orderedPeerIds.map((peerId) => {
+    const fallback = formatPeerName(peerId);
+    const baseName = sanitizeMemberName(namesByPeerId.get(peerId)) ?? fallback;
+    const uniqueName = resolveUniqueName(baseName, used);
+    used.add(normalizeUniqueKey(uniqueName));
+
+    return {
+      peerId,
+      name: uniqueName,
+      isTv: isTvByPeerId.get(peerId) ?? previousByPeerId.get(peerId)?.isTv ?? false
+    };
+  });
 }
 
 export function areMembersEqual(a: RoomMember[], b: RoomMember[]): boolean {
@@ -165,4 +173,43 @@ export function shouldAcceptSnapshot(
   }
 
   return comparePeerId(incoming.hostId, current.hostId) < 0;
+}
+
+const MAX_MEMBER_NAME_LENGTH = 24;
+
+function sanitizeMemberName(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim().replace(/\s+/g, ' ');
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  return trimmed.slice(0, MAX_MEMBER_NAME_LENGTH);
+}
+
+function normalizeUniqueKey(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function resolveUniqueName(baseName: string, used: Set<string>): string {
+  const normalizedBase = normalizeUniqueKey(baseName);
+  if (!used.has(normalizedBase)) {
+    return baseName;
+  }
+
+  for (let suffix = 2; suffix < 100; suffix += 1) {
+    const suffixText = ` ${suffix}`;
+    const maxBaseLength = Math.max(1, MAX_MEMBER_NAME_LENGTH - suffixText.length);
+    const trimmedBase = baseName.slice(0, maxBaseLength).trimEnd();
+    const candidate = `${trimmedBase}${suffixText}`;
+    const normalizedCandidate = normalizeUniqueKey(candidate);
+    if (!used.has(normalizedCandidate)) {
+      return candidate;
+    }
+  }
+
+  return `${baseName.slice(0, MAX_MEMBER_NAME_LENGTH - 1).trimEnd()}*`;
 }

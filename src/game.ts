@@ -818,6 +818,9 @@ export class HanabiGame {
       assert(typeof name === 'string' && name.trim().length > 0, 'player names must be non-empty strings');
     }
 
+    const uniquePlayerNames = new Set(playerNames.map((name) => name.trim().replace(/\s+/g, ' ').toLowerCase()));
+    assert(uniquePlayerNames.size === playerNames.length, 'playerNames must be unique');
+
     const includeMulticolor = input?.includeMulticolor ?? false;
     const multicolorShortDeck = input?.multicolorShortDeck ?? false;
     const multicolorWildHints = input?.multicolorWildHints ?? false;

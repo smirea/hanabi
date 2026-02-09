@@ -361,6 +361,7 @@ describe('HanabiGame', () => {
     expect(() => new HanabiGame({ playerNames: ['A', 'B', 'C', 'D', 'E', 'F'] })).toThrow(
       'Hanabi supports 2 to 5 players'
     );
+    expect(() => new HanabiGame({ playerNames: ['A', 'A'] })).toThrow('playerNames must be unique');
     expect(() => new HanabiGame({ playerNames: ['A', 'B'], playerIds: ['same', 'same'] })).toThrow(
       'playerIds must be unique'
     );

@@ -13,7 +13,7 @@ function resolveInitialDarkMode(): boolean {
   } catch {
   }
 
-  return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? false;
+  return false;
 }
 
 const rootElement = document.getElementById('root');
