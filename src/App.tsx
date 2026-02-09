@@ -2464,6 +2464,8 @@ function GameClient({
           outcome={endgameOutcome}
           status={perspective.status}
           score={perspective.score}
+          perspective={perspective}
+          discardCounts={discardCounts}
           players={activeGameState.players}
           viewerId={perspective.viewerId}
           statsByPlayerId={endgameStatsByPlayerId}
@@ -2501,6 +2503,8 @@ function EndgameOverlay({
   outcome,
   status,
   score,
+  perspective,
+  discardCounts,
   players,
   viewerId,
   statsByPlayerId,
@@ -2513,6 +2517,8 @@ function EndgameOverlay({
   outcome: 'win' | 'lose';
   status: HanabiPerspectiveState['status'];
   score: number;
+  perspective: HanabiPerspectiveState;
+  discardCounts: Map<string, number>;
   players: Array<{ id: PlayerId; name: string }>;
   viewerId: PlayerId;
   statsByPlayerId: Map<PlayerId, { hintsGiven: number; hintsReceived: number; plays: number; discards: number }>;
@@ -2527,6 +2533,9 @@ function EndgameOverlay({
     : status === 'lost'
       ? 'You lost'
       : 'Game over';
+
+  const scoreBreakdown = perspective.activeSuits.map((suit) => perspective.fireworksHeights[suit]);
+  const scoreFormula = `${scoreBreakdown.join('+')} = ${score}`;
 
   const seedKey = `${outcome}:${status}:${score}:${logs[0]?.id ?? 'none'}`;
 
@@ -2652,63 +2661,108 @@ function EndgameOverlay({
         )}
       </div>
 
-      <div className="endgame-scrim" aria-hidden />
-
       <section className="endgame-shell">
         <header className="endgame-header">
           <h2 className="endgame-title" data-testid="endgame-title">{title}</h2>
-          <p className="endgame-score" data-testid="endgame-score">Score {score}</p>
+          <p className="endgame-score" data-testid="endgame-score">{scoreFormula}</p>
         </header>
 
-        <section className="endgame-stats" data-testid="endgame-stats">
-          {players.map((player) => {
-            const stats = statsByPlayerId.get(player.id) ?? { hintsGiven: 0, hintsReceived: 0, plays: 0, discards: 0 };
-            const isViewer = player.id === viewerId;
-            return (
-              <article
-                key={player.id}
-                className={`endgame-player ${isViewer ? 'you' : ''}`}
-                data-testid={`endgame-player-${player.id}`}
-              >
-                <div className="endgame-player-name" data-testid={`endgame-player-name-${player.id}`}>
-                  {player.name}{isViewer ? ' (You)' : ''}
+        <section className="endgame-board" data-testid="endgame-board">
+          <section
+            className="fireworks endgame-fireworks"
+            style={{ '--suit-count': String(perspective.activeSuits.length) } as CSSProperties}
+            data-testid="endgame-fireworks-grid"
+          >
+            {perspective.activeSuits.map((suit) => {
+              const height = perspective.fireworksHeights[suit];
+              return (
+                <div
+                  key={suit}
+                  className="tower"
+                  style={{ '--suit': suitColors[suit] } as CSSProperties}
+                  data-testid={`endgame-tower-${suit}`}
+                >
+                  <div className="tower-stack">
+                    {CARD_NUMBERS.map((num) => {
+                      const isLit = num <= height;
+                      const remaining = perspective.knownRemainingCounts[suit][num];
+                      const knownUnavailable = perspective.knownUnavailableCounts[suit][num];
+                      const totalCopies = remaining + knownUnavailable;
+                      const discarded = discardCounts.get(`${suit}-${num}`) ?? 0;
+                      const blocked = num > height && discarded >= totalCopies;
+                      const pipStates = getPegPipStates(remaining, totalCopies);
+
+                      return (
+                        <div
+                          key={num}
+                          className={`peg ${isLit ? 'lit' : ''} ${blocked ? 'blocked' : ''}`}
+                          data-testid={`endgame-peg-${suit}-${num}`}
+                        >
+                          <span className="peg-num">{blocked ? '✕' : num}</span>
+                          <span className="peg-pips" aria-label={`${remaining} copies not visible to you`}>
+                            <PegPips pipStates={pipStates} />
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="endgame-player-metrics">
-                  <span className="endgame-metric" data-testid={`endgame-hints-given-${player.id}`}>
-                    <span className="endgame-metric-label">hints given</span>
-                    <span className="endgame-metric-value">{stats.hintsGiven}</span>
-                  </span>
-                  <span className="endgame-metric" data-testid={`endgame-hints-received-${player.id}`}>
-                    <span className="endgame-metric-label">hints received</span>
-                    <span className="endgame-metric-value">{stats.hintsReceived}</span>
-                  </span>
-                  <span className="endgame-metric" data-testid={`endgame-plays-${player.id}`}>
-                    <span className="endgame-metric-label">played</span>
-                    <span className="endgame-metric-value">{stats.plays}</span>
-                  </span>
-                  <span className="endgame-metric" data-testid={`endgame-discards-${player.id}`}>
-                    <span className="endgame-metric-label">discards</span>
-                    <span className="endgame-metric-value">{stats.discards}</span>
-                  </span>
-                </div>
-              </article>
-            );
-          })}
+              );
+            })}
+          </section>
         </section>
 
-        {panel === 'log' && (
-          <section className="endgame-log" data-testid="endgame-log">
-            <h3 className="endgame-log-title">Action Log</h3>
-            <div className="endgame-log-list">
-              {logs.map((logEntry) => (
-                <article key={logEntry.id} className="log-item" data-testid={`endgame-log-${logEntry.id}`}>
-                  <span className={`log-kind ${logEntry.type}`}>{getLogBadge(logEntry)}</span>
-                  <span className="log-item-message">{renderLogMessage(logEntry)}</span>
-                </article>
-              ))}
-            </div>
-          </section>
-        )}
+        <section className="endgame-panel" data-testid="endgame-panel">
+          {panel === 'log' ? (
+            <section className="endgame-log" data-testid="endgame-log">
+              <h3 className="endgame-log-title">Action Log</h3>
+              <div className="endgame-log-list">
+                {logs.map((logEntry) => (
+                  <article key={logEntry.id} className="log-item" data-testid={`endgame-log-${logEntry.id}`}>
+                    <span className={`log-kind ${logEntry.type}`}>{getLogBadge(logEntry)}</span>
+                    <span className="log-item-message">{renderLogMessage(logEntry)}</span>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : (
+            <section className="endgame-stats" data-testid="endgame-stats">
+              <table className="endgame-table" data-testid="endgame-stats-table">
+                <thead>
+                  <tr>
+                    <th scope="col">name</th>
+                    <th scope="col" className="num">given</th>
+                    <th scope="col" className="num">received</th>
+                    <th scope="col" className="num">played</th>
+                    <th scope="col" className="num">discard</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {players.map((player) => {
+                    const stats = statsByPlayerId.get(player.id) ?? { hintsGiven: 0, hintsReceived: 0, plays: 0, discards: 0 };
+                    const isViewer = player.id === viewerId;
+                    return (
+                      <tr
+                        key={player.id}
+                        className={isViewer ? 'you' : undefined}
+                        data-testid={`endgame-player-${player.id}`}
+                      >
+                        <td className="name" data-testid={`endgame-player-name-${player.id}`}>
+                          {player.name}
+                          {isViewer ? <span className="you-tag">you</span> : null}
+                        </td>
+                        <td className="num" data-testid={`endgame-hints-given-${player.id}`}>{stats.hintsGiven}</td>
+                        <td className="num" data-testid={`endgame-hints-received-${player.id}`}>{stats.hintsReceived}</td>
+                        <td className="num" data-testid={`endgame-plays-${player.id}`}>{stats.plays}</td>
+                        <td className="num" data-testid={`endgame-discards-${player.id}`}>{stats.discards}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </section>
+          )}
+        </section>
 
         <footer className="endgame-actions">
           <button
