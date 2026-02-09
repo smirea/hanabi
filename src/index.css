@@ -1007,9 +1007,13 @@ body {
 .table-shell.compact .player {
   grid-template-rows: 1fr;
   grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
+  align-items: stretch;
   gap: 0.46rem;
   padding: 0.22rem var(--screen-pad-x) 0.26rem;
+}
+
+.table-shell.compact .cards {
+  align-self: stretch;
 }
 
 .player.you-player {
