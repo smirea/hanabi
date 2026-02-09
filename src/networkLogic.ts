@@ -4,12 +4,14 @@ import type { LobbySettings, NetworkAction, RoomMember, RoomSnapshot } from './n
 
 export function normalizeSettings(input: Partial<LobbySettings> | undefined): LobbySettings {
   const includeMulticolor = Boolean(input?.includeMulticolor);
-  const multicolorShortDeck = includeMulticolor && Boolean(input?.multicolorShortDeck);
+  const multicolorWildHints = includeMulticolor && Boolean(input?.multicolorWildHints);
+  const multicolorShortDeck = includeMulticolor && !multicolorWildHints && Boolean(input?.multicolorShortDeck);
   const endlessMode = Boolean(input?.endlessMode);
 
   return {
     includeMulticolor,
     multicolorShortDeck,
+    multicolorWildHints,
     endlessMode
   };
 }
@@ -160,4 +162,3 @@ export function shouldAcceptSnapshot(
 
   return comparePeerId(incoming.hostId, current.hostId) < 0;
 }
-

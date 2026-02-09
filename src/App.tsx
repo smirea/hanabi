@@ -12,6 +12,7 @@ import {
   type IconProps
 } from '@phosphor-icons/react';
 import {
+  BASE_SUITS,
   CARD_NUMBERS,
   HanabiGame,
   type GameLogEntry,
@@ -570,6 +571,7 @@ function GameClient({
   const [isLogDrawerOpen, setIsLogDrawerOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingCardAction>(null);
+  const [wildColorHintTargetPlayerId, setWildColorHintTargetPlayerId] = useState<PlayerId | null>(null);
   const [isDebugMode, setIsDebugMode] = useLocalStorageState<boolean>(DEBUG_MODE_STORAGE_KEY, true);
   const [showNegativeColorHints, setShowNegativeColorHints] = useLocalStorageState<boolean>(
     NEGATIVE_COLOR_HINTS_STORAGE_KEY,
@@ -664,6 +666,7 @@ function GameClient({
 
   useEffect(() => {
     setPendingAction(null);
+    setWildColorHintTargetPlayerId(null);
   }, [isLocalDebugMode, onlineState.snapshotVersion, perspective?.turn]);
 
   useEffect(() => {
@@ -701,10 +704,12 @@ function GameClient({
       return;
     }
 
+    setWildColorHintTargetPlayerId(null);
     setPendingAction(nextAction);
   }
 
   function handlePlayPress(): void {
+    setWildColorHintTargetPlayerId(null);
     if (isLocalDebugMode) {
       setIsMenuOpen(false);
       commitLocal(() => {
@@ -717,6 +722,7 @@ function GameClient({
   }
 
   function handleDiscardPress(): void {
+    setWildColorHintTargetPlayerId(null);
     if (isLocalDebugMode) {
       setIsMenuOpen(false);
       commitLocal(() => {
@@ -729,6 +735,7 @@ function GameClient({
   }
 
   function handleHintColorPress(): void {
+    setWildColorHintTargetPlayerId(null);
     if (isLocalDebugMode) {
       setIsMenuOpen(false);
       commitLocal(() => {
@@ -741,6 +748,7 @@ function GameClient({
   }
 
   function handleHintNumberPress(): void {
+    setWildColorHintTargetPlayerId(null);
     if (isLocalDebugMode) {
       setIsMenuOpen(false);
       commitLocal(() => {
@@ -755,15 +763,28 @@ function GameClient({
   function handleCardSelect(playerId: PlayerId, cardId: string): void {
     if (isLocalDebugMode) {
       setIsMenuOpen(false);
+      const pending = debugGame.state.ui.pendingAction;
+      const currentPlayer = debugGame.state.players[debugGame.state.currentTurnPlayerIndex];
+      const selectedCard = debugGame.state.cards[cardId];
+
+      if (!selectedCard) {
+        throw new Error(`Unknown card: ${cardId}`);
+      }
+
+      if (
+        pending === 'hint-color'
+        && playerId !== currentPlayer.id
+        && debugGame.state.settings.multicolorWildHints
+        && selectedCard.suit === 'M'
+      ) {
+        setWildColorHintTargetPlayerId(playerId);
+        return;
+      }
+
+      const selectedSuit = selectedCard.suit;
+      const selectedNumber = selectedCard.number;
+
       commitLocal(() => {
-        const pending = debugGame.state.ui.pendingAction;
-        const currentPlayer = debugGame.state.players[debugGame.state.currentTurnPlayerIndex];
-        const selectedCard = debugGame.state.cards[cardId];
-
-        if (!selectedCard) {
-          throw new Error(`Unknown card: ${cardId}`);
-        }
-
         if (pending === 'play') {
           if (playerId !== currentPlayer.id) {
             return;
@@ -787,7 +808,7 @@ function GameClient({
             return;
           }
 
-          debugGame.giveColorHint(playerId, selectedCard.suit);
+          debugGame.giveColorHint(playerId, selectedSuit);
           return;
         }
 
@@ -796,7 +817,7 @@ function GameClient({
             return;
           }
 
-          debugGame.giveNumberHint(playerId, selectedCard.number);
+          debugGame.giveNumberHint(playerId, selectedNumber);
         }
       });
       return;
@@ -847,6 +868,11 @@ function GameClient({
         return;
       }
 
+      if (activeGameState.settings.multicolorWildHints && selectedCard.suit === 'M') {
+        setWildColorHintTargetPlayerId(playerId);
+        return;
+      }
+
       action = {
         type: 'hint-color',
         actorId,
@@ -874,6 +900,59 @@ function GameClient({
 
     activeSession.sendAction(action);
     setPendingAction(null);
+    setWildColorHintTargetPlayerId(null);
+  }
+
+  function cancelWildColorPicker(): void {
+    setWildColorHintTargetPlayerId(null);
+    if (isLocalDebugMode) {
+      commitLocal(() => {
+        debugGame.cancelSelection();
+      });
+      return;
+    }
+
+    setPendingAction(null);
+  }
+
+  function handleWildColorPick(suit: Suit): void {
+    const targetPlayerId = wildColorHintTargetPlayerId;
+    if (!targetPlayerId) {
+      return;
+    }
+
+    if (suit === 'M') {
+      return;
+    }
+
+    if (isLocalDebugMode) {
+      commitLocal(() => {
+        debugGame.giveColorHint(targetPlayerId, suit);
+      });
+      setWildColorHintTargetPlayerId(null);
+      return;
+    }
+
+    if (!activeGameState || !onlineState.selfId) {
+      return;
+    }
+
+    const actorId = onlineState.selfId;
+    const currentPlayer = activeGameState.players[activeGameState.currentTurnPlayerIndex];
+    if (!currentPlayer || currentPlayer.id !== actorId) {
+      setPendingAction(null);
+      setWildColorHintTargetPlayerId(null);
+      return;
+    }
+
+    activeSession.sendAction({
+      type: 'hint-color',
+      actorId,
+      targetPlayerId,
+      suit
+    });
+    setPendingAction(null);
+    setWildColorHintTargetPlayerId(null);
   }
 
   function openLogDrawer(): void {
@@ -960,6 +1039,7 @@ function GameClient({
   function handleReconnectPress(): void {
     activeSession.requestSync();
     setPendingAction(null);
+    setWildColorHintTargetPlayerId(null);
   }
 
   async function handleCopyStatePress(): Promise<void> {
@@ -1271,6 +1351,35 @@ function GameClient({
         </section>
       </section>
 
+      {wildColorHintTargetPlayerId && (
+        <aside className="wild-color-picker" data-testid="wild-color-picker">
+          <div className="wild-color-picker-buttons">
+            {BASE_SUITS.map((suit) => (
+              <button
+                key={suit}
+                type="button"
+                className="wild-color-button"
+                style={{ '--suit': suitColors[suit] } as CSSProperties}
+                onClick={() => handleWildColorPick(suit)}
+                aria-label={`Hint ${suitNames[suit]}`}
+                data-testid={`wild-color-${suit}`}
+              >
+                {suit}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="wild-color-cancel"
+              onClick={cancelWildColorPicker}
+              aria-label="Cancel"
+              data-testid="wild-color-cancel"
+            >
+              X
+            </button>
+          </div>
+        </aside>
+      )}
+
       <>
         <button
           type="button"
@@ -1421,6 +1530,9 @@ function LobbyScreen({
   const canStart = phase === 'lobby' && members.length >= 2 && members.length <= 5;
   const showReconnect = status !== 'connected' || error !== null;
   const playerCountError = members.length > 5 ? 'Max 5 players' : (members.length < 2 ? 'Need at least 2 players' : null);
+  const handSize = members.length <= 3 ? 5 : 4;
+  const deckSize = 50 + (settings.includeMulticolor ? (settings.multicolorShortDeck ? 5 : 10) : 0);
+  const maxScore = (settings.includeMulticolor ? 6 : 5) * 5;
 
   return (
     <main className="lobby" data-testid="lobby-root">
@@ -1488,7 +1600,14 @@ function LobbyScreen({
               <button
                 type="button"
                 className="lobby-setting-toggle"
-                onClick={() => onUpdateSettings({ includeMulticolor: !settings.includeMulticolor })}
+                onClick={() => {
+                  const nextIncludeMulticolor = !settings.includeMulticolor;
+                  onUpdateSettings({
+                    includeMulticolor: nextIncludeMulticolor,
+                    multicolorShortDeck: nextIncludeMulticolor ? settings.multicolorShortDeck : false,
+                    multicolorWildHints: nextIncludeMulticolor ? settings.multicolorWildHints : false
+                  });
+                }}
                 data-testid="lobby-setting-extra-suit"
               >
                 <span>Extra suit (M)</span>
@@ -1497,12 +1616,28 @@ function LobbyScreen({
               <button
                 type="button"
                 className="lobby-setting-toggle"
-                onClick={() => onUpdateSettings({ multicolorShortDeck: !settings.multicolorShortDeck })}
+                onClick={() => onUpdateSettings({
+                  multicolorShortDeck: !settings.multicolorShortDeck,
+                  multicolorWildHints: false
+                })}
                 disabled={!settings.includeMulticolor}
                 data-testid="lobby-setting-short-deck"
               >
                 <span>Multicolor short deck</span>
                 <span>{settings.multicolorShortDeck ? 'On' : 'Off'}</span>
+              </button>
+              <button
+                type="button"
+                className="lobby-setting-toggle"
+                onClick={() => onUpdateSettings({
+                  multicolorWildHints: !settings.multicolorWildHints,
+                  multicolorShortDeck: false
+                })}
+                disabled={!settings.includeMulticolor}
+                data-testid="lobby-setting-wild-multicolor"
+              >
+                <span>Wild multicolor hints</span>
+                <span>{settings.multicolorWildHints ? 'On' : 'Off'}</span>
               </button>
               <button
                 type="button"
@@ -1518,9 +1653,15 @@ function LobbyScreen({
             <ul className="lobby-settings-list" data-testid="lobby-settings-readonly">
               <li>Extra suit (M): {settings.includeMulticolor ? 'On' : 'Off'}</li>
               <li>Multicolor short deck: {settings.multicolorShortDeck ? 'On' : 'Off'}</li>
+              <li>Wild multicolor hints: {settings.multicolorWildHints ? 'On' : 'Off'}</li>
               <li>Endless mode: {settings.endlessMode ? 'On' : 'Off'}</li>
             </ul>
           )}
+          <ul className="lobby-settings-list" data-testid="lobby-settings-derived">
+            <li>Hand size: {handSize}</li>
+            <li>Deck size: {deckSize}</li>
+            <li>Max score: {maxScore}</li>
+          </ul>
         </section>
 
         {playerCountError && isHost && phase === 'lobby' && (
