@@ -2,9 +2,10 @@
 
 Live: https://hanabi.stf.lol
 
-<video src="./demo.mov" controls playsinline muted loop></video>
 
-[demo.mov](./demo.mov)
+https://github.com/user-attachments/assets/42f3af2d-b28c-4e6e-96b0-1f788d818d32
+
+
 
 ## Features
 
