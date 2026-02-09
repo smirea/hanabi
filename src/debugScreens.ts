@@ -38,6 +38,11 @@ const MOCK_PLAYERS = {
   names: ['Ari', 'Blair', 'Casey']
 };
 
+const MOCK_GAME_PLAYERS = {
+  ids: ['p1', 'p2', 'p3', 'p4', 'p5'],
+  names: ['Ari', 'Blair', 'Casey', 'Devon', 'Elliot']
+};
+
 function removeFromArray(values: string[], value: string): void {
   const index = values.indexOf(value);
   if (index === -1) {
@@ -275,8 +280,64 @@ function createLoseState(): HanabiState {
 }
 
 function createGameState(): HanabiState {
-  const state = createBaseState();
+  const state = new HanabiGame({
+    playerIds: [...MOCK_GAME_PLAYERS.ids],
+    playerNames: [...MOCK_GAME_PLAYERS.names],
+    shuffleSeed: 23
+  }).getSnapshot();
   state.ui = { ...EMPTY_UI };
+
+  fillFireworks(state, { R: 2, Y: 1, G: 3, B: 1, W: 0 });
+  moveCardsToDiscard(state, 10);
+
+  for (const player of state.players) {
+    while (player.cards.length < state.settings.handSize && state.drawDeck.length > 0) {
+      const next = state.drawDeck.shift();
+      if (!next) break;
+      player.cards.push(next);
+    }
+  }
+
+  state.hintTokens = 4;
+  state.fuseTokensUsed = 1;
+  state.turn = 9;
+
+  const viewer = state.players[state.currentTurnPlayerIndex];
+  if (!viewer) {
+    throw new Error('Missing viewer in mock game state');
+  }
+
+  const [v0, v1, v2, v3] = viewer.cards;
+  const setHint = (cardId: CardId | undefined, hint: Partial<HanabiState['cards'][CardId]['hints']>): void => {
+    if (!cardId) return;
+    const card = state.cards[cardId];
+    if (!card) return;
+    card.hints = {
+      ...card.hints,
+      ...hint,
+      notColors: hint.notColors ? [...hint.notColors] : card.hints.notColors,
+      notNumbers: hint.notNumbers ? [...hint.notNumbers] : card.hints.notNumbers
+    };
+  };
+
+  setHint(v0, { color: 'R', recentlyHinted: false });
+  setHint(v1, { number: 4, recentlyHinted: false });
+  setHint(v2, { color: 'G', number: 2, recentlyHinted: true });
+  setHint(v3, { notColors: ['R', 'B'], notNumbers: [1, 5], recentlyHinted: false });
+
+  const otherHints: Array<[number, number, Partial<HanabiState['cards'][CardId]['hints']>]> = [
+    [1, 0, { number: 1 }],
+    [2, 1, { color: 'B' }],
+    [3, 2, { notNumbers: [2, 3] }],
+    [4, 3, { color: 'W', number: 5, recentlyHinted: true }]
+  ];
+
+  for (const [playerIndex, cardIndex, hint] of otherHints) {
+    const player = state.players[playerIndex];
+    const cardId = player?.cards[cardIndex];
+    setHint(cardId, hint);
+  }
+
   return HanabiGame.fromState(state).getSnapshot();
 }
 
