@@ -28,6 +28,12 @@ See `project_animation.md` for what the various animations are and how they are 
 - Preferred lightweight UI testing stack: Vitest + Testing Library.
 - Add visual regression checks as screenshot tests for key mobile states once flows stabilize.
 
+## Playwright Guidance
+- When using Playwright (CLI), always resize the viewport to a representative mobile portrait size before debugging flows.
+- Recommended default: `390x844` (common iPhone portrait).
+- Example (CLI): `pwcli resize 390 844`
+- DevTools “device toolbar” emulation is not reliably toggleable via Playwright CLI; prefer viewport sizing, and optionally set `isMobile/hasTouch/deviceScaleFactor` via a `playwright-cli.json` config when needed.
+
 ## Deployment
 - Local runtime uses `bun ./src/index.html` via `bun run start`.
 - Target deployment is static hosting on S3 at the end of implementation.
