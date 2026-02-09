@@ -51,6 +51,7 @@ const DEBUG_NETWORK_PLAYERS_STORAGE_KEY = 'hanabi.debug_network_players';
 const DEBUG_NETWORK_ACTIVE_PLAYER_STORAGE_KEY = 'hanabi.debug_network_active_player';
 const NEGATIVE_COLOR_HINTS_STORAGE_KEY = 'hanabi.negative_color_hints';
 const NEGATIVE_NUMBER_HINTS_STORAGE_KEY = 'hanabi.negative_number_hints';
+const DARK_MODE_STORAGE_KEY = 'hanabi.dark_mode';
 const MAX_PEG_PIPS = 4;
 
 type PegPipState = 'filled' | 'hollow' | 'unused';
@@ -158,6 +159,7 @@ function PegPie({ pipStates }: { pipStates: PegPipState[] }) {
   const center = 8;
   const radius = 7;
   const sliceAngle = 360 / slices.length;
+  const gapAngle = slices.length > 1 ? 8 : 0;
 
   function toPoint(angleDegrees: number) {
     const angleRadians = ((angleDegrees - 90) * Math.PI) / 180;
@@ -168,11 +170,12 @@ function PegPie({ pipStates }: { pipStates: PegPipState[] }) {
   }
 
   function describeWedge(index: number) {
-    const startAngle = index * sliceAngle;
-    const endAngle = (index + 1) * sliceAngle;
+    const halfGap = gapAngle / 2;
+    const startAngle = index * sliceAngle + halfGap;
+    const endAngle = (index + 1) * sliceAngle - halfGap;
     const start = toPoint(startAngle);
     const end = toPoint(endAngle);
-    const largeArcFlag = sliceAngle > 180 ? 1 : 0;
+    const largeArcFlag = (endAngle - startAngle) > 180 ? 1 : 0;
     return `M ${center} ${center} L ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${end.x} ${end.y} Z`;
   }
 
@@ -316,6 +319,14 @@ function arraysEqual(left: string[], right: string[]): boolean {
   return true;
 }
 
+function prefersDarkMode(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? false;
+}
+
 function App() {
   const [debugFramePlayerId, setDebugFramePlayerId] = useState<string | null>(() => {
     if (typeof window === 'undefined') {
@@ -344,6 +355,18 @@ function App() {
     DEBUG_NETWORK_SHELL_STORAGE_KEY,
     false
   );
+  const [isDarkMode, setIsDarkMode] = useLocalStorageState<boolean>(DARK_MODE_STORAGE_KEY, prefersDarkMode());
+
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    document.documentElement.dataset.theme = isDarkMode ? 'dark' : 'light';
+
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    meta?.setAttribute('content', isDarkMode ? '#0b0d14' : '#f5f7fc');
+  }, [isDarkMode]);
 
   if (debugFramePlayerId) {
     return (
@@ -351,6 +374,8 @@ function App() {
         runtime="debug-network-frame"
         framePlayerId={debugFramePlayerId}
         onOpenDebugNetworkShell={null}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={() => setIsDarkMode((current) => !current)}
       />
     );
   }
@@ -364,6 +389,8 @@ function App() {
       runtime="standard"
       framePlayerId={null}
       onOpenDebugNetworkShell={() => setIsDebugNetworkShellOpen(true)}
+      isDarkMode={isDarkMode}
+      onToggleDarkMode={() => setIsDarkMode((current) => !current)}
     />
   );
 }
@@ -507,11 +534,15 @@ function DebugNetworkShell({ onExit }: { onExit: () => void }) {
 function GameClient({
   runtime,
   framePlayerId,
-  onOpenDebugNetworkShell
+  onOpenDebugNetworkShell,
+  isDarkMode,
+  onToggleDarkMode
 }: {
   runtime: ClientRuntime;
   framePlayerId: string | null;
   onOpenDebugNetworkShell: (() => void) | null;
+  isDarkMode: boolean;
+  onToggleDarkMode: () => void;
 }) {
   const isDebugNetworkFrame = runtime === 'debug-network-frame';
 
@@ -921,10 +952,6 @@ function GameClient({
   }
 
   function toggleMenu(): void {
-    if (!isLocalDebugMode) {
-      return;
-    }
-
     if (isLogDrawerOpen) {
       setIsLogDrawerOpen(false);
     }
@@ -981,6 +1008,11 @@ function GameClient({
     setIsMenuOpen(false);
   }
 
+  function handleDarkModeToggle(): void {
+    onToggleDarkMode();
+    setIsMenuOpen(false);
+  }
+
   function handleReconnectPress(): void {
     activeSession.requestSync();
     setPendingAction(null);
@@ -1001,6 +1033,8 @@ function GameClient({
         isGameInProgress={onlineState.phase === 'playing' && !isOnlineParticipant}
         onStart={activeSession.startGame}
         onReconnect={activeSession.requestSync}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={onToggleDarkMode}
         onEnableDebugMode={isDebugNetworkFrame ? null : handleEnableDebugMode}
         onEnableDebugNetwork={isDebugNetworkFrame ? null : handleOpenDebugNetworkShell}
         onUpdateSettings={activeSession.updateSettings}
@@ -1033,6 +1067,7 @@ function GameClient({
   }
 
   const tablePlayers = [...others, viewer];
+  const activeTurnIndex = tablePlayers.findIndex((player) => player.isCurrentTurn);
   const lastLog = perspective.logs[perspective.logs.length - 1] ?? null;
   const orderedLogs = [...perspective.logs].reverse();
   const hintTokenStates = Array.from({ length: perspective.maxHintTokens }, (_, index) => index < perspective.hintTokens);
@@ -1124,16 +1159,17 @@ function GameClient({
         })}
       </section>
 
-      <section
-        className="table-shell"
-        style={{ '--player-count': String(tablePlayers.length) } as CSSProperties}
-        data-testid="table-shell"
-      >
-        {tablePlayers.map((player) => (
-          <article
-            key={player.id}
-            className={`player ${player.isCurrentTurn ? 'active' : ''} ${player.isViewer ? 'you-player' : ''}`}
-            data-testid={`player-${player.id}`}
+	      <section
+	        className="table-shell"
+	        style={{ '--player-count': String(tablePlayers.length), '--active-index': String(activeTurnIndex) } as CSSProperties}
+	        data-testid="table-shell"
+	      >
+	        {activeTurnIndex >= 0 && <div className="turn-indicator" aria-hidden data-testid="turn-indicator" />}
+	        {tablePlayers.map((player) => (
+	          <article
+	            key={player.id}
+	            className={`player ${player.isCurrentTurn ? 'active' : ''} ${player.isViewer ? 'you-player' : ''}`}
+	            data-testid={`player-${player.id}`}
           >
             <header className="player-header">
               <span className="player-name" data-testid={`player-name-${player.id}`}>
@@ -1191,35 +1227,33 @@ function GameClient({
             >
               <span className="action-main">Number</span>
             </button>
-          </div>
-
-          <div className="action-slot">
-            {isLocalDebugMode ? (
-              <button
-                type="button"
-                className="action-button menu-toggle"
-                aria-label="Open menu"
-                aria-expanded={isMenuOpen}
-                data-testid="actions-menu"
-                onClick={toggleMenu}
-              >
-                <span />
-                <span />
-                <span />
-              </button>
-            ) : showReconnectAction ? (
-              <button
-                type="button"
-                className="action-button"
-                data-testid="actions-reconnect"
-                onClick={handleReconnectPress}
-              >
-                <span className="action-main">Reconnect</span>
-              </button>
-            ) : (
-              <div className="action-spacer" aria-hidden />
-            )}
-          </div>
+	          </div>
+	
+	          <div className="action-slot">
+	            {showReconnectAction ? (
+	              <button
+	                type="button"
+	                className="action-button"
+	                data-testid="actions-reconnect"
+	                onClick={handleReconnectPress}
+	              >
+	                <span className="action-main">Reconnect</span>
+	              </button>
+	            ) : (
+	              <button
+	                type="button"
+	                className="action-button menu-toggle"
+	                aria-label="Open menu"
+	                aria-expanded={isMenuOpen}
+	                data-testid="actions-menu"
+	                onClick={toggleMenu}
+	              >
+	                <span />
+	                <span />
+	                <span />
+	              </button>
+	            )}
+	          </div>
 
           <div className="action-slot">
             <button
@@ -1276,57 +1310,71 @@ function GameClient({
         </aside>
       )}
 
-      {isLocalDebugMode && (
-        <>
-          <button
-            type="button"
-            className={`menu-scrim ${isMenuOpen ? 'open' : ''}`}
-            aria-label="Close menu"
-            aria-hidden={!isMenuOpen}
-            tabIndex={isMenuOpen ? 0 : -1}
-            onClick={closeMenu}
-          />
+	      <>
+	        <button
+	          type="button"
+	          className={`menu-scrim ${isMenuOpen ? 'open' : ''}`}
+	          aria-label="Close menu"
+	          aria-hidden={!isMenuOpen}
+	          tabIndex={isMenuOpen ? 0 : -1}
+	          onClick={closeMenu}
+	        />
 
-          <aside className={`menu-panel ${isMenuOpen ? 'open' : ''}`} aria-hidden={!isMenuOpen}>
-            <button type="button" className="menu-item" data-testid="menu-leave" onClick={handleLeavePress}>Leave</button>
-            <button
-              type="button"
-              className="menu-item menu-toggle-item"
-              data-testid="menu-debug-toggle"
-              onClick={handleDebugToggle}
-            >
-              <span>Debug</span>
-              <span data-testid="menu-debug-value">{isLocalDebugMode ? 'On' : 'Off'}</span>
-            </button>
-            <button
-              type="button"
-              className="menu-item"
-              data-testid="menu-debug-network"
-              onClick={handleOpenDebugNetworkShell}
-            >
-              Debug Network
-            </button>
-            <button
-              type="button"
-              className="menu-item menu-toggle-item"
-              data-testid="menu-negative-color-toggle"
-              onClick={handleNegativeColorHintsToggle}
-            >
-              <span>Negative Color Hints</span>
-              <span data-testid="menu-negative-color-value">{showNegativeColorHints ? 'On' : 'Off'}</span>
-            </button>
-            <button
-              type="button"
-              className="menu-item menu-toggle-item"
-              data-testid="menu-negative-number-toggle"
-              onClick={handleNegativeNumberHintsToggle}
-            >
-              <span>Negative Number Hints</span>
-              <span data-testid="menu-negative-number-value">{showNegativeNumberHints ? 'On' : 'Off'}</span>
-            </button>
-          </aside>
-        </>
-      )}
+	        <aside className={`menu-panel ${isMenuOpen ? 'open' : ''}`} aria-hidden={!isMenuOpen}>
+	          <button
+	            type="button"
+	            className="menu-item menu-toggle-item"
+	            data-testid="menu-dark-mode-toggle"
+	            aria-pressed={isDarkMode}
+	            onClick={handleDarkModeToggle}
+	          >
+	            <span>Dark Mode</span>
+	            <span data-testid="menu-dark-mode-value">{isDarkMode ? 'On' : 'Off'}</span>
+	          </button>
+
+	          <button
+	            type="button"
+	            className="menu-item menu-toggle-item"
+	            data-testid="menu-negative-color-toggle"
+	            onClick={handleNegativeColorHintsToggle}
+	          >
+	            <span>Negative Color Hints</span>
+	            <span data-testid="menu-negative-color-value">{showNegativeColorHints ? 'On' : 'Off'}</span>
+	          </button>
+	          <button
+	            type="button"
+	            className="menu-item menu-toggle-item"
+	            data-testid="menu-negative-number-toggle"
+	            onClick={handleNegativeNumberHintsToggle}
+	          >
+	            <span>Negative Number Hints</span>
+	            <span data-testid="menu-negative-number-value">{showNegativeNumberHints ? 'On' : 'Off'}</span>
+	          </button>
+
+	          {isLocalDebugMode && (
+	            <>
+	              <button type="button" className="menu-item" data-testid="menu-leave" onClick={handleLeavePress}>Leave</button>
+	              <button
+	                type="button"
+	                className="menu-item menu-toggle-item"
+	                data-testid="menu-debug-toggle"
+	                onClick={handleDebugToggle}
+	              >
+	                <span>Debug</span>
+	                <span data-testid="menu-debug-value">{isLocalDebugMode ? 'On' : 'Off'}</span>
+	              </button>
+	              <button
+	                type="button"
+	                className="menu-item"
+	                data-testid="menu-debug-network"
+	                onClick={handleOpenDebugNetworkShell}
+	              >
+	                Debug Network
+	              </button>
+	            </>
+	          )}
+	        </aside>
+	      </>
 
       <button
         type="button"
@@ -1374,6 +1422,8 @@ function LobbyScreen({
   isGameInProgress,
   onStart,
   onReconnect,
+  isDarkMode,
+  onToggleDarkMode,
   onEnableDebugMode,
   onEnableDebugNetwork,
   onUpdateSettings
@@ -1389,6 +1439,8 @@ function LobbyScreen({
   isGameInProgress: boolean;
   onStart: () => void;
   onReconnect: () => void;
+  isDarkMode: boolean;
+  onToggleDarkMode: () => void;
   onEnableDebugMode: (() => void) | null;
   onEnableDebugNetwork: (() => void) | null;
   onUpdateSettings: (next: Partial<LobbySettings>) => void;
@@ -1407,6 +1459,15 @@ function LobbyScreen({
         <header className="lobby-header">
           <h1 className="lobby-title">Room Staging</h1>
           <div className="lobby-header-actions">
+            <button
+              type="button"
+              className="lobby-button subtle"
+              onClick={onToggleDarkMode}
+              aria-pressed={isDarkMode}
+              data-testid="lobby-theme-toggle"
+            >
+              Dark: {isDarkMode ? 'On' : 'Off'}
+            </button>
             {onEnableDebugMode && (
               <button
                 type="button"

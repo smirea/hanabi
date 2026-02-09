@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, test } from 'vitest';
 import App from './App';
 
@@ -186,6 +186,22 @@ describe('App local debug wiring', () => {
     expect(document.querySelectorAll('.badge.not-number').length).toBe(0);
   });
 
+  test('dark mode toggle persists from burger menu and updates the document theme', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(document.documentElement.dataset.theme).toBe('light');
+    });
+
+    fireEvent.click(screen.getByTestId('actions-menu'));
+    fireEvent.click(screen.getByTestId('menu-dark-mode-toggle'));
+
+    expect(window.localStorage.getItem('hanabi.dark_mode')).toBe('true');
+    await waitFor(() => {
+      expect(document.documentElement.dataset.theme).toBe('dark');
+    });
+  });
+
   test('non-debug mode renders the staging lobby flow', () => {
     window.localStorage.setItem('hanabi.debug_mode', 'false');
     render(<App />);
@@ -193,6 +209,22 @@ describe('App local debug wiring', () => {
     expect(screen.getByTestId('lobby-root')).toBeInTheDocument();
     expect(screen.getByTestId('lobby-waiting-host')).toBeInTheDocument();
     expect(screen.queryByTestId('lobby-start')).not.toBeInTheDocument();
+  });
+
+  test('dark mode toggle is available on the lobby landing screen', async () => {
+    window.localStorage.setItem('hanabi.debug_mode', 'false');
+    render(<App />);
+
+    await waitFor(() => {
+      expect(document.documentElement.dataset.theme).toBe('light');
+    });
+
+    fireEvent.click(screen.getByTestId('lobby-theme-toggle'));
+
+    expect(window.localStorage.getItem('hanabi.dark_mode')).toBe('true');
+    await waitFor(() => {
+      expect(document.documentElement.dataset.theme).toBe('dark');
+    });
   });
 
   test('debug network shell switches iframe hash between local simulated players', () => {
