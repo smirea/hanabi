@@ -37,6 +37,7 @@ On your turn, you must take exactly one of the following actions (no skipping):
 - You must point to **all** cards matching the color or value.
 - You **cannot** say “you have zero of something,” because you must point to at least one card.
 - If there are no blue tokens on the table, this action is not allowed.
+- Implementation rule (this app): You **cannot** give a hint that would provide **no new information** (a redundant hint). A hint is redundant if applying it would not change any hint metadata on the target player’s cards.
 
 ### 2. Discard a Card
 - Announce the discard and place one of your cards face up in the discard pile.

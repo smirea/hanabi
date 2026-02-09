@@ -17,6 +17,7 @@ import {
   CARD_NUMBERS,
   HanabiGame,
   type CardId,
+  type CardNumber,
   type GameLogEntry,
   type HanabiState,
   type HanabiPerspectiveState,
@@ -360,12 +361,112 @@ function getLogBadge(log: GameLogEntry): string {
   return 'Status';
 }
 
-function formatPendingAction(action: PendingCardAction): string {
-  if (action === 'play') return 'Play selected';
-  if (action === 'discard') return 'Discard selected';
-  if (action === 'hint-color') return 'Color hint selected';
-  if (action === 'hint-number') return 'Number hint selected';
-  return 'Last';
+function doesCardMatchColorHint(settings: HanabiState['settings'], cardSuit: Suit, hintSuit: Suit): boolean {
+  if (cardSuit === hintSuit) {
+    return true;
+  }
+
+  return settings.multicolorWildHints && cardSuit === 'M' && hintSuit !== 'M';
+}
+
+type HintRedundancy =
+  | { hintType: 'number'; number: CardNumber }
+  | { hintType: 'color'; suit: Suit };
+
+function getHintTouchedCardIds(state: HanabiState, targetPlayerId: PlayerId, hint: HintRedundancy): CardId[] {
+  const target = state.players.find((player) => player.id === targetPlayerId);
+  if (!target) {
+    return [];
+  }
+
+  if (hint.hintType === 'number') {
+    return target.cards.filter((cardId) => state.cards[cardId]?.number === hint.number);
+  }
+
+  return target.cards.filter((cardId) => {
+    const card = state.cards[cardId];
+    if (!card) {
+      return false;
+    }
+
+    return doesCardMatchColorHint(state.settings, card.suit, hint.suit);
+  });
+}
+
+function isRedundantHint(state: HanabiState, targetPlayerId: PlayerId, hint: HintRedundancy): { redundant: boolean; touchedCardIds: CardId[] } {
+  const target = state.players.find((player) => player.id === targetPlayerId);
+  if (!target) {
+    return { redundant: false, touchedCardIds: [] };
+  }
+
+  const touchedCardIds = getHintTouchedCardIds(state, targetPlayerId, hint);
+  const touchedSet = new Set(touchedCardIds);
+
+  let wouldChange = false;
+  if (hint.hintType === 'number') {
+    for (const cardId of target.cards) {
+      const card = state.cards[cardId];
+      if (!card) {
+        continue;
+      }
+
+      if (touchedSet.has(cardId)) {
+        if (card.hints.number !== hint.number || card.hints.notNumbers.includes(hint.number)) {
+          wouldChange = true;
+          break;
+        }
+      } else if (!card.hints.notNumbers.includes(hint.number)) {
+        wouldChange = true;
+        break;
+      }
+    }
+
+    return { redundant: !wouldChange, touchedCardIds };
+  }
+
+  if (state.settings.multicolorWildHints && hint.suit !== 'M') {
+    const allowedSuits: Suit[] = [hint.suit, 'M'];
+    for (const cardId of target.cards) {
+      const card = state.cards[cardId];
+      if (!card) {
+        continue;
+      }
+
+      const touched = touchedSet.has(cardId);
+      const currentPossibleSuits = card.hints.color !== null
+        ? [card.hints.color]
+        : state.settings.activeSuits.filter((suit) => !card.hints.notColors.includes(suit));
+      const nextPossibleSuits = touched
+        ? currentPossibleSuits.filter((candidate) => allowedSuits.includes(candidate))
+        : currentPossibleSuits.filter((candidate) => !allowedSuits.includes(candidate));
+
+      if (!arraysEqual(currentPossibleSuits, nextPossibleSuits)) {
+        wouldChange = true;
+        break;
+      }
+    }
+
+    return { redundant: !wouldChange, touchedCardIds };
+  }
+
+  for (const cardId of target.cards) {
+    const card = state.cards[cardId];
+    if (!card) {
+      continue;
+    }
+
+    if (touchedSet.has(cardId)) {
+      if (card.hints.color !== hint.suit || card.hints.notColors.includes(hint.suit)) {
+        wouldChange = true;
+        break;
+      }
+    } else if (!card.hints.notColors.includes(hint.suit)) {
+      wouldChange = true;
+      break;
+    }
+  }
+
+  return { redundant: !wouldChange, touchedCardIds };
 }
 
 function normalizeShellPlayers(input: string[]): string[] {
@@ -392,7 +493,7 @@ function normalizeShellPlayers(input: string[]): string[] {
   return normalized;
 }
 
-function arraysEqual(left: string[], right: string[]): boolean {
+function arraysEqual<T>(left: readonly T[], right: readonly T[]): boolean {
   if (left.length !== right.length) {
     return false;
   }
@@ -699,6 +800,7 @@ function GameClient({
   const animationLayerRef = useRef<HTMLDivElement | null>(null);
   const deckPillRef = useRef<HTMLDivElement | null>(null);
   const cardNodeByIdRef = useRef<Map<CardId, HTMLButtonElement>>(new Map());
+  const cardFxListenerByNodeRef = useRef<WeakMap<HTMLButtonElement, Map<string, (event: AnimationEvent) => void>>>(new WeakMap());
   const hintTokenSlotRefs = useRef<Array<HTMLSpanElement | null>>([]);
   const fuseTokenSlotRefs = useRef<Array<HTMLSpanElement | null>>([]);
   const [isActionAnimationRunning, setIsActionAnimationRunning] = useState(false);
@@ -844,10 +946,36 @@ function GameClient({
       return;
     }
 
+    const expectedAnimationName =
+      fxClass === 'hint-enter'
+        ? 'hint-ring'
+        : fxClass === 'hint-redundant'
+          ? 'hint-redundant-ring'
+          : null;
+
+    const listenerMap = cardFxListenerByNodeRef.current.get(node) ?? new Map();
+    const existingListener = listenerMap.get(fxClass);
+    if (existingListener) {
+      node.removeEventListener('animationend', existingListener);
+    }
+
     node.classList.remove(fxClass);
     void node.getBoundingClientRect();
     node.classList.add(fxClass);
-    node.addEventListener('animationend', () => node.classList.remove(fxClass), { once: true });
+
+    const onEnd = (event: AnimationEvent): void => {
+      if (expectedAnimationName && event.animationName !== expectedAnimationName) {
+        return;
+      }
+
+      node.classList.remove(fxClass);
+      node.removeEventListener('animationend', onEnd);
+      listenerMap.delete(fxClass);
+    };
+
+    listenerMap.set(fxClass, onEnd);
+    cardFxListenerByNodeRef.current.set(node, listenerMap);
+    node.addEventListener('animationend', onEnd);
   }
 
   function createGhostCardElement({
@@ -1012,9 +1140,9 @@ function GameClient({
     const scaleTo = Math.max(0.22, Math.min(0.42, toRect.width / fromRect.width));
 
     try {
-      const zoomControls = animate(ghost.root, { y: -14, scale: 1.08, rotate: -2 }, { duration: 0.18, ease: [0.2, 0.85, 0.2, 1] });
+      const zoomControls = animate(ghost.root, { y: -14, scale: 1.1, rotate: -2 }, { duration: 0.34, ease: [0.2, 0.85, 0.2, 1] });
       const flipControls = shouldFlip
-        ? animate(ghost.inner, { rotateY: [0, 180] }, { duration: 0.28, ease: [0.2, 0.85, 0.2, 1] })
+        ? animate(ghost.inner, { rotateY: [0, 180] }, { duration: 0.34, ease: [0.2, 0.85, 0.2, 1] })
         : null;
 
       await Promise.all([zoomControls.finished, flipControls?.finished]);
@@ -1022,7 +1150,7 @@ function GameClient({
       await animate(
         ghost.root,
         { x: dx, y: dy, scale: scaleTo, rotate: 0, opacity: [1, 0.2] },
-        { duration: 0.42, ease: [0.2, 0.85, 0.2, 1] }
+        { duration: 0.66, ease: [0.2, 0.85, 0.2, 1] }
       ).finished;
 
       peg.classList.remove('peg-hit');
@@ -1067,9 +1195,60 @@ function GameClient({
     layer.appendChild(ghost.root);
 
     try {
-      const zoomControls = animate(ghost.root, { y: -14, scale: 1.08, rotate: -2 }, { duration: 0.18, ease: [0.2, 0.85, 0.2, 1] });
+      const zoomControls = animate(ghost.root, { y: -14, scale: 1.1, rotate: -2 }, { duration: 0.34, ease: [0.2, 0.85, 0.2, 1] });
       const flipControls = shouldFlip
-        ? animate(ghost.inner, { rotateY: [0, 180] }, { duration: 0.28, ease: [0.2, 0.85, 0.2, 1] })
+        ? animate(ghost.inner, { rotateY: [0, 180] }, { duration: 0.34, ease: [0.2, 0.85, 0.2, 1] })
+        : null;
+
+      await Promise.all([zoomControls.finished, flipControls?.finished]);
+
+      ghost.root.classList.add('cracked');
+      if (spentFuseIndex !== null) {
+        triggerTokenFx(fuseTokenSlotRefs.current[spentFuseIndex] ?? null, 'token-fx-extinguish');
+      }
+      await animate(
+        ghost.root,
+        { y: [-14, -18, -10], scale: [1.1, 1.26, 0.86], rotate: [-2, 3, -4], opacity: [1, 1, 0] },
+        { duration: 0.66, ease: [0.2, 0.85, 0.2, 1] }
+      ).finished;
+    } finally {
+      ghost.root.remove();
+    }
+  }
+
+  async function animateDiscardExplode({
+    cardId,
+    suit,
+    number,
+    shouldFlip
+  }: {
+    cardId: CardId;
+    suit: Suit;
+    number: number;
+    shouldFlip: boolean;
+  }): Promise<void> {
+    const layer = animationLayerRef.current;
+    const fromRect = prevLayoutSnapshotRef.current?.cardRects.get(cardId) ?? null;
+    if (!layer || !fromRect) {
+      return;
+    }
+
+    const ghost = createGhostCardElement({ suit, number, face: shouldFlip ? 'back' : 'front' });
+    if (!ghost) {
+      return;
+    }
+
+    ghost.root.style.left = `${fromRect.left}px`;
+    ghost.root.style.top = `${fromRect.top}px`;
+    ghost.root.style.width = `${fromRect.width}px`;
+    ghost.root.style.height = `${fromRect.height}px`;
+
+    layer.appendChild(ghost.root);
+
+    try {
+      const zoomControls = animate(ghost.root, { y: -12, scale: 1.1, rotate: -2 }, { duration: 0.34, ease: [0.2, 0.85, 0.2, 1] });
+      const flipControls = shouldFlip
+        ? animate(ghost.inner, { rotateY: [0, 180] }, { duration: 0.34, ease: [0.2, 0.85, 0.2, 1] })
         : null;
 
       await Promise.all([zoomControls.finished, flipControls?.finished]);
@@ -1077,15 +1256,11 @@ function GameClient({
       ghost.root.classList.add('cracked');
       await animate(
         ghost.root,
-        { y: [-14, -18, -10], scale: [1.08, 1.22, 0.86], rotate: [-2, 3, -4], opacity: [1, 1, 0] },
-        { duration: 0.46, ease: [0.2, 0.85, 0.2, 1] }
+        { y: [-12, -18, -10], scale: [1.1, 1.28, 0.86], rotate: [-2, 4, -6], opacity: [1, 1, 0] },
+        { duration: 0.66, ease: [0.2, 0.85, 0.2, 1] }
       ).finished;
     } finally {
       ghost.root.remove();
-    }
-
-    if (spentFuseIndex !== null) {
-      triggerTokenFx(fuseTokenSlotRefs.current[spentFuseIndex] ?? null, 'token-fx-extinguish');
     }
   }
 
@@ -1185,6 +1360,11 @@ function GameClient({
               spentFuseIndex
             });
           }
+        }
+
+        if (nextLog.type === 'discard') {
+          const shouldFlip = viewerIdAtAction !== null && nextLog.actorId === viewerIdAtAction;
+          await animateDiscardExplode({ cardId: nextLog.cardId, suit: nextLog.suit, number: nextLog.number, shouldFlip });
         }
 
         if (didDraw && drawnCardId) {
@@ -1310,42 +1490,64 @@ function GameClient({
       const selectedSuit = selectedCard.suit;
       const selectedNumber = selectedCard.number;
 
-      commitLocal(() => {
-        if (pending === 'play') {
-          if (playerId !== currentPlayer.id) {
-            return;
-          }
+      if (pending === 'play') {
+        if (playerId !== currentPlayer.id) {
+          return;
+        }
 
+        commitLocal(() => {
           debugGame.playCard(cardId);
+        });
+        return;
+      }
+
+      if (pending === 'discard') {
+        if (playerId !== currentPlayer.id) {
           return;
         }
 
-        if (pending === 'discard') {
-          if (playerId !== currentPlayer.id) {
-            return;
-          }
-
+        commitLocal(() => {
           debugGame.discardCard(cardId);
+        });
+        return;
+      }
+
+      if (pending === 'hint-color') {
+        if (playerId === currentPlayer.id) {
           return;
         }
 
-        if (pending === 'hint-color') {
-          if (playerId === currentPlayer.id) {
-            return;
+        const { redundant, touchedCardIds } = isRedundantHint(debugGame.state, playerId, { hintType: 'color', suit: selectedSuit });
+        if (redundant) {
+          for (const touchedId of touchedCardIds) {
+            triggerCardFx(touchedId, 'hint-redundant');
           }
+          return;
+        }
 
+        commitLocal(() => {
           debugGame.giveColorHint(playerId, selectedSuit);
+        });
+        return;
+      }
+
+      if (pending === 'hint-number') {
+        if (playerId === currentPlayer.id) {
           return;
         }
 
-        if (pending === 'hint-number') {
-          if (playerId === currentPlayer.id) {
-            return;
+        const { redundant, touchedCardIds } = isRedundantHint(debugGame.state, playerId, { hintType: 'number', number: selectedNumber });
+        if (redundant) {
+          for (const touchedId of touchedCardIds) {
+            triggerCardFx(touchedId, 'hint-redundant');
           }
-
-          debugGame.giveNumberHint(playerId, selectedNumber);
+          return;
         }
-      });
+
+        commitLocal(() => {
+          debugGame.giveNumberHint(playerId, selectedNumber);
+        });
+      }
       return;
     }
 
@@ -1399,6 +1601,14 @@ function GameClient({
         return;
       }
 
+      const { redundant, touchedCardIds } = isRedundantHint(activeGameState, playerId, { hintType: 'color', suit: selectedCard.suit });
+      if (redundant) {
+        for (const touchedId of touchedCardIds) {
+          triggerCardFx(touchedId, 'hint-redundant');
+        }
+        return;
+      }
+
       action = {
         type: 'hint-color',
         actorId,
@@ -1409,6 +1619,14 @@ function GameClient({
 
     if (pendingAction === 'hint-number') {
       if (playerId === actorId) {
+        return;
+      }
+
+      const { redundant, touchedCardIds } = isRedundantHint(activeGameState, playerId, { hintType: 'number', number: selectedCard.number });
+      if (redundant) {
+        for (const touchedId of touchedCardIds) {
+          triggerCardFx(touchedId, 'hint-redundant');
+        }
         return;
       }
 
@@ -1452,6 +1670,14 @@ function GameClient({
     }
 
     if (isLocalDebugMode) {
+      const { redundant, touchedCardIds } = isRedundantHint(debugGame.state, targetPlayerId, { hintType: 'color', suit });
+      if (redundant) {
+        for (const touchedId of touchedCardIds) {
+          triggerCardFx(touchedId, 'hint-redundant');
+        }
+        return;
+      }
+
       commitLocal(() => {
         debugGame.giveColorHint(targetPlayerId, suit);
       });
@@ -1468,6 +1694,14 @@ function GameClient({
     if (!currentPlayer || currentPlayer.id !== actorId) {
       setPendingAction(null);
       setWildColorHintTargetPlayerId(null);
+      return;
+    }
+
+    const { redundant, touchedCardIds } = isRedundantHint(activeGameState, targetPlayerId, { hintType: 'color', suit });
+    if (redundant) {
+      for (const touchedId of touchedCardIds) {
+        triggerCardFx(touchedId, 'hint-redundant');
+      }
       return;
     }
 
@@ -1703,6 +1937,7 @@ function GameClient({
   const gameOver = isTerminalStatus(perspective.status);
   const isOnlineTurn = !isLocalDebugMode && onlineState.selfId !== null && perspective.currentTurnPlayerId === onlineState.selfId;
   const canAct = (isLocalDebugMode || (onlineState.status === 'connected' && isOnlineTurn)) && !isActionAnimationRunning;
+  const selectedAction: PendingCardAction = isLocalDebugMode ? debugGame.state.ui.pendingAction : pendingAction;
   const showReconnectAction = !isLocalDebugMode && onlineState.status !== 'connected';
   const discardDisabled = gameOver || !canAct || perspective.hintTokens >= perspective.maxHintTokens;
   const colorHintDisabled = gameOver || !canAct || perspective.hintTokens <= 0;
@@ -1850,7 +2085,7 @@ function GameClient({
 
       <section className="bottom-panel">
         <button type="button" className="last-action" onClick={openLogDrawer} data-testid="status-last-action">
-          <span className="last-action-label">{formatPendingAction(isLocalDebugMode ? debugGame.state.ui.pendingAction : pendingAction)}</span>
+          <span className="last-action-label">Last</span>
           <LastActionTicker
             id={lastLog?.id ?? 'none'}
             message={lastLog ? renderLogMessage(lastLog) : 'No actions yet'}
@@ -1861,7 +2096,7 @@ function GameClient({
           <div className="action-slot">
             <button
               type="button"
-              className="action-button danger"
+              className={`action-button danger ${selectedAction === 'discard' ? 'selected' : ''}`}
               data-testid="actions-discard"
               onClick={handleDiscardPress}
               disabled={discardDisabled}
@@ -1873,7 +2108,7 @@ function GameClient({
           <div className="action-slot">
             <button
               type="button"
-              className="action-button"
+              className={`action-button ${selectedAction === 'hint-number' ? 'selected' : ''}`}
               data-testid="actions-number"
               onClick={handleHintNumberPress}
               disabled={numberHintDisabled}
@@ -1900,7 +2135,7 @@ function GameClient({
           <div className="action-slot">
             <button
               type="button"
-              className="action-button"
+              className={`action-button ${selectedAction === 'hint-color' ? 'selected' : ''}`}
               data-testid="actions-color"
               onClick={handleHintColorPress}
               disabled={colorHintDisabled}
@@ -1912,7 +2147,7 @@ function GameClient({
           <div className="action-slot">
             <button
               type="button"
-              className="action-button primary"
+              className={`action-button primary ${selectedAction === 'play' ? 'selected' : ''}`}
               data-testid="actions-play"
               onClick={handlePlayPress}
               disabled={playDisabled}
