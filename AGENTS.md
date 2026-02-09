@@ -1,6 +1,7 @@
 # AGENTS
 
 See `project.md` for overall infrastructure
+See `project_animation.md` for what the various animations are and how they are used
 
 ## Core Rules
 - Use Bun for all tooling: install, dev, build, test, and serve.
