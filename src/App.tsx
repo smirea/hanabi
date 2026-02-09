@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ComponentType, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ComponentType, type ReactNode } from 'react';
+import { animate } from 'motion';
 import {
   CardsThree,
   Drop,
@@ -15,6 +16,7 @@ import {
   BASE_SUITS,
   CARD_NUMBERS,
   HanabiGame,
+  type CardId,
   type GameLogEntry,
   type HanabiState,
   type HanabiPerspectiveState,
@@ -102,6 +104,111 @@ function SuitSymbol({
 }) {
   const Icon = suitIcons[suit];
   return <Icon size={size} weight={weight} className={className} aria-hidden />;
+}
+
+function DeckCount({ value }: { value: number }) {
+  const [previousValue, setPreviousValue] = useState<number | null>(null);
+  const [direction, setDirection] = useState<'up' | 'down' | null>(null);
+  const timeoutRef = useRef<number | null>(null);
+  const lastValueRef = useRef<number>(value);
+
+  useEffect(() => {
+    const last = lastValueRef.current;
+    if (last === value) {
+      return;
+    }
+
+    lastValueRef.current = value;
+    setPreviousValue(last);
+    setDirection(value > last ? 'up' : 'down');
+
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current);
+    }
+
+    timeoutRef.current = window.setTimeout(() => {
+      timeoutRef.current = null;
+      setPreviousValue(null);
+      setDirection(null);
+    }, 260);
+  }, [value]);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  const ticking = previousValue !== null && direction !== null;
+
+  return (
+    <span
+      className={`deck-count ${ticking ? `deck-count-tick ${direction}` : ''}`}
+      data-testid="status-deck-count"
+      aria-label={`Deck ${value}`}
+    >
+      {ticking ? (
+        <>
+          <span className="deck-count-value prev" aria-hidden>{previousValue}</span>
+          <span className="deck-count-value next">{value}</span>
+        </>
+      ) : (
+        <span className="deck-count-value single">{value}</span>
+      )}
+    </span>
+  );
+}
+
+function LastActionTicker({ id, message }: { id: string; message: ReactNode }) {
+  const [previous, setPrevious] = useState<ReactNode | null>(null);
+  const [current, setCurrent] = useState<ReactNode>(message);
+  const [currentId, setCurrentId] = useState(id);
+  const [isTicking, setIsTicking] = useState(false);
+  const timeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (currentId === id) {
+      return;
+    }
+
+    setPrevious(current);
+    setCurrent(message);
+    setCurrentId(id);
+    setIsTicking(true);
+
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current);
+    }
+
+    timeoutRef.current = window.setTimeout(() => {
+      timeoutRef.current = null;
+      setIsTicking(false);
+      setPrevious(null);
+    }, 320);
+  }, [currentId, id, message]);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  return (
+    <span className={`last-action-ticker ${isTicking ? 'ticking' : ''}`}>
+      {previous !== null && (
+        <span className="last-action-message leaving" aria-hidden>
+          {previous}
+        </span>
+      )}
+      <span className={`last-action-message ${previous !== null ? 'entering' : ''}`}>
+        {current}
+      </span>
+    </span>
+  );
 }
 
 function LogCardChip({ suit, number }: { suit: Suit; number: number }) {
@@ -589,6 +696,17 @@ function GameClient({
     storageNamespace
   );
   const logListRef = useRef<HTMLDivElement | null>(null);
+  const animationLayerRef = useRef<HTMLDivElement | null>(null);
+  const deckPillRef = useRef<HTMLDivElement | null>(null);
+  const cardNodeByIdRef = useRef<Map<CardId, HTMLButtonElement>>(new Map());
+  const hintTokenSlotRefs = useRef<Array<HTMLSpanElement | null>>([]);
+  const fuseTokenSlotRefs = useRef<Array<HTMLSpanElement | null>>([]);
+  const [isActionAnimationRunning, setIsActionAnimationRunning] = useState(false);
+  const [turnLockPlayerId, setTurnLockPlayerId] = useState<PlayerId | null>(null);
+  const animationRunIdRef = useRef(0);
+  const prevGameStateRef = useRef<HanabiState | null>(null);
+  const layoutSnapshotRef = useRef<{ deckRect: DOMRect | null; cardRects: Map<CardId, DOMRect> } | null>(null);
+  const prevLayoutSnapshotRef = useRef<{ deckRect: DOMRect | null; cardRects: Map<CardId, DOMRect> } | null>(null);
 
   const isLocalDebugMode = !isDebugNetworkFrame && isDebugMode;
   const online = useOnlineSession(!isLocalDebugMode && !isDebugNetworkFrame, DEFAULT_ROOM_ID);
@@ -675,6 +793,17 @@ function GameClient({
     return activeGame.getPerspectiveState(perspectivePlayerId);
   }, [activeGame, activeGameState, perspectivePlayerId]);
 
+  useLayoutEffect(() => {
+    prevLayoutSnapshotRef.current = layoutSnapshotRef.current;
+    const deckRect = deckPillRef.current?.getBoundingClientRect() ?? null;
+    const cardRects = new Map<CardId, DOMRect>();
+    for (const [cardId, node] of cardNodeByIdRef.current) {
+      cardRects.set(cardId, node.getBoundingClientRect());
+    }
+
+    layoutSnapshotRef.current = { deckRect, cardRects };
+  });
+
   useEffect(() => {
     if (!isLogDrawerOpen) return;
     logListRef.current?.scrollTo({ top: 0 });
@@ -692,6 +821,387 @@ function GameClient({
 
     setIsMenuOpen(false);
   }, [isLocalDebugMode]);
+
+  function triggerSvgFx(svg: SVGElement, fxClass: string): void {
+    svg.classList.remove(fxClass);
+    void svg.getBoundingClientRect();
+    svg.classList.add(fxClass);
+    svg.addEventListener('animationend', () => svg.classList.remove(fxClass), { once: true });
+  }
+
+  function triggerTokenFx(slot: HTMLSpanElement | null, fxClass: string): void {
+    const svg = slot?.querySelector('svg');
+    if (!(svg instanceof SVGElement)) {
+      return;
+    }
+
+    triggerSvgFx(svg, fxClass);
+  }
+
+  function triggerCardFx(cardId: CardId, fxClass: string): void {
+    const node = cardNodeByIdRef.current.get(cardId);
+    if (!node) {
+      return;
+    }
+
+    node.classList.remove(fxClass);
+    void node.getBoundingClientRect();
+    node.classList.add(fxClass);
+    node.addEventListener('animationend', () => node.classList.remove(fxClass), { once: true });
+  }
+
+  function createGhostCardElement({
+    suit,
+    number,
+    face
+  }: {
+    suit: Suit | null;
+    number: number | null;
+    face: 'front' | 'back';
+  }): { root: HTMLDivElement; inner: HTMLDivElement; crack: HTMLDivElement } | null {
+    if (typeof document === 'undefined') {
+      return null;
+    }
+
+    const root = document.createElement('div');
+    root.className = 'ghost-card';
+
+    if (suit) {
+      root.style.setProperty('--card-bg', suitColors[suit]);
+      root.style.setProperty('--card-fg', suitBadgeForeground[suit]);
+    } else {
+      root.style.setProperty('--card-bg', '#9eb2d4');
+      root.style.setProperty('--card-fg', '#101114');
+    }
+
+    const inner = document.createElement('div');
+    inner.className = 'ghost-card-inner';
+    inner.style.transform = face === 'front' ? 'rotateY(180deg)' : 'rotateY(0deg)';
+
+    const back = document.createElement('div');
+    back.className = 'ghost-card-face back';
+    const backMark = document.createElement('div');
+    backMark.className = 'ghost-card-back-mark';
+    backMark.textContent = 'H';
+    back.appendChild(backMark);
+
+    const front = document.createElement('div');
+    front.className = 'ghost-card-face front';
+    const frontValue = document.createElement('div');
+    frontValue.className = 'ghost-card-front-value';
+    frontValue.textContent = number === null ? '?' : String(number);
+    const frontSuit = document.createElement('div');
+    frontSuit.className = 'ghost-card-front-suit';
+    frontSuit.textContent = suit === null ? '' : suit;
+    front.appendChild(frontValue);
+    front.appendChild(frontSuit);
+
+    const crack = document.createElement('div');
+    crack.className = 'ghost-card-crack';
+
+    inner.appendChild(back);
+    inner.appendChild(front);
+    root.appendChild(inner);
+    root.appendChild(crack);
+
+    return { root, inner, crack };
+  }
+
+  async function animateDrawCard({
+    drawnCardId,
+    actorId,
+    viewerIdForVisibility
+  }: {
+    drawnCardId: CardId;
+    actorId: PlayerId;
+    viewerIdForVisibility: PlayerId | null;
+  }): Promise<void> {
+    const layer = animationLayerRef.current;
+    const deckRect = layoutSnapshotRef.current?.deckRect ?? null;
+    const destRect = layoutSnapshotRef.current?.cardRects.get(drawnCardId) ?? null;
+    const destNode = cardNodeByIdRef.current.get(drawnCardId) ?? null;
+
+    if (!layer || !deckRect || !destRect || !destNode) {
+      return;
+    }
+
+    const card = activeGameState?.cards[drawnCardId] ?? null;
+    const showFront = card && actorId !== viewerIdForVisibility;
+    const ghost = createGhostCardElement({
+      suit: showFront ? card.suit : null,
+      number: showFront ? card.number : null,
+      face: showFront ? 'front' : 'back'
+    });
+    if (!ghost) {
+      return;
+    }
+
+    const startLeft = deckRect.left + deckRect.width / 2 - destRect.width / 2;
+    const startTop = deckRect.top + deckRect.height / 2 - destRect.height / 2;
+
+    ghost.root.style.left = `${startLeft}px`;
+    ghost.root.style.top = `${startTop}px`;
+    ghost.root.style.width = `${destRect.width}px`;
+    ghost.root.style.height = `${destRect.height}px`;
+
+    layer.appendChild(ghost.root);
+
+    const dx = destRect.left - startLeft;
+    const dy = destRect.top - startTop;
+
+    const originalOpacity = destNode.style.opacity;
+    destNode.style.opacity = '0';
+
+    try {
+      await animate(
+        ghost.root,
+        {
+          x: [0, dx * 0.86, dx],
+          y: [0, dy * 0.86, dy],
+          scale: [0.14, 1.08, 1],
+          rotate: [-10, 2, 0],
+          opacity: [0.6, 1, 1]
+        },
+        { duration: 0.5, ease: [0.2, 0.85, 0.2, 1] }
+      ).finished;
+
+      await animate(destNode, { opacity: [0, 1], scale: [0.98, 1] }, { duration: 0.16, ease: [0.2, 0.85, 0.2, 1] }).finished;
+    } finally {
+      ghost.root.remove();
+      destNode.style.opacity = originalOpacity;
+      destNode.style.removeProperty('scale');
+    }
+  }
+
+  async function animatePlayToPeg({
+    cardId,
+    suit,
+    number,
+    shouldFlip
+  }: {
+    cardId: CardId;
+    suit: Suit;
+    number: number;
+    shouldFlip: boolean;
+  }): Promise<void> {
+    const layer = animationLayerRef.current;
+    const fromRect = prevLayoutSnapshotRef.current?.cardRects.get(cardId) ?? null;
+    const peg = typeof document === 'undefined'
+      ? null
+      : document.querySelector<HTMLElement>(`[data-testid="peg-${suit}-${number}"]`);
+    const toRect = peg?.getBoundingClientRect() ?? null;
+
+    if (!layer || !fromRect || !peg || !toRect) {
+      return;
+    }
+
+    const ghost = createGhostCardElement({ suit, number, face: shouldFlip ? 'back' : 'front' });
+    if (!ghost) {
+      return;
+    }
+
+    ghost.root.style.left = `${fromRect.left}px`;
+    ghost.root.style.top = `${fromRect.top}px`;
+    ghost.root.style.width = `${fromRect.width}px`;
+    ghost.root.style.height = `${fromRect.height}px`;
+
+    layer.appendChild(ghost.root);
+
+    const dx = toRect.left + toRect.width / 2 - (fromRect.left + fromRect.width / 2);
+    const dy = toRect.top + toRect.height / 2 - (fromRect.top + fromRect.height / 2);
+    const scaleTo = Math.max(0.22, Math.min(0.42, toRect.width / fromRect.width));
+
+    try {
+      const zoomControls = animate(ghost.root, { y: -14, scale: 1.08, rotate: -2 }, { duration: 0.18, ease: [0.2, 0.85, 0.2, 1] });
+      const flipControls = shouldFlip
+        ? animate(ghost.inner, { rotateY: [0, 180] }, { duration: 0.28, ease: [0.2, 0.85, 0.2, 1] })
+        : null;
+
+      await Promise.all([zoomControls.finished, flipControls?.finished]);
+
+      await animate(
+        ghost.root,
+        { x: dx, y: dy, scale: scaleTo, rotate: 0, opacity: [1, 0.2] },
+        { duration: 0.42, ease: [0.2, 0.85, 0.2, 1] }
+      ).finished;
+
+      peg.classList.remove('peg-hit');
+      void peg.getBoundingClientRect();
+      peg.classList.add('peg-hit');
+      peg.addEventListener('animationend', () => peg.classList.remove('peg-hit'), { once: true });
+    } finally {
+      ghost.root.remove();
+    }
+  }
+
+  async function animateMisplay({
+    cardId,
+    suit,
+    number,
+    shouldFlip,
+    spentFuseIndex
+  }: {
+    cardId: CardId;
+    suit: Suit;
+    number: number;
+    shouldFlip: boolean;
+    spentFuseIndex: number | null;
+  }): Promise<void> {
+    const layer = animationLayerRef.current;
+    const fromRect = prevLayoutSnapshotRef.current?.cardRects.get(cardId) ?? null;
+    if (!layer || !fromRect) {
+      return;
+    }
+
+    const ghost = createGhostCardElement({ suit, number, face: shouldFlip ? 'back' : 'front' });
+    if (!ghost) {
+      return;
+    }
+
+    ghost.root.classList.add('misplay');
+    ghost.root.style.left = `${fromRect.left}px`;
+    ghost.root.style.top = `${fromRect.top}px`;
+    ghost.root.style.width = `${fromRect.width}px`;
+    ghost.root.style.height = `${fromRect.height}px`;
+
+    layer.appendChild(ghost.root);
+
+    try {
+      const zoomControls = animate(ghost.root, { y: -14, scale: 1.08, rotate: -2 }, { duration: 0.18, ease: [0.2, 0.85, 0.2, 1] });
+      const flipControls = shouldFlip
+        ? animate(ghost.inner, { rotateY: [0, 180] }, { duration: 0.28, ease: [0.2, 0.85, 0.2, 1] })
+        : null;
+
+      await Promise.all([zoomControls.finished, flipControls?.finished]);
+
+      ghost.root.classList.add('cracked');
+      await animate(
+        ghost.root,
+        { y: [-14, -18, -10], scale: [1.08, 1.22, 0.86], rotate: [-2, 3, -4], opacity: [1, 1, 0] },
+        { duration: 0.46, ease: [0.2, 0.85, 0.2, 1] }
+      ).finished;
+    } finally {
+      ghost.root.remove();
+    }
+
+    if (spentFuseIndex !== null) {
+      triggerTokenFx(fuseTokenSlotRefs.current[spentFuseIndex] ?? null, 'token-fx-extinguish');
+    }
+  }
+
+  useEffect(() => {
+    if (!activeGameState) {
+      prevGameStateRef.current = null;
+      return;
+    }
+
+    const previous = prevGameStateRef.current;
+    prevGameStateRef.current = activeGameState;
+
+    if (!previous) {
+      return;
+    }
+
+    if (activeGameState.turn - previous.turn !== 1) {
+      return;
+    }
+
+    const nextLog = activeGameState.logs[activeGameState.logs.length - 1] ?? null;
+    const prevLogId = previous.logs[previous.logs.length - 1]?.id ?? null;
+    if (!nextLog || nextLog.id === prevLogId) {
+      return;
+    }
+
+    const prevHintTokens = previous.hintTokens;
+    const nextHintTokens = activeGameState.hintTokens;
+    if (nextHintTokens < prevHintTokens) {
+      triggerTokenFx(hintTokenSlotRefs.current[nextHintTokens] ?? null, 'token-fx-spend');
+    } else if (nextHintTokens > prevHintTokens) {
+      triggerTokenFx(hintTokenSlotRefs.current[prevHintTokens] ?? null, 'token-fx-gain');
+    }
+
+    if (nextLog.type === 'hint') {
+      for (const cardId of nextLog.touchedCardIds) {
+        triggerCardFx(cardId, 'hint-enter');
+      }
+      return;
+    }
+
+    if (nextLog.type !== 'play' && nextLog.type !== 'discard') {
+      return;
+    }
+
+    const reduceMotion = typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const canRunMotion = !reduceMotion
+      && typeof document !== 'undefined'
+      && typeof document.createElement('div').animate === 'function';
+    if (!canRunMotion) {
+      return;
+    }
+
+    const runId = animationRunIdRef.current + 1;
+    animationRunIdRef.current = runId;
+    setIsActionAnimationRunning(true);
+    setTurnLockPlayerId(nextLog.actorId);
+
+    const viewerIdAtAction = isLocalDebugMode
+      ? previous.players[previous.currentTurnPlayerIndex]?.id ?? null
+      : (perspective?.viewerId ?? null);
+
+    const prevActor = previous.players.find((player) => player.id === nextLog.actorId);
+    const nextActor = activeGameState.players.find((player) => player.id === nextLog.actorId);
+    const prevHand = prevActor?.cards ?? [];
+    const nextHand = nextActor?.cards ?? [];
+    const prevHandSet = new Set(prevHand);
+    const drawnCardId = nextHand.find((cardId) => !prevHandSet.has(cardId)) ?? null;
+
+    const deckDelta = activeGameState.drawDeck.length - previous.drawDeck.length;
+    const didDraw = deckDelta === -1 && drawnCardId !== null;
+
+    const spentFuseIndex = (() => {
+      const prevRemaining = previous.settings.maxFuseTokens - previous.fuseTokensUsed;
+      const nextRemaining = activeGameState.settings.maxFuseTokens - activeGameState.fuseTokensUsed;
+      if (nextRemaining !== prevRemaining - 1) {
+        return null;
+      }
+
+      return nextRemaining;
+    })();
+
+    void (async () => {
+      try {
+        if (nextLog.type === 'play') {
+          const shouldFlip = viewerIdAtAction !== null && nextLog.actorId === viewerIdAtAction;
+          if (nextLog.success) {
+            await animatePlayToPeg({ cardId: nextLog.cardId, suit: nextLog.suit, number: nextLog.number, shouldFlip });
+          } else {
+            await animateMisplay({
+              cardId: nextLog.cardId,
+              suit: nextLog.suit,
+              number: nextLog.number,
+              shouldFlip,
+              spentFuseIndex
+            });
+          }
+        }
+
+        if (didDraw && drawnCardId) {
+          await animateDrawCard({
+            drawnCardId,
+            actorId: nextLog.actorId,
+            viewerIdForVisibility: perspective?.viewerId ?? null
+          });
+        }
+      } finally {
+        if (animationRunIdRef.current === runId) {
+          setIsActionAnimationRunning(false);
+          setTurnLockPlayerId(null);
+        }
+      }
+    })();
+  }, [activeGameState, isLocalDebugMode, perspective?.viewerId]);
 
   function commitLocal(command: () => void): void {
     try {
@@ -1169,14 +1679,22 @@ function GameClient({
     );
   }
 
-  const others = perspective.players.filter((player) => player.id !== perspective.viewerId);
-  const viewer = perspective.players.find((player) => player.id === perspective.viewerId);
+  const effectiveTurnPlayerId = isActionAnimationRunning && turnLockPlayerId
+    ? turnLockPlayerId
+    : perspective.currentTurnPlayerId;
+  const effectivePlayers = perspective.players.map((player) => ({
+    ...player,
+    isCurrentTurn: player.id === effectiveTurnPlayerId
+  }));
+
+  const others = effectivePlayers.filter((player) => player.id !== perspective.viewerId);
+  const viewer = effectivePlayers.find((player) => player.id === perspective.viewerId);
   if (!viewer) {
     throw new Error(`Missing viewer ${perspective.viewerId}`);
   }
 
   const tablePlayers = [...others, viewer];
-  const activeTurnIndex = tablePlayers.findIndex((player) => player.isCurrentTurn);
+  const activeTurnIndex = tablePlayers.findIndex((player) => player.id === effectiveTurnPlayerId);
   const lastLog = perspective.logs[perspective.logs.length - 1] ?? null;
   const orderedLogs = [...perspective.logs].reverse();
   const hintTokenStates = Array.from({ length: perspective.maxHintTokens }, (_, index) => index < perspective.hintTokens);
@@ -1184,7 +1702,7 @@ function GameClient({
   const fuseTokenStates = Array.from({ length: perspective.maxFuseTokens }, (_, index) => index < remainingFuses);
   const gameOver = isTerminalStatus(perspective.status);
   const isOnlineTurn = !isLocalDebugMode && onlineState.selfId !== null && perspective.currentTurnPlayerId === onlineState.selfId;
-  const canAct = isLocalDebugMode || (onlineState.status === 'connected' && isOnlineTurn);
+  const canAct = (isLocalDebugMode || (onlineState.status === 'connected' && isOnlineTurn)) && !isActionAnimationRunning;
   const showReconnectAction = !isLocalDebugMode && onlineState.status !== 'connected';
   const discardDisabled = gameOver || !canAct || perspective.hintTokens >= perspective.maxHintTokens;
   const colorHintDisabled = gameOver || !canAct || perspective.hintTokens <= 0;
@@ -1197,33 +1715,49 @@ function GameClient({
         <div className="stat hints-stat" data-testid="status-hints">
           <div className="token-grid hints-grid" aria-label="Hint tokens">
             {hintTokenStates.map((isFilled, index) => (
-              <LightbulbFilament
+              <span
                 key={`hint-token-${index}`}
-                size={15}
-                weight={isFilled ? 'fill' : 'regular'}
-                className={isFilled ? 'token-icon filled' : 'token-icon hollow'}
-              />
+                className="token-slot"
+                ref={(node) => {
+                  hintTokenSlotRefs.current[index] = node;
+                }}
+                data-testid={`hint-token-${index}`}
+              >
+                <LightbulbFilament
+                  size={15}
+                  weight={isFilled ? 'fill' : 'regular'}
+                  className={isFilled ? 'token-icon filled' : 'token-icon hollow'}
+                />
+              </span>
             ))}
           </div>
           <span className="visually-hidden" data-testid="status-hints-count">{perspective.hintTokens}</span>
         </div>
 
         <div className="stat deck-stat" data-testid="status-deck">
-          <div className="deck-pill">
+          <div className="deck-pill" ref={deckPillRef} data-testid="deck-pill">
             <CardsThree size={17} weight="fill" />
-            <span className="deck-count" data-testid="status-deck-count">{perspective.drawDeckCount}</span>
+            <DeckCount value={perspective.drawDeckCount} />
           </div>
         </div>
 
         <div className="stat fuses-stat" data-testid="status-fuses">
           <div className="token-grid fuses-grid" aria-label="Fuse tokens">
             {fuseTokenStates.map((isFilled, index) => (
-              <Fire
+              <span
                 key={`fuse-token-${index}`}
-                size={24}
-                weight={isFilled ? 'fill' : 'regular'}
-                className={isFilled ? 'token-icon filled danger' : 'token-icon hollow danger'}
-              />
+                className="token-slot"
+                ref={(node) => {
+                  fuseTokenSlotRefs.current[index] = node;
+                }}
+                data-testid={`fuse-token-${index}`}
+              >
+                <Fire
+                  size={24}
+                  weight={isFilled ? 'fill' : 'regular'}
+                  className={isFilled ? 'token-icon filled danger' : 'token-icon hollow danger'}
+                />
+              </span>
             ))}
           </div>
           <span className="visually-hidden" data-testid="status-fuses-count">{remainingFuses}</span>
@@ -1300,6 +1834,13 @@ function GameClient({
                   showNegativeNumberHints={showNegativeNumberHints}
                   onSelect={() => handleCardSelect(player.id, card.id)}
                   testId={`card-${player.id}-${cardIndex}`}
+                  onNode={(node) => {
+                    if (node) {
+                      cardNodeByIdRef.current.set(card.id, node);
+                    } else {
+                      cardNodeByIdRef.current.delete(card.id);
+                    }
+                  }}
                 />
               ))}
             </div>
@@ -1310,7 +1851,10 @@ function GameClient({
       <section className="bottom-panel">
         <button type="button" className="last-action" onClick={openLogDrawer} data-testid="status-last-action">
           <span className="last-action-label">{formatPendingAction(isLocalDebugMode ? debugGame.state.ui.pendingAction : pendingAction)}</span>
-          <span className="last-action-message">{lastLog ? renderLogMessage(lastLog) : 'No actions yet'}</span>
+          <LastActionTicker
+            id={lastLog?.id ?? 'none'}
+            message={lastLog ? renderLogMessage(lastLog) : 'No actions yet'}
+          />
         </button>
 
         <section className="actions">
@@ -1530,6 +2074,8 @@ function GameClient({
           ))}
         </div>
       </aside>
+
+      <div className="animation-layer" ref={animationLayerRef} aria-hidden data-testid="animation-layer" />
     </main>
   );
 }
@@ -1772,13 +2318,15 @@ function CardView({
   showNegativeColorHints,
   showNegativeNumberHints,
   onSelect,
-  testId
+  testId,
+  onNode
 }: {
   card: PerspectiveCard;
   showNegativeColorHints: boolean;
   showNegativeNumberHints: boolean;
   onSelect: () => void;
   testId: string;
+  onNode?: (node: HTMLButtonElement | null) => void;
 }) {
   const knownColor = card.hints.color;
   const knownNumber = card.hints.number;
@@ -1813,6 +2361,8 @@ function CardView({
       style={{ '--card-bg': bgColor } as CSSProperties}
       onClick={onSelect}
       data-testid={testId}
+      data-card-id={card.id}
+      ref={onNode}
       aria-pressed={false}
     >
       <div className="card-face">
