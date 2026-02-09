@@ -58,9 +58,12 @@ Each card tracks and renders:
 - DNS (Namecheap):
   - `hanabi` CNAME -> `d1yq9wamlmytcc.cloudfront.net`.
   - ACM DNS validation CNAME must remain in place for certificate renewals.
-- CI/CD: GitHub Actions workflow in `.github/workflows/deploy.yml`.
-  - Trigger: every push to `master` (plus manual `workflow_dispatch`).
-  - Flow: install -> lint -> typecheck -> tests -> build -> sync `dist` to `s3://stf.lol/hanabi/` -> CloudFront invalidation.
+- CI: GitHub Actions workflow in `.github/workflows/ci.yml`.
+  - Trigger: pull requests + every push to `master`.
+  - Flow: lint/typecheck + tests + build (uploads `dist` as an artifact).
+- CD: GitHub Actions workflow in `.github/workflows/deploy.yml`.
+  - Trigger: successful `CI` run on `master` (plus manual `workflow_dispatch`).
+  - Flow: download `dist` artifact -> sync `dist` to `s3://stf.lol/hanabi/` -> CloudFront invalidation.
   - Cache strategy: hashed assets are uploaded with long-lived immutable cache headers; `index.html` is uploaded with no-cache headers.
 - Required GitHub repository secrets:
   - `AWS_ACCESS_KEY_ID`

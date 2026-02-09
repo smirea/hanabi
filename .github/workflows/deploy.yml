@@ -1,9 +1,13 @@
 name: Deploy
 
 on:
-  push:
+  workflow_run:
+    workflows:
+      - CI
     branches:
       - master
+    types:
+      - completed
   workflow_dispatch:
 
 concurrency:
@@ -12,9 +16,11 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'master') }}
     runs-on: ubuntu-latest
     env:
       AWS_REGION: us-east-1
@@ -22,29 +28,49 @@ jobs:
       S3_PREFIX: hanabi
       CLOUDFRONT_DISTRIBUTION_ID: EF8ZR6OCMZQ48
     steps:
+      - name: Download dist artifact
+        if: ${{ github.event_name == 'workflow_run' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+          path: dist
+
       - name: Checkout
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: actions/checkout@v4
 
       - name: Setup Bun
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: bun install --frozen-lockfile
 
       - name: Lint
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: bun run lint:ci
 
       - name: Typecheck
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: bun run typecheck
 
       - name: Unit tests
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: bun run test
 
       - name: UI tests
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: bun run test:ui
 
       - name: Build
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: bun run build
+
+      - name: Verify dist
+        run: test -f dist/index.html
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
