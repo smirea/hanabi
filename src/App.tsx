@@ -1,5 +1,16 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { CardsThree, Fire, LightbulbFilament } from '@phosphor-icons/react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ComponentType, type ReactNode } from 'react';
+import {
+  CardsThree,
+  Drop,
+  Fire,
+  Heart,
+  Leaf,
+  LightbulbFilament,
+  Rainbow,
+  Snowflake,
+  Sun,
+  type IconProps
+} from '@phosphor-icons/react';
 import {
   CARD_NUMBERS,
   HanabiGame,
@@ -54,6 +65,15 @@ const suitColors: Record<Suit, string> = {
   M: '#d46eb3'
 };
 
+const suitBadgeForeground: Record<Suit, string> = {
+  R: '#fff',
+  Y: '#101114',
+  G: '#101114',
+  B: '#fff',
+  W: '#101114',
+  M: '#fff'
+};
+
 const suitNames: Record<Suit, string> = {
   R: 'red',
   Y: 'yellow',
@@ -62,6 +82,62 @@ const suitNames: Record<Suit, string> = {
   W: 'white',
   M: 'multicolor'
 };
+
+const suitIcons: Record<Suit, ComponentType<IconProps>> = {
+  R: Heart,
+  Y: Sun,
+  G: Leaf,
+  B: Drop,
+  W: Snowflake,
+  M: Rainbow
+};
+
+function SuitSymbol({
+  suit,
+  size = 14,
+  weight = 'fill',
+  className
+}: {
+  suit: Suit;
+  size?: number;
+  weight?: IconProps['weight'];
+  className?: string;
+}) {
+  const Icon = suitIcons[suit];
+  return <Icon size={size} weight={weight} className={className} aria-hidden />;
+}
+
+function LogCardChip({ suit, number }: { suit: Suit; number: number }) {
+  return (
+    <span
+      className="log-chip log-chip-card"
+      style={{ '--chip-color': suitColors[suit], '--chip-fg': suitBadgeForeground[suit] } as CSSProperties}
+      aria-label={`${suitNames[suit]} ${number}`}
+    >
+      {number}
+    </span>
+  );
+}
+
+function LogHintChipNumber({ number }: { number: number }) {
+  return (
+    <span className="log-chip log-chip-number" aria-label={`number ${number}`}>
+      {number}
+    </span>
+  );
+}
+
+function LogHintChipSuit({ suit }: { suit: Suit }) {
+  return (
+    <span
+      className="log-chip log-chip-suit"
+      style={{ '--chip-color': suitColors[suit], '--chip-fg': suitBadgeForeground[suit] } as CSSProperties}
+      aria-label={suitNames[suit]}
+    >
+      <SuitSymbol suit={suit} size={12} />
+    </span>
+  );
+}
 
 function getPegPipStates(remaining: number, total: number): PegPipState[] {
   const clampedRemaining = Math.min(Math.max(remaining, 0), MAX_PEG_PIPS);
@@ -74,29 +150,100 @@ function getPegPipStates(remaining: number, total: number): PegPipState[] {
   });
 }
 
+function PegPie({ pipStates }: { pipStates: PegPipState[] }) {
+  const slices = pipStates.filter((state) => state !== 'unused');
+  if (slices.length === 0) return null;
+
+  const center = 8;
+  const radius = 7;
+  const sliceAngle = 360 / slices.length;
+
+  function toPoint(angleDegrees: number) {
+    const angleRadians = ((angleDegrees - 90) * Math.PI) / 180;
+    return {
+      x: center + radius * Math.cos(angleRadians),
+      y: center + radius * Math.sin(angleRadians)
+    };
+  }
+
+  function describeWedge(index: number) {
+    const startAngle = index * sliceAngle;
+    const endAngle = (index + 1) * sliceAngle;
+    const start = toPoint(startAngle);
+    const end = toPoint(endAngle);
+    const largeArcFlag = sliceAngle > 180 ? 1 : 0;
+    return `M ${center} ${center} L ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${end.x} ${end.y} Z`;
+  }
+
+  return (
+    <svg className="peg-pie" viewBox="0 0 16 16" aria-hidden>
+      {slices.length === 1 ? (
+        <circle className={`peg-slice ${slices[0]}`} cx={center} cy={center} r={radius} />
+      ) : (
+        slices.map((state, index) => (
+          <path key={`slice-${index}`} className={`peg-slice ${state}`} d={describeWedge(index)} />
+        ))
+      )}
+    </svg>
+  );
+}
+
 function isTerminalStatus(status: HanabiPerspectiveState['status']): boolean {
   return status === 'won' || status === 'lost' || status === 'finished';
 }
 
-function formatLogMessage(log: GameLogEntry): string {
+function renderLogMessage(log: GameLogEntry): ReactNode {
   if (log.type === 'hint') {
+    const touchedCount = log.touchedCardIds.length;
     if (log.hintType === 'number') {
       if (log.number === null) return `${log.actorName} gave a number hint to ${log.targetName}`;
-      return `${log.actorName} hinted ${log.number}s to ${log.targetName}`;
+      return (
+        <>
+          {log.actorName} hinted {touchedCount}x
+          <LogHintChipNumber number={log.number} /> to {log.targetName}
+        </>
+      );
     }
 
     if (log.suit === null) return `${log.actorName} gave a color hint to ${log.targetName}`;
-    return `${log.actorName} hinted ${suitNames[log.suit]} to ${log.targetName}`;
+    return (
+      <>
+        {log.actorName} hinted {touchedCount}x
+        <LogHintChipSuit suit={log.suit} /> to {log.targetName}
+      </>
+    );
   }
 
   if (log.type === 'play') {
-    if (log.success) return `${log.actorName} played ${suitNames[log.suit]} ${log.number}`;
-    return `${log.actorName} misplayed ${suitNames[log.suit]} ${log.number} and burned a fuse`;
+    if (log.success) {
+      return (
+        <>
+          {log.actorName} played <LogCardChip suit={log.suit} number={log.number} />
+        </>
+      );
+    }
+
+    return (
+      <>
+        {log.actorName} misplayed <LogCardChip suit={log.suit} number={log.number} /> and burned a fuse
+      </>
+    );
   }
 
   if (log.type === 'discard') {
-    if (log.gainedHint) return `${log.actorName} discarded ${suitNames[log.suit]} ${log.number} and regained a hint`;
-    return `${log.actorName} discarded ${suitNames[log.suit]} ${log.number}`;
+    if (log.gainedHint) {
+      return (
+        <>
+          {log.actorName} discarded <LogCardChip suit={log.suit} number={log.number} /> and regained a hint
+        </>
+      );
+    }
+
+    return (
+      <>
+        {log.actorName} discarded <LogCardChip suit={log.suit} number={log.number} />
+      </>
+    );
   }
 
   if (log.type === 'draw') {
@@ -886,9 +1033,7 @@ function GameClient({
                     >
                       <span className="peg-num">{blocked ? '✕' : num}</span>
                       <span className="peg-pips" aria-label={`${remaining} copies not visible to you`}>
-                        {pipStates.map((pipState, pipIndex) => (
-                          <span key={`pip-${pipIndex}`} className={`peg-pip ${pipState}`} />
-                        ))}
+                        <PegPie pipStates={pipStates} />
                       </span>
                     </div>
                   );
@@ -940,7 +1085,7 @@ function GameClient({
       <section className="bottom-panel">
         <button type="button" className="last-action" onClick={openLogDrawer} data-testid="status-last-action">
           <span className="last-action-label">{formatPendingAction(isLocalDebugMode ? debugGame.state.ui.pendingAction : pendingAction)}</span>
-          <span className="last-action-message">{lastLog ? formatLogMessage(lastLog) : 'No actions yet'}</span>
+          <span className="last-action-message">{lastLog ? renderLogMessage(lastLog) : 'No actions yet'}</span>
         </button>
 
         <section className="actions">
@@ -1099,7 +1244,7 @@ function GameClient({
           {orderedLogs.map((logEntry) => (
             <article key={logEntry.id} className="log-item" data-testid={`log-item-${logEntry.id}`}>
               <span className={`log-kind ${logEntry.type}`}>{getLogBadge(logEntry)}</span>
-              <span className="log-item-message">{formatLogMessage(logEntry)}</span>
+              <span className="log-item-message">{renderLogMessage(logEntry)}</span>
             </article>
           ))}
         </div>
@@ -1288,10 +1433,12 @@ function CardView({
   const knownColor = card.hints.color;
   const knownNumber = card.hints.number;
 
+  let faceSuit: Suit | null = null;
   let faceValue: string | number = '?';
   let bgColor: string | undefined;
 
   if (card.isHiddenFromViewer) {
+    faceSuit = knownColor;
     faceValue = knownNumber ?? '?';
     bgColor = knownColor ? suitColors[knownColor] : (knownNumber ? '#9eb2d4' : undefined);
   } else {
@@ -1299,13 +1446,15 @@ function CardView({
       throw new Error(`Visible card ${card.id} is missing face values`);
     }
 
+    faceSuit = card.suit;
     faceValue = card.number;
     bgColor = suitColors[card.suit];
   }
 
   const notColors = knownColor || !showNegativeColorHints ? [] : card.hints.notColors;
   const notNumbers = knownNumber || !showNegativeNumberHints ? [] : card.hints.notNumbers;
-  const hasHints = knownColor || knownNumber || notColors.length > 0 || notNumbers.length > 0;
+  const hasPositiveBadges = Boolean(knownColor || knownNumber);
+  const hasNegativeBadges = notColors.length > 0 || notNumbers.length > 0;
 
   return (
     <button
@@ -1317,28 +1466,47 @@ function CardView({
       aria-pressed={false}
     >
       <div className="card-face">
-        {faceValue}
+        <span className="card-face-value">{faceValue}</span>
+        {faceSuit && (
+          <span className="card-face-suit" style={{ color: suitColors[faceSuit] }}>
+            <SuitSymbol suit={faceSuit} size={22} />
+          </span>
+        )}
       </div>
-      <div className={`badges ${hasHints ? 'visible' : 'empty'}`}>
+      <div className={`badges ${hasPositiveBadges ? 'visible' : 'empty'}`}>
         {knownColor && knownNumber && (
-          <span className="badge combined" style={{ '--badge-color': suitColors[knownColor] } as CSSProperties}>
-            {knownColor}
+          <span
+            className="badge combined"
+            style={{ '--badge-color': suitColors[knownColor], '--badge-fg': suitBadgeForeground[knownColor] } as CSSProperties}
+          >
+            <SuitSymbol suit={knownColor} size={12} className="badge-icon" />
             {knownNumber}
           </span>
         )}
         {knownColor && !knownNumber && (
-          <span className="badge color" style={{ '--badge-color': suitColors[knownColor] } as CSSProperties} />
+          <span
+            className="badge color"
+            style={{ '--badge-color': suitColors[knownColor], '--badge-fg': suitBadgeForeground[knownColor] } as CSSProperties}
+          >
+            <SuitSymbol suit={knownColor} size={12} className="badge-icon" />
+          </span>
         )}
         {!knownColor && knownNumber && (
           <span className="badge number">{knownNumber}</span>
         )}
+      </div>
+      <div className={`negative-badges ${hasNegativeBadges ? 'visible' : 'empty'}`}>
         {notColors.map((color) => (
-          <span key={color} className="badge not-color" style={{ '--badge-color': suitColors[color] } as CSSProperties}>
-            x
+          <span
+            key={color}
+            className="badge not-color negative"
+            style={{ '--badge-color': suitColors[color] } as CSSProperties}
+          >
+            <SuitSymbol suit={color} size={12} className="badge-icon" />
           </span>
         ))}
         {notNumbers.map((number) => (
-          <span key={number} className="badge not-number">{number}</span>
+          <span key={number} className="badge not-number negative">{number}</span>
         ))}
       </div>
     </button>

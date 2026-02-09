@@ -5,7 +5,7 @@
   "scripts": {
     "start": "bun --port ${PORT:-3000} ./src/index.html",
     "dev": "bun --hot --port ${CLIENT_PORT:-3000} ./src/index.html",
-    "build": "bun build ./src/index.html --outdir ./dist --minify",
+    "build": "bun build ./src/index.html --outdir ./dist --minify --asset-naming='[name].[ext]'",
     "preview": "bun run build && cd dist && bun --port ${PORT:-3000} ./index.html",
     "lint": "bunx oxlint --fix .",
     "lint:ci": "bunx oxlint .",
