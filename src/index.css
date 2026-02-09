@@ -166,9 +166,46 @@ body {
   box-shadow: 0 10px 28px rgba(25, 35, 56, 0.12);
   padding: 0.64rem;
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   gap: 0.58rem;
   min-height: 0;
+}
+
+.lobby-summary {
+  display: grid;
+  gap: 0.58rem;
+}
+
+.lobby-name-row {
+  display: grid;
+  grid-template-columns: 2.8rem minmax(0, 1fr);
+  gap: 0.42rem;
+  align-items: center;
+}
+
+.lobby-name-label {
+  color: var(--gray-600);
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.lobby-name-input {
+  width: 100%;
+  min-height: 1.68rem;
+  border-radius: 8px;
+  border: 1px solid rgba(167, 179, 204, 0.92);
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--gray-600);
+  font-family: inherit;
+  font-size: 0.64rem;
+  font-weight: 700;
+  padding: 0 0.48rem;
+}
+
+.lobby-name-input::placeholder {
+  color: rgba(95, 109, 135, 0.62);
 }
 
 .lobby-header {
@@ -278,7 +315,7 @@ body {
 
 .lobby-setting-toggle {
   width: 100%;
-  min-height: 1.22rem;
+  min-height: 2.44rem;
   border-radius: 8px;
   border: 1px solid rgba(192, 201, 220, 0.94);
   background: rgba(255, 255, 255, 0.92);
@@ -290,7 +327,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 0.14rem;
-  padding: 0 0.3rem;
+  padding: 0 0.55rem;
 }
 
 .lobby-setting-toggle:disabled {

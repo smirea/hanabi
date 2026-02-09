@@ -18,6 +18,7 @@ type DebugNetworkRoomState = {
   phase: 'lobby' | 'playing';
   settings: LobbySettings;
   players: string[];
+  names: Record<string, string>;
   gameState: ReturnType<HanabiGame['getSnapshot']> | null;
 };
 
@@ -86,8 +87,47 @@ function createRoomState(players: string[]): DebugNetworkRoomState {
     phase: 'lobby',
     settings: DEFAULT_SETTINGS,
     players: normalizePlayerIds(players),
+    names: {},
     gameState: null
   };
+}
+
+function sanitizeName(raw: string): string | null {
+  const trimmed = raw.trim().replace(/\s+/g, ' ');
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  return trimmed.slice(0, 24);
+}
+
+function normalizeNames(input: unknown, players: string[]): Record<string, string> {
+  if (!input || typeof input !== 'object') {
+    return {};
+  }
+
+  const allowed = new Set(players);
+  const candidate = input as Record<string, unknown>;
+  const normalized: Record<string, string> = {};
+  for (const playerId of Object.keys(candidate)) {
+    if (!allowed.has(playerId)) {
+      continue;
+    }
+
+    const rawName = candidate[playerId];
+    if (typeof rawName !== 'string') {
+      continue;
+    }
+
+    const name = sanitizeName(rawName);
+    if (!name) {
+      continue;
+    }
+
+    normalized[playerId] = name;
+  }
+
+  return normalized;
 }
 
 function parseRoomState(raw: string): DebugNetworkRoomState | null {
@@ -121,6 +161,7 @@ function parseRoomState(raw: string): DebugNetworkRoomState | null {
 
   const players = normalizePlayerIds(candidate.players);
   const settings = normalizeSettings(candidate.settings);
+  const names = normalizeNames(candidate.names, players);
   const gameState = candidate.gameState ?? null;
   if (gameState !== null && typeof gameState !== 'object') {
     return null;
@@ -131,6 +172,7 @@ function parseRoomState(raw: string): DebugNetworkRoomState | null {
     phase: candidate.phase,
     settings,
     players,
+    names,
     gameState
   };
 }
@@ -171,10 +213,10 @@ function getHostId(players: string[]): string | null {
   return electHostId(players);
 }
 
-function buildMembers(players: string[]): RoomMember[] {
+function buildMembers(players: string[], names: Record<string, string>): RoomMember[] {
   return players.map((peerId, index) => ({
     peerId,
-    name: `Player ${index + 1}`
+    name: names[peerId] ?? `Player ${index + 1}`
   }));
 }
 
@@ -195,7 +237,7 @@ function createIdleState(playerId: string | null): OnlineState {
 }
 
 function toOnlineState(playerId: string, roomState: DebugNetworkRoomState): OnlineState {
-  const members = buildMembers(roomState.players);
+  const members = buildMembers(roomState.players, roomState.names);
   const hostId = getHostId(roomState.players);
   return {
     status: 'connected',
@@ -272,6 +314,7 @@ function commitRoomState(
 
   draft.players = normalizePlayerIds(draft.players);
   draft.settings = normalizeSettings(draft.settings);
+  draft.names = normalizeNames(draft.names, draft.players);
 
   if (draft.players.length < 2) {
     draft.phase = 'lobby';
@@ -334,6 +377,7 @@ export function syncDebugNetworkRoomPlayers(playerIds: string[]): void {
     version: currentState.version + 1,
     phase: 'lobby',
     players: normalizedPlayers,
+    names: normalizeNames(currentState.names, normalizedPlayers),
     gameState: null
   };
   writeRoomState(nextState);
@@ -388,7 +432,7 @@ export function useDebugNetworkSession(playerId: string | null): OnlineSession {
         return false;
       }
 
-      const memberNames = buildMembers(draft.players).map((member) => member.name);
+      const memberNames = buildMembers(draft.players, draft.names).map((member) => member.name);
       const game = new HanabiGame({
         playerIds: draft.players,
         playerNames: memberNames,
@@ -470,14 +514,40 @@ export function useDebugNetworkSession(playerId: string | null): OnlineSession {
     refreshFromStorage();
   }, [refreshFromStorage]);
 
+  const setSelfName = useCallback((name: string) => {
+    if (!playerId) {
+      return;
+    }
+
+    const resolved = sanitizeName(name);
+    const nextState = commitRoomState(playerId, (draft) => {
+      const current = draft.names[playerId] ?? null;
+      const next = resolved ?? null;
+      if (current === next) {
+        return false;
+      }
+
+      if (next === null) {
+        delete draft.names[playerId];
+      } else {
+        draft.names[playerId] = next;
+      }
+
+      return true;
+    });
+
+    setState(toOnlineState(playerId, nextState));
+  }, [playerId]);
+
   return useMemo(
     () => ({
       state,
       startGame,
       updateSettings,
       sendAction,
-      requestSync
+      requestSync,
+      setSelfName
     }),
-    [requestSync, sendAction, startGame, state, updateSettings]
+    [requestSync, sendAction, setSelfName, startGame, state, updateSettings]
   );
 }

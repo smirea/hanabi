@@ -88,6 +88,7 @@ function findTeammateCardIndexWithNumberOverOne(playerId: string): number {
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
+  window.location.hash = '';
 });
 
 describe('App local debug wiring', () => {
@@ -191,8 +192,36 @@ describe('App local debug wiring', () => {
     render(<App />);
 
     expect(screen.getByTestId('lobby-root')).toBeInTheDocument();
+    expect(screen.getByTestId('lobby-name-input')).toBeInTheDocument();
     expect(screen.getByTestId('lobby-waiting-host')).toBeInTheDocument();
     expect(screen.queryByTestId('lobby-start')).not.toBeInTheDocument();
+  });
+
+  test('staging lobby player name persists in local storage', () => {
+    window.localStorage.setItem('hanabi.debug_mode', 'false');
+    render(<App />);
+
+    const input = screen.getByTestId('lobby-name-input') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'Stefan' } });
+    expect(window.localStorage.getItem('hanabi.player_name')).toBe(JSON.stringify('Stefan'));
+
+    cleanup();
+    render(<App />);
+    expect(screen.getByTestId('lobby-name-input')).toHaveValue('Stefan');
+  });
+
+  test('debug network frames namespace player config by debug id', () => {
+    window.location.hash = '#debug-1';
+    window.localStorage.setItem('hanabi.player_name', JSON.stringify('Global'));
+    window.localStorage.setItem('hanabi.player_name.dbg-1', JSON.stringify('Alice'));
+
+    render(<App />);
+    const input = screen.getByTestId('lobby-name-input') as HTMLInputElement;
+    expect(input.value).toBe('Alice');
+
+    fireEvent.change(input, { target: { value: 'Bob' } });
+    expect(window.localStorage.getItem('hanabi.player_name.dbg-1')).toBe(JSON.stringify('Bob'));
+    expect(window.localStorage.getItem('hanabi.player_name')).toBe(JSON.stringify('Global'));
   });
 
   test('debug network shell switches iframe hash between local simulated players', () => {

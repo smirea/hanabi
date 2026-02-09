@@ -39,6 +39,7 @@ import {
   type RoomMember
 } from './network';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
+import { createDebugNamespace, storageKeys } from './storage';
 
 const LOCAL_DEBUG_SETUP = {
   playerNames: ['Ari', 'Blair', 'Casey'],
@@ -46,12 +47,6 @@ const LOCAL_DEBUG_SETUP = {
   shuffleSeed: 17
 };
 
-const DEBUG_MODE_STORAGE_KEY = 'hanabi.debug_mode';
-const DEBUG_NETWORK_SHELL_STORAGE_KEY = 'hanabi.debug_network_shell';
-const DEBUG_NETWORK_PLAYERS_STORAGE_KEY = 'hanabi.debug_network_players';
-const DEBUG_NETWORK_ACTIVE_PLAYER_STORAGE_KEY = 'hanabi.debug_network_active_player';
-const NEGATIVE_COLOR_HINTS_STORAGE_KEY = 'hanabi.negative_color_hints';
-const NEGATIVE_NUMBER_HINTS_STORAGE_KEY = 'hanabi.negative_number_hints';
 const MAX_PEG_PIPS = 4;
 
 type PegPipState = 'filled' | 'hollow' | 'unused';
@@ -386,10 +381,7 @@ function App() {
     };
   }, []);
 
-  const [isDebugNetworkShellOpen, setIsDebugNetworkShellOpen] = useLocalStorageState<boolean>(
-    DEBUG_NETWORK_SHELL_STORAGE_KEY,
-    false
-  );
+  const [isDebugNetworkShellOpen, setIsDebugNetworkShellOpen] = useLocalStorageState(storageKeys.debugNetworkShell, false);
 
   if (debugFramePlayerId) {
     return (
@@ -415,15 +407,12 @@ function App() {
 }
 
 function DebugNetworkShell({ onExit }: { onExit: () => void }) {
-  const [storedPlayers, setStoredPlayers] = useLocalStorageState<string[]>(
-    DEBUG_NETWORK_PLAYERS_STORAGE_KEY,
+  const [storedPlayers, setStoredPlayers] = useLocalStorageState(
+    storageKeys.debugNetworkPlayers,
     getDebugNetworkPlayersFromRoom()
   );
   const normalizedPlayers = useMemo(() => normalizeShellPlayers(storedPlayers), [storedPlayers]);
-  const [activePlayer, setActivePlayer] = useLocalStorageState<string>(
-    DEBUG_NETWORK_ACTIVE_PLAYER_STORAGE_KEY,
-    normalizedPlayers[0]
-  );
+  const [activePlayer, setActivePlayer] = useLocalStorageState(storageKeys.debugNetworkActivePlayer, normalizedPlayers[0]);
 
   useEffect(() => {
     if (arraysEqual(storedPlayers, normalizedPlayers)) {
@@ -572,14 +561,21 @@ function GameClient({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingCardAction>(null);
   const [wildColorHintTargetPlayerId, setWildColorHintTargetPlayerId] = useState<PlayerId | null>(null);
-  const [isDebugMode, setIsDebugMode] = useLocalStorageState<boolean>(DEBUG_MODE_STORAGE_KEY, true);
-  const [showNegativeColorHints, setShowNegativeColorHints] = useLocalStorageState<boolean>(
-    NEGATIVE_COLOR_HINTS_STORAGE_KEY,
-    true
+  const [isDebugMode, setIsDebugMode] = useLocalStorageState(storageKeys.debugMode, true);
+  const storageNamespace = useMemo(
+    () => (isDebugNetworkFrame && framePlayerId ? createDebugNamespace(framePlayerId) : null),
+    [framePlayerId, isDebugNetworkFrame]
   );
-  const [showNegativeNumberHints, setShowNegativeNumberHints] = useLocalStorageState<boolean>(
-    NEGATIVE_NUMBER_HINTS_STORAGE_KEY,
-    true
+  const [playerName, setPlayerName] = useLocalStorageState(storageKeys.playerName, '', storageNamespace);
+  const [showNegativeColorHints, setShowNegativeColorHints] = useLocalStorageState(
+    storageKeys.negativeColorHints,
+    true,
+    storageNamespace
+  );
+  const [showNegativeNumberHints, setShowNegativeNumberHints] = useLocalStorageState(
+    storageKeys.negativeNumberHints,
+    true,
+    storageNamespace
   );
   const logListRef = useRef<HTMLDivElement | null>(null);
 
@@ -588,6 +584,15 @@ function GameClient({
   const debugNetwork = useDebugNetworkSession(isDebugNetworkFrame ? framePlayerId : null);
   const activeSession: OnlineSession = isDebugNetworkFrame ? debugNetwork : online;
   const onlineState = activeSession.state;
+  const setActiveSelfName = activeSession.setSelfName;
+
+  useEffect(() => {
+    if (isLocalDebugMode) {
+      return;
+    }
+
+    setActiveSelfName(playerName);
+  }, [isLocalDebugMode, playerName, setActiveSelfName]);
 
   const activeGameState = isLocalDebugMode ? debugGameState : onlineState.gameState;
   const discardCounts = useMemo(() => {
@@ -1113,6 +1118,9 @@ function GameClient({
         members={onlineState.members}
         hostId={onlineState.hostId}
         isHost={onlineState.isHost}
+        selfId={onlineState.selfId}
+        selfName={playerName}
+        onSelfNameChange={setPlayerName}
         phase={onlineState.phase}
         settings={onlineState.settings}
         isGameInProgress={onlineState.phase === 'playing' && !isOnlineParticipant}
@@ -1502,6 +1510,9 @@ function LobbyScreen({
   members,
   hostId,
   isHost,
+  selfId,
+  selfName,
+  onSelfNameChange,
   phase,
   settings,
   isGameInProgress,
@@ -1517,6 +1528,9 @@ function LobbyScreen({
   members: RoomMember[];
   hostId: string | null;
   isHost: boolean;
+  selfId: string | null;
+  selfName: string;
+  onSelfNameChange: (next: string) => void;
   phase: 'lobby' | 'playing';
   settings: LobbySettings;
   isGameInProgress: boolean;
@@ -1533,49 +1547,67 @@ function LobbyScreen({
   const handSize = members.length <= 3 ? 5 : 4;
   const deckSize = 50 + (settings.includeMulticolor ? (settings.multicolorShortDeck ? 5 : 10) : 0);
   const maxScore = (settings.includeMulticolor ? 6 : 5) * 5;
+  const defaultNamePlaceholder = selfId ? `Player ${selfId.slice(-4).toUpperCase()}` : 'Player';
 
   return (
     <main className="lobby" data-testid="lobby-root">
       <section className="lobby-card">
-        <header className="lobby-header">
-          <h1 className="lobby-title">Room Staging</h1>
-          <div className="lobby-header-actions">
-            {onEnableDebugMode && (
-              <button
-                type="button"
-                className="lobby-button subtle"
-                onClick={onEnableDebugMode}
-                data-testid="lobby-debug-mode"
-              >
-                Debug Local
-              </button>
-            )}
-            {onEnableDebugNetwork && (
-              <button
-                type="button"
-                className="lobby-button subtle"
-                onClick={onEnableDebugNetwork}
-                data-testid="lobby-debug-network"
-              >
-                Debug Network
-              </button>
-            )}
+        <div className="lobby-summary">
+          <header className="lobby-header">
+            <h1 className="lobby-title">Room Staging</h1>
+            <div className="lobby-header-actions">
+              {onEnableDebugMode && (
+                <button
+                  type="button"
+                  className="lobby-button subtle"
+                  onClick={onEnableDebugMode}
+                  data-testid="lobby-debug-mode"
+                >
+                  Debug Local
+                </button>
+              )}
+              {onEnableDebugNetwork && (
+                <button
+                  type="button"
+                  className="lobby-button subtle"
+                  onClick={onEnableDebugNetwork}
+                  data-testid="lobby-debug-network"
+                >
+                  Debug Network
+                </button>
+              )}
+            </div>
+          </header>
+
+          <p className="lobby-room-line" data-testid="lobby-room-line">Room {roomId}</p>
+
+          <div className="lobby-name-row" data-testid="lobby-name-row">
+            <label className="lobby-name-label" htmlFor="lobby-name-input">Name</label>
+            <input
+              id="lobby-name-input"
+              className="lobby-name-input"
+              value={selfName}
+              onChange={(event) => onSelfNameChange(event.target.value)}
+              placeholder={defaultNamePlaceholder}
+              maxLength={24}
+              autoComplete="nickname"
+              spellCheck={false}
+              data-testid="lobby-name-input"
+            />
           </div>
-        </header>
 
-        <p className="lobby-room-line" data-testid="lobby-room-line">Room {roomId}</p>
+          {error && (
+            <p className="lobby-note error" data-testid="lobby-error">
+              {error}
+            </p>
+          )}
 
-        {error && (
-          <p className="lobby-note error" data-testid="lobby-error">
-            {error}
-          </p>
-        )}
-
-        {isGameInProgress && (
-          <p className="lobby-note warning" data-testid="lobby-game-progress">
-            Game in progress. You will join next round from this room.
-          </p>
-        )}
+          {isGameInProgress && (
+            <p className="lobby-note warning" data-testid="lobby-game-progress">
+              Game in progress. You will join next round from this room.
+            </p>
+          )}
+        </div>
 
         <section className="lobby-players">
           <h2 className="lobby-section-title">Players ({members.length})</h2>
