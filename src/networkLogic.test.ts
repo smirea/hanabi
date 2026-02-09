@@ -5,6 +5,7 @@ import type { LobbySettings, RoomSnapshot } from './network';
 const DEFAULT_SETTINGS: LobbySettings = {
   includeMulticolor: false,
   multicolorShortDeck: false,
+  multicolorWildHints: false,
   endlessMode: false
 };
 
@@ -134,4 +135,3 @@ describe('shouldAcceptSnapshot', () => {
     expect(shouldAcceptSnapshot(incoming, current, new Set(['a', 'b', 'c']))).toBeTrue();
   });
 });
-
