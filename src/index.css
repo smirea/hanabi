@@ -19,6 +19,8 @@
   --bottom-panel-height: calc(var(--actions-height) + var(--last-action-height));
   --app-max-width: 26rem;
   --app-inline: clamp(0px, calc((100vw - var(--app-max-width)) / 2), 999px);
+  --app-max-height: 52.75rem;
+  --app-block: clamp(0px, calc((100dvh - var(--app-max-height)) / 2), 999px);
 }
 
 :root[data-theme='dark'] {
@@ -73,7 +75,8 @@ body {
   height: 100dvh;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
-  padding-bottom: calc(var(--bottom-panel-height) + env(safe-area-inset-bottom));
+  padding-top: var(--app-block);
+  padding-bottom: calc(var(--bottom-panel-height) + env(safe-area-inset-bottom) + var(--app-block));
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -1440,7 +1443,7 @@ body {
   position: fixed;
   left: var(--app-inline);
   right: var(--app-inline);
-  bottom: 0;
+  bottom: var(--app-block);
   z-index: 20;
   display: grid;
   grid-template-rows: var(--last-action-height) var(--actions-height);
@@ -1604,7 +1607,7 @@ body {
   position: fixed;
   left: calc(var(--app-inline) + var(--screen-pad-x));
   right: calc(var(--app-inline) + var(--screen-pad-x));
-  bottom: calc(var(--bottom-panel-height) + env(safe-area-inset-bottom) + 0.24rem);
+  bottom: calc(var(--app-block) + var(--bottom-panel-height) + env(safe-area-inset-bottom) + 0.24rem);
   z-index: 28;
   padding: 0.24rem;
   border-radius: 10px;
@@ -1673,7 +1676,7 @@ body {
 .menu-panel {
   position: fixed;
   right: calc(var(--app-inline) + var(--screen-pad-x));
-  bottom: calc(var(--bottom-panel-height) + env(safe-area-inset-bottom) + 0.24rem);
+  bottom: calc(var(--app-block) + var(--bottom-panel-height) + env(safe-area-inset-bottom) + 0.24rem);
   z-index: 31;
   width: min(12.5rem, 86vw);
   display: grid;
@@ -1734,7 +1737,7 @@ body {
   position: fixed;
   left: var(--app-inline);
   right: var(--app-inline);
-  bottom: 0;
+  bottom: var(--app-block);
   z-index: 32;
   height: min(56dvh, 25rem);
   display: grid;
