@@ -2047,6 +2047,7 @@ function GameClient({
 
   const tablePlayers = [...others, viewer];
   const activeTurnIndex = tablePlayers.findIndex((player) => player.id === effectiveTurnPlayerId);
+  const isCompactPlayersLayout = tablePlayers.length >= 4;
   const lastLog = perspective.logs[perspective.logs.length - 1] ?? null;
   const orderedLogs = [...perspective.logs].reverse();
   const hintTokenStates = Array.from({ length: perspective.maxHintTokens }, (_, index) => index < perspective.hintTokens);
@@ -2187,33 +2188,33 @@ function GameClient({
         })}
       </section>
 
-	      <section
-	        className="table-shell"
-	        style={{ '--player-count': String(tablePlayers.length), '--active-index': String(activeTurnIndex) } as CSSProperties}
-	        data-testid="table-shell"
-	      >
-	        {activeTurnIndex >= 0 && <div className="turn-indicator" aria-hidden data-testid="turn-indicator" />}
-	        {tablePlayers.map((player) => (
+		      <section
+		        className={`table-shell ${isCompactPlayersLayout ? 'compact' : ''}`}
+		        style={{ '--player-count': String(tablePlayers.length), '--active-index': String(activeTurnIndex) } as CSSProperties}
+		        data-testid="table-shell"
+		      >
+		        {activeTurnIndex >= 0 && <div className="turn-indicator" aria-hidden data-testid="turn-indicator" />}
+		        {tablePlayers.map((player) => (
 	          <article
 	            key={player.id}
 	            className={`player ${player.isCurrentTurn ? 'active' : ''} ${player.isViewer ? 'you-player' : ''}`}
 	            data-testid={`player-${player.id}`}
           >
-            <header className="player-header">
-              <span className="player-name" data-testid={`player-name-${player.id}`}>
-                {player.isViewer ? `${player.name} (You)` : player.name}
-              </span>
-              {player.isCurrentTurn && (
-                <span className="turn-chip" data-testid={`player-turn-${player.id}`}>
-                  <span className="turn-chip-dot" />
-                  Turn
-                </span>
-              )}
-            </header>
-            <div className="cards">
-              {player.cards.map((card, cardIndex) => (
-                <CardView
-                  key={card.id}
+	            <header className="player-header">
+	              <span className="player-name" data-testid={`player-name-${player.id}`}>
+	                {player.isViewer && !isCompactPlayersLayout ? `${player.name} (You)` : player.name}
+	              </span>
+	              {player.isCurrentTurn && (
+	                <span className="turn-chip" data-testid={`player-turn-${player.id}`}>
+	                  <span className="turn-chip-dot" />
+	                  Turn
+	                </span>
+	              )}
+	            </header>
+	            <div className="cards" style={{ '--hand-size': String(player.cards.length) } as CSSProperties}>
+	              {player.cards.map((card, cardIndex) => (
+	                <CardView
+	                  key={card.id}
                   card={card}
                   showNegativeColorHints={showNegativeColorHints}
                   showNegativeNumberHints={showNegativeNumberHints}
@@ -2539,6 +2540,7 @@ function EndgameOverlay({
 
   const scoreBreakdown = perspective.activeSuits.map((suit) => perspective.fireworksHeights[suit]);
   const scoreFormula = `${scoreBreakdown.join('+')} = ${score}`;
+  const remainingLives = Math.max(0, perspective.maxFuseTokens - perspective.fuseTokensUsed);
 
   const seedKey = `${outcome}:${status}:${score}:${logs[0]?.id ?? 'none'}`;
 
@@ -2547,19 +2549,19 @@ function EndgameOverlay({
       return [];
     }
 
-    const rand = mulberry32(hashSeed(seedKey));
-    const count = 46;
-    return Array.from({ length: count }, (_, index) => ({
-      key: `confetti-${index}`,
-      left: rand() * 100,
-      delay: rand() * 0.7,
-      duration: 1.9 + rand() * 1.8,
-      drift: (rand() - 0.5) * 180,
-      hue: Math.floor(rand() * 360),
-      size: 6 + rand() * 8,
-      radius: 1 + rand() * 6
-    }));
-  }, [outcome, reduceMotion, seedKey]);
+	    const rand = mulberry32(hashSeed(seedKey));
+	    const count = 78;
+	    return Array.from({ length: count }, (_, index) => ({
+	      key: `confetti-${index}`,
+	      left: rand() * 100,
+	      delay: rand() * 2.2,
+	      duration: 3.2 + rand() * 3.8,
+	      drift: (rand() - 0.5) * 220,
+	      hue: Math.floor(rand() * 360),
+	      size: 6 + rand() * 8,
+	      radius: 1 + rand() * 6
+	    }));
+	  }, [outcome, reduceMotion, seedKey]);
 
   const rainIntroDrops = useMemo(() => {
     if (outcome !== 'lose' || reduceMotion) {
@@ -2668,6 +2670,18 @@ function EndgameOverlay({
         <header className="endgame-header">
           <h2 className="endgame-title" data-testid="endgame-title">{title}</h2>
           <p className="endgame-score" data-testid="endgame-score">{scoreFormula}</p>
+          <div className="endgame-resources" data-testid="endgame-resources">
+            <div className="endgame-resource" data-testid="endgame-hints-remaining">
+              <LightbulbFilament size={18} weight="fill" aria-hidden />
+              <span>Hints</span>
+              <span className="endgame-resource-value">{perspective.hintTokens}/{perspective.maxHintTokens}</span>
+            </div>
+            <div className="endgame-resource" data-testid="endgame-lives-remaining">
+              <Fire size={18} weight="fill" aria-hidden />
+              <span>Lives</span>
+              <span className="endgame-resource-value">{remainingLives}/{perspective.maxFuseTokens}</span>
+            </div>
+          </div>
         </header>
 
         <section className="endgame-board" data-testid="endgame-board">
@@ -2731,6 +2745,13 @@ function EndgameOverlay({
           ) : (
             <section className="endgame-stats" data-testid="endgame-stats">
               <table className="endgame-table" data-testid="endgame-stats-table">
+                <colgroup>
+                  <col className="col-name" />
+                  <col className="col-num" />
+                  <col className="col-num" />
+                  <col className="col-num" />
+                  <col className="col-num" />
+                </colgroup>
                 <thead>
                   <tr>
                     <th scope="col">name</th>

@@ -1004,6 +1004,14 @@ body {
   position: relative;
 }
 
+.table-shell.compact .player {
+  grid-template-rows: 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.46rem;
+  padding: 0.22rem var(--screen-pad-x) 0.26rem;
+}
+
 .player.you-player {
   background: rgba(247, 250, 255, 0.86);
 }
@@ -1019,9 +1027,28 @@ body {
   justify-content: space-between;
 }
 
+.table-shell.compact .player-header {
+  min-height: 0;
+  width: 1.3rem;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.32rem;
+}
+
 .player-name {
   font-size: clamp(0.72rem, 2.7vw, 0.9rem);
   font-weight: 700;
+}
+
+.table-shell.compact .player-name {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
 }
 
 .turn-chip {
@@ -1039,6 +1066,19 @@ body {
   letter-spacing: 0.03em;
 }
 
+.table-shell.compact .turn-chip {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0;
+  gap: 0;
+}
+
+.table-shell.compact .turn-chip-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+}
+
 .turn-chip-dot {
   width: 0.33rem;
   height: 0.33rem;
@@ -1051,7 +1091,8 @@ body {
 .cards {
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  --hand-size: 5;
+  grid-template-columns: repeat(var(--hand-size), minmax(0, 1fr));
   grid-auto-rows: 1fr;
   gap: clamp(0.13rem, 0.72vw, 0.24rem);
 }
@@ -1907,7 +1948,7 @@ body {
 .endgame-fx {
   position: absolute;
   inset: 0;
-  z-index: 0;
+  z-index: 3;
   pointer-events: none;
 }
 
@@ -1961,18 +2002,63 @@ body {
   color: rgba(240, 244, 255, 0.88);
 }
 
-.endgame-board {
-  border-radius: 18px;
-  overflow: hidden;
-  border: 1px solid rgba(180, 190, 215, 0.68);
-  background: rgba(255, 255, 255, 0.36);
-  box-shadow: 0 16px 28px rgba(15, 18, 26, 0.08);
+.endgame-resources {
+  margin-top: 0.55rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
-:root[data-theme='dark'] .endgame-board {
+.endgame-resource {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0.24rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--endgame-accent) 32%, rgba(180, 190, 215, 0.56));
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 10px 18px rgba(15, 18, 26, 0.08);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  color: var(--gray-600);
+}
+
+.endgame-resource svg {
+  color: color-mix(in srgb, var(--endgame-accent) 65%, rgba(35, 45, 66, 0.65));
+}
+
+.endgame-resource-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--black);
+}
+
+:root[data-theme='dark'] .endgame-resource {
   border-color: rgba(120, 145, 205, 0.22);
-  background: rgba(0, 0, 0, 0.16);
-  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.32);
+  background: rgba(11, 13, 20, 0.6);
+  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.24);
+  color: rgba(210, 228, 255, 0.88);
+}
+
+:root[data-theme='dark'] .endgame-resource svg {
+  color: rgba(210, 228, 255, 0.85);
+}
+
+:root[data-theme='dark'] .endgame-resource-value {
+  color: rgba(240, 244, 255, 0.95);
+}
+
+.endgame-board {
+  margin: 0 calc(-1 * var(--screen-pad-x));
+}
+
+.endgame-fireworks {
+  border-top: 1px solid var(--gray-200);
+}
+
+:root[data-theme='dark'] .endgame-fireworks {
+  border-top-color: rgba(90, 112, 168, 0.22);
 }
 
 .endgame-panel {
@@ -2003,6 +2089,14 @@ body {
   table-layout: fixed;
   font-size: 0.78rem;
   line-height: 1.2;
+}
+
+.endgame-table col.col-name {
+  width: 38%;
+}
+
+.endgame-table col.col-num {
+  width: 15.5%;
 }
 
 .endgame-table th,
