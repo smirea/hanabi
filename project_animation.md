@@ -115,10 +115,10 @@
 ### 7. Endgame Screen (Win/Lose)
 - Trigger: `status` becomes terminal (`won`, `lost`, or `finished`).
 - Timing: if the terminal transition is caused by `play`/`discard`, do not show the endgame overlay until the full card animation sequence finishes.
-- Layout: full-screen overlay showing:
+- Layout: full-screen overlay showing (with the final board still visible behind the overlay):
   - big title (“You win” / “You lost” / “Game over”)
   - final score
-  - per-player stats (hints given, hints received, plays, discards)
+  - per-player stats (hints given, hints received, played, discards)
 - Win FX: confetti pieces fall for ~2-4s, then stop.
 - Lose/finished FX: heavy rain for ~2.4s, then fades out leaving a subtle looping rain.
 - Buttons:

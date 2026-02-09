@@ -1881,25 +1881,17 @@ body {
   overflow: hidden;
   display: grid;
   padding: calc(0.9rem + env(safe-area-inset-top)) var(--screen-pad-x) calc(0.9rem + env(safe-area-inset-bottom));
-  background:
-    radial-gradient(130% 110% at 50% 0%, rgba(255, 255, 255, 0.96) 0%, rgba(236, 243, 255, 0.94) 48%, rgba(210, 226, 255, 0.94) 100%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(240, 245, 255, 0.94) 100%);
+  background: transparent;
   color: var(--black);
   isolation: isolate;
   animation: endgame-fade-in 0.62s cubic-bezier(0.2, 0.9, 0.2, 1) both;
 }
 
 .endgame-overlay.lose {
-  background:
-    radial-gradient(120% 130% at 50% 0%, rgba(30, 40, 68, 0.98) 0%, rgba(7, 12, 22, 0.98) 55%, rgba(2, 4, 8, 0.98) 100%),
-    linear-gradient(180deg, rgba(11, 13, 20, 0.98) 0%, rgba(2, 4, 8, 0.98) 100%);
   color: rgba(240, 244, 255, 0.92);
 }
 
 :root[data-theme='dark'] .endgame-overlay.win {
-  background:
-    radial-gradient(120% 130% at 50% 0%, rgba(16, 28, 54, 0.98) 0%, rgba(7, 10, 18, 0.98) 60%, rgba(2, 3, 6, 0.98) 100%),
-    linear-gradient(180deg, rgba(11, 13, 20, 0.98) 0%, rgba(2, 3, 6, 0.98) 100%);
   color: rgba(240, 244, 255, 0.92);
 }
 
@@ -1910,22 +1902,36 @@ body {
 }
 
 .endgame-fx {
-  z-index: 0;
+  z-index: 1;
   pointer-events: none;
 }
 
 .endgame-scrim {
-  z-index: 1;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.74) 58%, rgba(255, 255, 255, 0.86) 100%);
-  backdrop-filter: blur(10px);
+  z-index: 0;
+  background:
+    radial-gradient(140% 120% at 50% 0%, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.4) 58%, rgba(255, 255, 255, 0.52) 100%);
+  backdrop-filter: blur(6px);
 }
 
 .endgame-overlay.lose .endgame-scrim {
-  background: linear-gradient(180deg, rgba(2, 4, 8, 0.32) 0%, rgba(2, 4, 8, 0.7) 58%, rgba(2, 4, 8, 0.86) 100%);
+  background:
+    radial-gradient(140% 120% at 50% 0%, rgba(79, 142, 255, 0.16) 0%, rgba(0, 0, 0, 0) 62%),
+    linear-gradient(180deg, rgba(4, 8, 16, 0.16) 0%, rgba(4, 8, 16, 0.46) 58%, rgba(4, 8, 16, 0.62) 100%);
+  backdrop-filter: blur(8px);
 }
 
 :root[data-theme='dark'] .endgame-overlay.win .endgame-scrim {
-  background: linear-gradient(180deg, rgba(2, 3, 6, 0.22) 0%, rgba(2, 3, 6, 0.68) 58%, rgba(2, 3, 6, 0.84) 100%);
+  background:
+    radial-gradient(140% 120% at 50% 0%, rgba(79, 142, 255, 0.12) 0%, rgba(0, 0, 0, 0) 62%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.48) 58%, rgba(0, 0, 0, 0.64) 100%);
+}
+
+:root[data-theme='dark'] .endgame-overlay.lose .endgame-scrim {
+  background:
+    radial-gradient(140% 120% at 50% 0%, rgba(79, 142, 255, 0.12) 0%, rgba(0, 0, 0, 0) 62%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.22) 0%, rgba(0, 0, 0, 0.52) 58%, rgba(0, 0, 0, 0.7) 100%);
+  backdrop-filter: blur(8px);
 }
 
 .endgame-shell {
@@ -2029,14 +2035,14 @@ body {
 
 .endgame-player-metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.35rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.42rem;
 }
 
 .endgame-metric {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 0.38rem 0.28rem;
   border-radius: 12px;
@@ -2051,10 +2057,9 @@ body {
 }
 
 .endgame-metric-label {
-  font-size: 0.5rem;
+  font-size: 0.62rem;
   font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: -0.01em;
   color: var(--gray-600);
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ComponentType, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ComponentType, type ReactNode } from 'react';
 import { animate } from 'motion';
 import {
   CardsThree,
@@ -43,6 +43,7 @@ import {
 } from './network';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
 import { createDebugNamespace, storageKeys } from './storage';
+import { useDebugScreensController } from './debugScreens';
 
 const LOCAL_DEBUG_SETUP = {
   playerNames: ['Ari', 'Blair', 'Casey'],
@@ -811,6 +812,28 @@ function GameClient({
   const prevGameStateRef = useRef<HanabiState | null>(null);
   const layoutSnapshotRef = useRef<{ deckRect: DOMRect | null; cardRects: Map<CardId, DOMRect> } | null>(null);
   const prevLayoutSnapshotRef = useRef<{ deckRect: DOMRect | null; cardRects: Map<CardId, DOMRect> } | null>(null);
+
+  const resetUiForDebugScreens = useCallback(() => {
+    animationRunIdRef.current += 1;
+    setIsActionAnimationRunning(false);
+    setTurnLockPlayerId(null);
+    setIsMenuOpen(false);
+    setIsLogDrawerOpen(false);
+    setPendingAction(null);
+    setWildColorHintTargetPlayerId(null);
+    setEndgamePanel('summary');
+    if (animationLayerRef.current) {
+      animationLayerRef.current.innerHTML = '';
+    }
+  }, []);
+
+  useDebugScreensController({
+    enabled: !isDebugNetworkFrame,
+    setIsDebugMode,
+    debugGame,
+    setDebugGameState,
+    resetUi: resetUiForDebugScreens
+  });
 
   const isLocalDebugMode = !isDebugNetworkFrame && isDebugMode;
   const online = useOnlineSession(!isLocalDebugMode && !isDebugNetworkFrame, DEFAULT_ROOM_ID);
@@ -2652,19 +2675,19 @@ function EndgameOverlay({
                 </div>
                 <div className="endgame-player-metrics">
                   <span className="endgame-metric" data-testid={`endgame-hints-given-${player.id}`}>
-                    <span className="endgame-metric-label">Given</span>
+                    <span className="endgame-metric-label">hints given</span>
                     <span className="endgame-metric-value">{stats.hintsGiven}</span>
                   </span>
                   <span className="endgame-metric" data-testid={`endgame-hints-received-${player.id}`}>
-                    <span className="endgame-metric-label">Recv</span>
+                    <span className="endgame-metric-label">hints received</span>
                     <span className="endgame-metric-value">{stats.hintsReceived}</span>
                   </span>
                   <span className="endgame-metric" data-testid={`endgame-plays-${player.id}`}>
-                    <span className="endgame-metric-label">Plays</span>
+                    <span className="endgame-metric-label">played</span>
                     <span className="endgame-metric-value">{stats.plays}</span>
                   </span>
                   <span className="endgame-metric" data-testid={`endgame-discards-${player.id}`}>
-                    <span className="endgame-metric-label">Disc</span>
+                    <span className="endgame-metric-label">discards</span>
                     <span className="endgame-metric-value">{stats.discards}</span>
                   </span>
                 </div>
