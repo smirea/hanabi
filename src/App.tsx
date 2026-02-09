@@ -16,6 +16,7 @@ import {
   CARD_NUMBERS,
   HanabiGame,
   type GameLogEntry,
+  type HanabiState,
   type HanabiPerspectiveState,
   type PerspectiveCard,
   type PlayerId,
@@ -259,6 +260,10 @@ function renderLogMessage(log: GameLogEntry): ReactNode {
     return `Game lost with score ${log.score}`;
   }
 
+  if (log.reason === 'final_round_complete') {
+    return `Final round complete with score ${log.score}`;
+  }
+
   return `Game finished with score ${log.score}`;
 }
 
@@ -314,6 +319,47 @@ function arraysEqual(left: string[], right: string[]): boolean {
   }
 
   return true;
+}
+
+async function writeToClipboard(text: string): Promise<void> {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  if (typeof document === 'undefined') {
+    throw new Error('Clipboard is unavailable in this runtime');
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', 'true');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  textarea.style.left = '-9999px';
+  textarea.style.top = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
+  const ok = document.execCommand('copy');
+  textarea.remove();
+  if (!ok) {
+    throw new Error('Failed to copy to clipboard');
+  }
+}
+
+function parseHanabiStatePayload(rawText: string): HanabiState {
+  const parsed = JSON.parse(rawText) as unknown;
+  const candidate =
+    parsed && typeof parsed === 'object' && 'state' in parsed
+      ? (parsed as { state: unknown }).state
+      : parsed;
+
+  if (!candidate || typeof candidate !== 'object') {
+    throw new Error('Invalid state payload: expected an object');
+  }
+
+  return HanabiGame.fromState(candidate as HanabiState).getSnapshot();
 }
 
 function App() {
@@ -921,10 +967,6 @@ function GameClient({
   }
 
   function toggleMenu(): void {
-    if (!isLocalDebugMode) {
-      return;
-    }
-
     if (isLogDrawerOpen) {
       setIsLogDrawerOpen(false);
     }
@@ -937,21 +979,34 @@ function GameClient({
     setIsMenuOpen(false);
   }
 
-  function handleLeavePress(): void {
+  function handleLocalDebugToggle(): void {
+    if (isDebugNetworkFrame) {
+      return;
+    }
+
     setIsMenuOpen(false);
     setIsLogDrawerOpen(false);
-    setIsDebugMode(false);
-    commitLocal(() => {
-      debugGame.cancelSelection();
-    });
-  }
+    setPendingAction(null);
 
-  function handleDebugToggle(): void {
-    setIsDebugMode((current) => !current);
-    setIsMenuOpen(false);
-    commitLocal(() => {
+    const next = !isDebugMode;
+    if (next) {
+      const snapshot = onlineState.gameState;
+      if (snapshot) {
+        try {
+          debugGame.replaceState(snapshot);
+          setDebugGameState(debugGame.getSnapshot());
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown debug state error';
+          window.alert(`Unable to enable local debug mode: ${message}`);
+          return;
+        }
+      }
+    } else {
       debugGame.cancelSelection();
-    });
+      setDebugGameState(debugGame.getSnapshot());
+    }
+
+    setIsDebugMode(next);
   }
 
   function handleEnableDebugMode(): void {
@@ -985,6 +1040,68 @@ function GameClient({
     activeSession.requestSync();
     setPendingAction(null);
     setWildColorHintTargetPlayerId(null);
+  }
+
+  async function handleCopyStatePress(): Promise<void> {
+    setIsMenuOpen(false);
+    if (!activeGameState) {
+      window.alert('No game state available yet.');
+      return;
+    }
+
+    try {
+      await writeToClipboard(JSON.stringify(activeGameState));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown clipboard error';
+      window.alert(`Unable to copy game state: ${message}`);
+    }
+  }
+
+  async function handleLoadStatePress(): Promise<void> {
+    if (isDebugNetworkFrame) {
+      return;
+    }
+
+    setIsMenuOpen(false);
+    setIsLogDrawerOpen(false);
+    setPendingAction(null);
+
+    let loaded: HanabiState | null = null;
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
+      try {
+        const clipboardText = await navigator.clipboard.readText();
+        if (clipboardText.trim().length > 0) {
+          loaded = parseHanabiStatePayload(clipboardText.trim());
+        }
+      } catch {
+        loaded = null;
+      }
+    }
+
+    if (!loaded) {
+      const raw = window.prompt('Paste a Hanabi game state JSON (from "Debug: copy state")');
+      if (!raw || raw.trim().length === 0) {
+        return;
+      }
+
+      try {
+        loaded = parseHanabiStatePayload(raw.trim());
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown load error';
+        window.alert(`Unable to load game state: ${message}`);
+        return;
+      }
+    }
+
+    try {
+      debugGame.replaceState(loaded);
+      setDebugGameState(debugGame.getSnapshot());
+      setIsDebugMode(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown debug state error';
+      window.alert(`Unable to apply game state: ${message}`);
+    }
   }
 
   if (showLobby) {
@@ -1194,31 +1311,18 @@ function GameClient({
           </div>
 
           <div className="action-slot">
-            {isLocalDebugMode ? (
-              <button
-                type="button"
-                className="action-button menu-toggle"
-                aria-label="Open menu"
-                aria-expanded={isMenuOpen}
-                data-testid="actions-menu"
-                onClick={toggleMenu}
-              >
-                <span />
-                <span />
-                <span />
-              </button>
-            ) : showReconnectAction ? (
-              <button
-                type="button"
-                className="action-button"
-                data-testid="actions-reconnect"
-                onClick={handleReconnectPress}
-              >
-                <span className="action-main">Reconnect</span>
-              </button>
-            ) : (
-              <div className="action-spacer" aria-hidden />
-            )}
+            <button
+              type="button"
+              className="action-button menu-toggle"
+              aria-label="Open menu"
+              aria-expanded={isMenuOpen}
+              data-testid="actions-menu"
+              onClick={toggleMenu}
+            >
+              <span />
+              <span />
+              <span />
+            </button>
           </div>
 
           <div className="action-slot">
@@ -1276,28 +1380,57 @@ function GameClient({
         </aside>
       )}
 
-      {isLocalDebugMode && (
-        <>
-          <button
-            type="button"
-            className={`menu-scrim ${isMenuOpen ? 'open' : ''}`}
-            aria-label="Close menu"
-            aria-hidden={!isMenuOpen}
-            tabIndex={isMenuOpen ? 0 : -1}
-            onClick={closeMenu}
-          />
+      <>
+        <button
+          type="button"
+          className={`menu-scrim ${isMenuOpen ? 'open' : ''}`}
+          aria-label="Close menu"
+          aria-hidden={!isMenuOpen}
+          tabIndex={isMenuOpen ? 0 : -1}
+          onClick={closeMenu}
+        />
 
-          <aside className={`menu-panel ${isMenuOpen ? 'open' : ''}`} aria-hidden={!isMenuOpen}>
-            <button type="button" className="menu-item" data-testid="menu-leave" onClick={handleLeavePress}>Leave</button>
+        <aside className={`menu-panel ${isMenuOpen ? 'open' : ''}`} aria-hidden={!isMenuOpen}>
+          {!isDebugNetworkFrame && (
             <button
               type="button"
               className="menu-item menu-toggle-item"
-              data-testid="menu-debug-toggle"
-              onClick={handleDebugToggle}
+              data-testid="menu-local-debug-toggle"
+              onClick={handleLocalDebugToggle}
             >
-              <span>Debug</span>
-              <span data-testid="menu-debug-value">{isLocalDebugMode ? 'On' : 'Off'}</span>
+              <span>Local Debug</span>
+              <span data-testid="menu-local-debug-value">{isLocalDebugMode ? 'On' : 'Off'}</span>
             </button>
+          )}
+          <button
+            type="button"
+            className="menu-item"
+            data-testid="menu-debug-copy-state"
+            onClick={() => void handleCopyStatePress()}
+          >
+            Debug: Copy State
+          </button>
+          {!isDebugNetworkFrame && (
+            <button
+              type="button"
+              className="menu-item"
+              data-testid="menu-debug-load-state"
+              onClick={() => void handleLoadStatePress()}
+            >
+              Debug: Load State
+            </button>
+          )}
+          {!isLocalDebugMode && showReconnectAction && (
+            <button
+              type="button"
+              className="menu-item"
+              data-testid="menu-reconnect"
+              onClick={handleReconnectPress}
+            >
+              Reconnect
+            </button>
+          )}
+          {onOpenDebugNetworkShell && (
             <button
               type="button"
               className="menu-item"
@@ -1306,27 +1439,27 @@ function GameClient({
             >
               Debug Network
             </button>
-            <button
-              type="button"
-              className="menu-item menu-toggle-item"
-              data-testid="menu-negative-color-toggle"
-              onClick={handleNegativeColorHintsToggle}
-            >
-              <span>Negative Color Hints</span>
-              <span data-testid="menu-negative-color-value">{showNegativeColorHints ? 'On' : 'Off'}</span>
-            </button>
-            <button
-              type="button"
-              className="menu-item menu-toggle-item"
-              data-testid="menu-negative-number-toggle"
-              onClick={handleNegativeNumberHintsToggle}
-            >
-              <span>Negative Number Hints</span>
-              <span data-testid="menu-negative-number-value">{showNegativeNumberHints ? 'On' : 'Off'}</span>
-            </button>
-          </aside>
-        </>
-      )}
+          )}
+          <button
+            type="button"
+            className="menu-item menu-toggle-item"
+            data-testid="menu-negative-color-toggle"
+            onClick={handleNegativeColorHintsToggle}
+          >
+            <span>Negative Color Hints</span>
+            <span data-testid="menu-negative-color-value">{showNegativeColorHints ? 'On' : 'Off'}</span>
+          </button>
+          <button
+            type="button"
+            className="menu-item menu-toggle-item"
+            data-testid="menu-negative-number-toggle"
+            onClick={handleNegativeNumberHintsToggle}
+          >
+            <span>Negative Number Hints</span>
+            <span data-testid="menu-negative-number-value">{showNegativeNumberHints ? 'On' : 'Off'}</span>
+          </button>
+        </aside>
+      </>
 
       <button
         type="button"

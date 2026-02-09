@@ -138,9 +138,9 @@ describe('App local debug wiring', () => {
     render(<App />);
 
     fireEvent.click(screen.getByTestId('actions-menu'));
-    expect(screen.getByTestId('menu-debug-value')).toHaveTextContent('On');
+    expect(screen.getByTestId('menu-local-debug-value')).toHaveTextContent('On');
 
-    fireEvent.click(screen.getByTestId('menu-debug-toggle'));
+    fireEvent.click(screen.getByTestId('menu-local-debug-toggle'));
     expect(window.localStorage.getItem('hanabi.debug_mode')).toBe('false');
     expect(screen.getByTestId('lobby-root')).toBeInTheDocument();
     expect(screen.queryByTestId('actions-play')).not.toBeInTheDocument();
