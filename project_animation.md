@@ -37,6 +37,12 @@
 - Discarding should reveal the card and use an explosion/crack animation.
 - Increase play/discard/misplay animation sequences to ~1.0s (draw stays 0.5s).
 
+7. Endgame screen
+- When the game is over (won/lost/finished), show a full-screen overlay with final score and per-player stats.
+- Win: celebratory confetti burst.
+- Lose/finished: rain animation that starts intense then fades to a subtle looping rain.
+- Provide buttons to view the action log and to go back to the start page.
+
 ## Animation Specs (Acceptance)
 
 ### 1. Hint Tokens (Light Bulbs)
@@ -106,6 +112,20 @@
 - Behavior: do not display “Play selected” / “Number hint selected” in the bottom strip.
 - Look: selected action button shows a subtle looping glow/pulse until selection resolves or is cleared.
 
+### 7. Endgame Screen (Win/Lose)
+- Trigger: `status` becomes terminal (`won`, `lost`, or `finished`).
+- Timing: if the terminal transition is caused by `play`/`discard`, do not show the endgame overlay until the full card animation sequence finishes.
+- Layout: full-screen overlay showing:
+  - big title (“You win” / “You lost” / “Game over”)
+  - final score
+  - per-player stats (hints given, hints received, plays, discards)
+- Win FX: confetti pieces fall for ~2-4s, then stop.
+- Lose/finished FX: heavy rain for ~2.4s, then fades out leaving a subtle looping rain.
+- Buttons:
+  - View log: toggles an in-overlay log list (reuses log chip styling).
+  - Back to start: local debug resets to a fresh game; online host resets the room to lobby; online non-host reloads to leave the round.
+- Reduced motion: endgame overlay entry + FX should be disabled when `prefers-reduced-motion: reduce` is enabled.
+
 ## Implementation Notes
 
 - Prefer animation driven by state deltas + logs (play/discard/hint logs exist; draw is inferred by hand/deck diff).
@@ -133,6 +153,10 @@
 - [x] Discard animation: flip reveal (own hand) + explode/crack.
 - [x] Increase play/discard/misplay sequences to ~1.0s.
 - [x] Playwright verification update for the new sequences.
+- [x] Fix terminal status log masking (ensure play/discard animations still run when a `status` log is appended in the same turn).
+- [x] Endgame overlay: score + per-player stats + View log / Back to start buttons.
+- [x] Endgame FX: confetti (win) and rain (lose/finished), with reduced-motion support.
+- [x] Playwright verification (win + lose endgame screens).
 
 ## Progress Log
 
@@ -150,3 +174,7 @@
 - 2026-02-09: Fixed bottom "Last" strip clipping by increasing ticker/row height to fit log chips.
 - 2026-02-09: Added discard explosion animation (with flip reveal for the acting player's hidden hand) and increased play/discard/misplay sequences to ~1.0s (draw stays 0.5s).
 - 2026-02-09: Playwright update artifacts captured under `output/playwright/animations-ux/`, `output/playwright/animations-actions/`, and `output/playwright/animations-misplay2/`.
+- 2026-02-09: Fixed action animation triggering when a terminal `status` log is appended in the same turn (the animation driver now inspects newly appended logs and ignores trailing status logs).
+- 2026-02-09: Added endgame overlay (win/lose/finished): final score + per-player stats, View Log toggle, and Back to Start behavior (local reset, host lobby reset, non-host reload).
+- 2026-02-09: Added endgame FX: win confetti burst; lose/finished rain with heavy intro then subtle loop; reduced-motion disables entry + FX animations.
+- 2026-02-09: Playwright artifacts captured for endgame flows under `output/playwright/endgame-win/` and `output/playwright/endgame-lose/` (screenshots + `win-endgame.webm` / `lose-endgame.webm` videos).

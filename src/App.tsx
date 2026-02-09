@@ -779,6 +779,7 @@ function GameClient({
   const [isLogDrawerOpen, setIsLogDrawerOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingCardAction>(null);
+  const [endgamePanel, setEndgamePanel] = useState<'summary' | 'log'>('summary');
   const [wildColorHintTargetPlayerId, setWildColorHintTargetPlayerId] = useState<PlayerId | null>(null);
   const [isDebugMode, setIsDebugMode] = useLocalStorageState(storageKeys.debugMode, true);
   const storageNamespace = useMemo(
@@ -826,6 +827,56 @@ function GameClient({
   }, [isLocalDebugMode, playerName, setActiveSelfName]);
 
   const activeGameState = isLocalDebugMode ? debugGameState : onlineState.gameState;
+  const terminalStatusLogId = useMemo(() => {
+    if (!activeGameState) {
+      return null;
+    }
+
+    for (let index = activeGameState.logs.length - 1; index >= 0; index -= 1) {
+      const log = activeGameState.logs[index];
+      if (log.type === 'status') {
+        return log.id;
+      }
+    }
+
+    return null;
+  }, [activeGameState]);
+  const endgameStatsByPlayerId = useMemo(() => {
+    const stats = new Map<PlayerId, { hintsGiven: number; hintsReceived: number; plays: number; discards: number }>();
+    if (!activeGameState) {
+      return stats;
+    }
+
+    for (const player of activeGameState.players) {
+      stats.set(player.id, { hintsGiven: 0, hintsReceived: 0, plays: 0, discards: 0 });
+    }
+
+    for (const log of activeGameState.logs) {
+      if (log.type === 'hint') {
+        const actor = stats.get(log.actorId);
+        const target = stats.get(log.targetId);
+        if (actor) actor.hintsGiven += 1;
+        if (target) target.hintsReceived += 1;
+        continue;
+      }
+
+      if (log.type === 'play') {
+        const actor = stats.get(log.actorId);
+        if (actor) actor.plays += 1;
+        continue;
+      }
+
+      if (log.type === 'discard') {
+        const actor = stats.get(log.actorId);
+        if (actor) actor.discards += 1;
+      }
+    }
+
+    return stats;
+  }, [activeGameState]);
+  useEffect(() => {
+    setEndgamePanel('summary');
+  }, [terminalStatusLogId]);
   const discardCounts = useMemo(() => {
     const counts = new Map<string, number>();
     if (!activeGameState) {
@@ -1281,9 +1332,13 @@ function GameClient({
       return;
     }
 
-    const nextLog = activeGameState.logs[activeGameState.logs.length - 1] ?? null;
-    const prevLogId = previous.logs[previous.logs.length - 1]?.id ?? null;
-    if (!nextLog || nextLog.id === prevLogId) {
+    const newLogs = activeGameState.logs.slice(previous.logs.length);
+    if (newLogs.length === 0) {
+      return;
+    }
+
+    const actionLog = [...newLogs].reverse().find((log) => log.type !== 'status') ?? null;
+    if (!actionLog) {
       return;
     }
 
@@ -1295,14 +1350,14 @@ function GameClient({
       triggerTokenFx(hintTokenSlotRefs.current[prevHintTokens] ?? null, 'token-fx-gain');
     }
 
-    if (nextLog.type === 'hint') {
-      for (const cardId of nextLog.touchedCardIds) {
+    if (actionLog.type === 'hint') {
+      for (const cardId of actionLog.touchedCardIds) {
         triggerCardFx(cardId, 'hint-enter');
       }
       return;
     }
 
-    if (nextLog.type !== 'play' && nextLog.type !== 'discard') {
+    if (actionLog.type !== 'play' && actionLog.type !== 'discard') {
       return;
     }
 
@@ -1319,14 +1374,14 @@ function GameClient({
     const runId = animationRunIdRef.current + 1;
     animationRunIdRef.current = runId;
     setIsActionAnimationRunning(true);
-    setTurnLockPlayerId(nextLog.actorId);
+    setTurnLockPlayerId(actionLog.actorId);
 
     const viewerIdAtAction = isLocalDebugMode
       ? previous.players[previous.currentTurnPlayerIndex]?.id ?? null
       : (perspective?.viewerId ?? null);
 
-    const prevActor = previous.players.find((player) => player.id === nextLog.actorId);
-    const nextActor = activeGameState.players.find((player) => player.id === nextLog.actorId);
+    const prevActor = previous.players.find((player) => player.id === actionLog.actorId);
+    const nextActor = activeGameState.players.find((player) => player.id === actionLog.actorId);
     const prevHand = prevActor?.cards ?? [];
     const nextHand = nextActor?.cards ?? [];
     const prevHandSet = new Set(prevHand);
@@ -1347,30 +1402,30 @@ function GameClient({
 
     void (async () => {
       try {
-        if (nextLog.type === 'play') {
-          const shouldFlip = viewerIdAtAction !== null && nextLog.actorId === viewerIdAtAction;
-          if (nextLog.success) {
-            await animatePlayToPeg({ cardId: nextLog.cardId, suit: nextLog.suit, number: nextLog.number, shouldFlip });
+        if (actionLog.type === 'play') {
+          const shouldFlip = viewerIdAtAction !== null && actionLog.actorId === viewerIdAtAction;
+          if (actionLog.success) {
+            await animatePlayToPeg({ cardId: actionLog.cardId, suit: actionLog.suit, number: actionLog.number, shouldFlip });
           } else {
             await animateMisplay({
-              cardId: nextLog.cardId,
-              suit: nextLog.suit,
-              number: nextLog.number,
+              cardId: actionLog.cardId,
+              suit: actionLog.suit,
+              number: actionLog.number,
               shouldFlip,
               spentFuseIndex
             });
           }
         }
 
-        if (nextLog.type === 'discard') {
-          const shouldFlip = viewerIdAtAction !== null && nextLog.actorId === viewerIdAtAction;
-          await animateDiscardExplode({ cardId: nextLog.cardId, suit: nextLog.suit, number: nextLog.number, shouldFlip });
+        if (actionLog.type === 'discard') {
+          const shouldFlip = viewerIdAtAction !== null && actionLog.actorId === viewerIdAtAction;
+          await animateDiscardExplode({ cardId: actionLog.cardId, suit: actionLog.suit, number: actionLog.number, shouldFlip });
         }
 
         if (didDraw && drawnCardId) {
           await animateDrawCard({
             drawnCardId,
-            actorId: nextLog.actorId,
+            actorId: actionLog.actorId,
             viewerIdForVisibility: perspective?.viewerId ?? null
           });
         }
@@ -1935,6 +1990,11 @@ function GameClient({
   const remainingFuses = perspective.maxFuseTokens - perspective.fuseTokensUsed;
   const fuseTokenStates = Array.from({ length: perspective.maxFuseTokens }, (_, index) => index < remainingFuses);
   const gameOver = isTerminalStatus(perspective.status);
+  const endgameOutcome: 'win' | 'lose' = perspective.status === 'won' ? 'win' : 'lose';
+  const showEndgameOverlay = gameOver && !isActionAnimationRunning;
+  const reduceMotion = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const isOnlineTurn = !isLocalDebugMode && onlineState.selfId !== null && perspective.currentTurnPlayerId === onlineState.selfId;
   const canAct = (isLocalDebugMode || (onlineState.status === 'connected' && isOnlineTurn)) && !isActionAnimationRunning;
   const selectedAction: PendingCardAction = isLocalDebugMode ? debugGame.state.ui.pendingAction : pendingAction;
@@ -1943,6 +2003,33 @@ function GameClient({
   const colorHintDisabled = gameOver || !canAct || perspective.hintTokens <= 0;
   const numberHintDisabled = gameOver || !canAct || perspective.hintTokens <= 0;
   const playDisabled = gameOver || !canAct;
+
+  function toggleEndgameLog(): void {
+    setEndgamePanel((current) => (current === 'log' ? 'summary' : 'log'));
+  }
+
+  function backToStart(): void {
+    setEndgamePanel('summary');
+    setIsMenuOpen(false);
+    setIsLogDrawerOpen(false);
+    setPendingAction(null);
+    setWildColorHintTargetPlayerId(null);
+
+    if (isLocalDebugMode) {
+      debugGame.replaceState(new HanabiGame(LOCAL_DEBUG_SETUP).getSnapshot());
+      setDebugGameState(debugGame.getSnapshot());
+      return;
+    }
+
+    if (onlineState.isHost) {
+      activeSession.updateSettings({});
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    }
+  }
 
   return (
     <main className="app" data-testid="app-root">
@@ -2311,7 +2398,278 @@ function GameClient({
       </aside>
 
       <div className="animation-layer" ref={animationLayerRef} aria-hidden data-testid="animation-layer" />
+
+      {showEndgameOverlay && (
+        <EndgameOverlay
+          outcome={endgameOutcome}
+          status={perspective.status}
+          score={perspective.score}
+          players={activeGameState.players}
+          viewerId={perspective.viewerId}
+          statsByPlayerId={endgameStatsByPlayerId}
+          logs={orderedLogs}
+          panel={endgamePanel}
+          reduceMotion={reduceMotion}
+          onToggleLog={toggleEndgameLog}
+          onBackToStart={backToStart}
+        />
+      )}
     </main>
+  );
+}
+
+function hashSeed(input: string): number {
+  let hash = 5381;
+  for (let index = 0; index < input.length; index += 1) {
+    hash = ((hash << 5) + hash) ^ input.charCodeAt(index);
+  }
+  return hash >>> 0;
+}
+
+function mulberry32(seed: number): () => number {
+  let value = seed >>> 0;
+  return () => {
+    value = (value + 0x6D2B79F5) >>> 0;
+    let t = value;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function EndgameOverlay({
+  outcome,
+  status,
+  score,
+  players,
+  viewerId,
+  statsByPlayerId,
+  logs,
+  panel,
+  reduceMotion,
+  onToggleLog,
+  onBackToStart
+}: {
+  outcome: 'win' | 'lose';
+  status: HanabiPerspectiveState['status'];
+  score: number;
+  players: Array<{ id: PlayerId; name: string }>;
+  viewerId: PlayerId;
+  statsByPlayerId: Map<PlayerId, { hintsGiven: number; hintsReceived: number; plays: number; discards: number }>;
+  logs: GameLogEntry[];
+  panel: 'summary' | 'log';
+  reduceMotion: boolean;
+  onToggleLog: () => void;
+  onBackToStart: () => void;
+}) {
+  const title = status === 'won'
+    ? 'You win'
+    : status === 'lost'
+      ? 'You lost'
+      : 'Game over';
+
+  const seedKey = `${outcome}:${status}:${score}:${logs[0]?.id ?? 'none'}`;
+
+  const confettiPieces = useMemo(() => {
+    if (outcome !== 'win' || reduceMotion) {
+      return [];
+    }
+
+    const rand = mulberry32(hashSeed(seedKey));
+    const count = 46;
+    return Array.from({ length: count }, (_, index) => ({
+      key: `confetti-${index}`,
+      left: rand() * 100,
+      delay: rand() * 0.7,
+      duration: 1.9 + rand() * 1.8,
+      drift: (rand() - 0.5) * 180,
+      hue: Math.floor(rand() * 360),
+      size: 6 + rand() * 8,
+      radius: 1 + rand() * 6
+    }));
+  }, [outcome, reduceMotion, seedKey]);
+
+  const rainIntroDrops = useMemo(() => {
+    if (outcome !== 'lose' || reduceMotion) {
+      return [];
+    }
+
+    const rand = mulberry32(hashSeed(seedKey) ^ 0x9E3779B9);
+    const count = 110;
+    return Array.from({ length: count }, (_, index) => ({
+      key: `rain-intro-${index}`,
+      left: rand() * 100,
+      delay: rand() * 0.4,
+      duration: 0.55 + rand() * 0.55,
+      height: 22 + rand() * 44,
+      opacity: 0.32 + rand() * 0.42,
+      drift: (rand() - 0.5) * 30
+    }));
+  }, [outcome, reduceMotion, seedKey]);
+
+  const rainLoopDrops = useMemo(() => {
+    if (outcome !== 'lose' || reduceMotion) {
+      return [];
+    }
+
+    const rand = mulberry32(hashSeed(seedKey) ^ 0xB7E15162);
+    const count = 56;
+    return Array.from({ length: count }, (_, index) => ({
+      key: `rain-loop-${index}`,
+      left: rand() * 100,
+      delay: rand() * 1.2,
+      duration: 0.92 + rand() * 0.82,
+      height: 22 + rand() * 38,
+      opacity: 0.16 + rand() * 0.22,
+      drift: (rand() - 0.5) * 20
+    }));
+  }, [outcome, reduceMotion, seedKey]);
+
+  return (
+    <aside
+      className={`endgame-overlay ${outcome}`}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Game over"
+      data-testid="endgame-screen"
+    >
+      <div className={`endgame-fx ${outcome}`} aria-hidden>
+        {outcome === 'win' && (
+          <div className="endgame-confetti">
+            {confettiPieces.map((piece) => (
+              <span
+                key={piece.key}
+                className="endgame-confetti-piece"
+                style={{
+                  '--x': `${piece.left}%`,
+                  '--delay': `${piece.delay}s`,
+                  '--dur': `${piece.duration}s`,
+                  '--drift': `${piece.drift}px`,
+                  '--hue': String(piece.hue),
+                  '--size': `${piece.size}px`,
+                  '--radius': `${piece.radius}px`
+                } as CSSProperties}
+              />
+            ))}
+          </div>
+        )}
+
+        {outcome === 'lose' && (
+          <>
+            <div className="endgame-rain intro">
+              {rainIntroDrops.map((drop) => (
+                <span
+                  key={drop.key}
+                  className="endgame-rain-drop"
+                  style={{
+                    '--x': `${drop.left}%`,
+                    '--delay': `${drop.delay}s`,
+                    '--dur': `${drop.duration}s`,
+                    '--h': `${drop.height}px`,
+                    '--o': String(drop.opacity),
+                    '--drift': `${drop.drift}px`
+                  } as CSSProperties}
+                />
+              ))}
+            </div>
+            <div className="endgame-rain loop">
+              {rainLoopDrops.map((drop) => (
+                <span
+                  key={drop.key}
+                  className="endgame-rain-drop"
+                  style={{
+                    '--x': `${drop.left}%`,
+                    '--delay': `${drop.delay}s`,
+                    '--dur': `${drop.duration}s`,
+                    '--h': `${drop.height}px`,
+                    '--o': String(drop.opacity),
+                    '--drift': `${drop.drift}px`
+                  } as CSSProperties}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="endgame-scrim" aria-hidden />
+
+      <section className="endgame-shell">
+        <header className="endgame-header">
+          <h2 className="endgame-title" data-testid="endgame-title">{title}</h2>
+          <p className="endgame-score" data-testid="endgame-score">Score {score}</p>
+        </header>
+
+        <section className="endgame-stats" data-testid="endgame-stats">
+          {players.map((player) => {
+            const stats = statsByPlayerId.get(player.id) ?? { hintsGiven: 0, hintsReceived: 0, plays: 0, discards: 0 };
+            const isViewer = player.id === viewerId;
+            return (
+              <article
+                key={player.id}
+                className={`endgame-player ${isViewer ? 'you' : ''}`}
+                data-testid={`endgame-player-${player.id}`}
+              >
+                <div className="endgame-player-name" data-testid={`endgame-player-name-${player.id}`}>
+                  {player.name}{isViewer ? ' (You)' : ''}
+                </div>
+                <div className="endgame-player-metrics">
+                  <span className="endgame-metric" data-testid={`endgame-hints-given-${player.id}`}>
+                    <span className="endgame-metric-label">Given</span>
+                    <span className="endgame-metric-value">{stats.hintsGiven}</span>
+                  </span>
+                  <span className="endgame-metric" data-testid={`endgame-hints-received-${player.id}`}>
+                    <span className="endgame-metric-label">Recv</span>
+                    <span className="endgame-metric-value">{stats.hintsReceived}</span>
+                  </span>
+                  <span className="endgame-metric" data-testid={`endgame-plays-${player.id}`}>
+                    <span className="endgame-metric-label">Plays</span>
+                    <span className="endgame-metric-value">{stats.plays}</span>
+                  </span>
+                  <span className="endgame-metric" data-testid={`endgame-discards-${player.id}`}>
+                    <span className="endgame-metric-label">Disc</span>
+                    <span className="endgame-metric-value">{stats.discards}</span>
+                  </span>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+
+        {panel === 'log' && (
+          <section className="endgame-log" data-testid="endgame-log">
+            <h3 className="endgame-log-title">Action Log</h3>
+            <div className="endgame-log-list">
+              {logs.map((logEntry) => (
+                <article key={logEntry.id} className="log-item" data-testid={`endgame-log-${logEntry.id}`}>
+                  <span className={`log-kind ${logEntry.type}`}>{getLogBadge(logEntry)}</span>
+                  <span className="log-item-message">{renderLogMessage(logEntry)}</span>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <footer className="endgame-actions">
+          <button
+            type="button"
+            className="endgame-button subtle"
+            onClick={onToggleLog}
+            data-testid="endgame-view-log"
+          >
+            {panel === 'log' ? 'Hide Log' : 'View Log'}
+          </button>
+          <button
+            type="button"
+            className="endgame-button primary"
+            onClick={onBackToStart}
+            data-testid="endgame-back-start"
+          >
+            Back to Start
+          </button>
+        </footer>
+      </section>
+    </aside>
   );
 }
 
