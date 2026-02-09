@@ -1,39 +1,58 @@
 import { useCallback, useState } from 'react';
+import { parseStoredValue, resolveStorageKey, type StorageKey, type StorageValueByKey } from '../storage';
 
-function resolveInitialValue<T>(key: string, fallback: T): T {
+type SetStateAction<T> = T | ((prev: T) => T);
+
+function resolveInitialValue<K extends StorageKey>(
+  key: K,
+  storageKey: string,
+  fallback: StorageValueByKey[K]
+): StorageValueByKey[K] {
   if (typeof window === 'undefined') {
     return fallback;
   }
 
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = window.localStorage.getItem(storageKey);
     if (raw === null) {
       return fallback;
     }
 
-    return JSON.parse(raw) as T;
+    const parsed = parseStoredValue(key, raw);
+    if (parsed === null) {
+      return fallback;
+    }
+
+    return parsed;
   } catch {
     return fallback;
   }
 }
 
-export function useLocalStorageState<T>(key: string, initialValue: T): [T, (next: T | ((prev: T) => T)) => void] {
-  const [value, setValue] = useState<T>(() => resolveInitialValue(key, initialValue));
+export function useLocalStorageState<K extends StorageKey>(
+  key: K,
+  initialValue: StorageValueByKey[K],
+  namespace: string | null = null
+): [StorageValueByKey[K], (next: SetStateAction<StorageValueByKey[K]>) => void] {
+  const storageKey = resolveStorageKey(key, namespace);
+  const [value, setValue] = useState<StorageValueByKey[K]>(() => resolveInitialValue(key, storageKey, initialValue));
 
-  const setStoredValue = useCallback((next: T | ((prev: T) => T)) => {
+  const setStoredValue = useCallback((next: SetStateAction<StorageValueByKey[K]>) => {
     setValue((prev) => {
-      const resolved = typeof next === 'function' ? (next as (current: T) => T)(prev) : next;
+      const resolved = typeof next === 'function'
+        ? (next as (current: StorageValueByKey[K]) => StorageValueByKey[K])(prev)
+        : next;
 
       try {
         if (typeof window !== 'undefined') {
-          window.localStorage.setItem(key, JSON.stringify(resolved));
+          window.localStorage.setItem(storageKey, JSON.stringify(resolved));
         }
       } catch {
       }
 
       return resolved;
     });
-  }, [key]);
+  }, [storageKey]);
 
   return [value, setStoredValue];
 }

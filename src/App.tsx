@@ -16,6 +16,7 @@ import {
   CARD_NUMBERS,
   HanabiGame,
   type GameLogEntry,
+  type HanabiState,
   type HanabiPerspectiveState,
   type PerspectiveCard,
   type PlayerId,
@@ -38,6 +39,7 @@ import {
   type RoomMember
 } from './network';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
+import { createDebugNamespace, storageKeys } from './storage';
 
 const LOCAL_DEBUG_SETUP = {
   playerNames: ['Ari', 'Blair', 'Casey'],
@@ -45,13 +47,6 @@ const LOCAL_DEBUG_SETUP = {
   shuffleSeed: 17
 };
 
-const DEBUG_MODE_STORAGE_KEY = 'hanabi.debug_mode';
-const DEBUG_NETWORK_SHELL_STORAGE_KEY = 'hanabi.debug_network_shell';
-const DEBUG_NETWORK_PLAYERS_STORAGE_KEY = 'hanabi.debug_network_players';
-const DEBUG_NETWORK_ACTIVE_PLAYER_STORAGE_KEY = 'hanabi.debug_network_active_player';
-const NEGATIVE_COLOR_HINTS_STORAGE_KEY = 'hanabi.negative_color_hints';
-const NEGATIVE_NUMBER_HINTS_STORAGE_KEY = 'hanabi.negative_number_hints';
-const DARK_MODE_STORAGE_KEY = 'hanabi.dark_mode';
 const MAX_PEG_PIPS = 4;
 
 type PegPipState = 'filled' | 'hollow' | 'unused';
@@ -262,6 +257,10 @@ function renderLogMessage(log: GameLogEntry): ReactNode {
     return `Game lost with score ${log.score}`;
   }
 
+  if (log.reason === 'final_round_complete') {
+    return `Final round complete with score ${log.score}`;
+  }
+
   return `Game finished with score ${log.score}`;
 }
 
@@ -327,6 +326,47 @@ function prefersDarkMode(): boolean {
   return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? false;
 }
 
+async function writeToClipboard(text: string): Promise<void> {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  if (typeof document === 'undefined') {
+    throw new Error('Clipboard is unavailable in this runtime');
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', 'true');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  textarea.style.left = '-9999px';
+  textarea.style.top = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
+  const ok = document.execCommand('copy');
+  textarea.remove();
+  if (!ok) {
+    throw new Error('Failed to copy to clipboard');
+  }
+}
+
+function parseHanabiStatePayload(rawText: string): HanabiState {
+  const parsed = JSON.parse(rawText) as unknown;
+  const candidate =
+    parsed && typeof parsed === 'object' && 'state' in parsed
+      ? (parsed as { state: unknown }).state
+      : parsed;
+
+  if (!candidate || typeof candidate !== 'object') {
+    throw new Error('Invalid state payload: expected an object');
+  }
+
+  return HanabiGame.fromState(candidate as HanabiState).getSnapshot();
+}
+
 function App() {
   const [debugFramePlayerId, setDebugFramePlayerId] = useState<string | null>(() => {
     if (typeof window === 'undefined') {
@@ -351,11 +391,8 @@ function App() {
     };
   }, []);
 
-  const [isDebugNetworkShellOpen, setIsDebugNetworkShellOpen] = useLocalStorageState<boolean>(
-    DEBUG_NETWORK_SHELL_STORAGE_KEY,
-    false
-  );
-  const [isDarkMode, setIsDarkMode] = useLocalStorageState<boolean>(DARK_MODE_STORAGE_KEY, prefersDarkMode());
+  const [isDebugNetworkShellOpen, setIsDebugNetworkShellOpen] = useLocalStorageState(storageKeys.debugNetworkShell, false);
+  const [isDarkMode, setIsDarkMode] = useLocalStorageState(storageKeys.darkMode, prefersDarkMode());
 
   useEffect(() => {
     if (typeof document === 'undefined') {
@@ -396,15 +433,12 @@ function App() {
 }
 
 function DebugNetworkShell({ onExit }: { onExit: () => void }) {
-  const [storedPlayers, setStoredPlayers] = useLocalStorageState<string[]>(
-    DEBUG_NETWORK_PLAYERS_STORAGE_KEY,
+  const [storedPlayers, setStoredPlayers] = useLocalStorageState(
+    storageKeys.debugNetworkPlayers,
     getDebugNetworkPlayersFromRoom()
   );
   const normalizedPlayers = useMemo(() => normalizeShellPlayers(storedPlayers), [storedPlayers]);
-  const [activePlayer, setActivePlayer] = useLocalStorageState<string>(
-    DEBUG_NETWORK_ACTIVE_PLAYER_STORAGE_KEY,
-    normalizedPlayers[0]
-  );
+  const [activePlayer, setActivePlayer] = useLocalStorageState(storageKeys.debugNetworkActivePlayer, normalizedPlayers[0]);
 
   useEffect(() => {
     if (arraysEqual(storedPlayers, normalizedPlayers)) {
@@ -557,14 +591,21 @@ function GameClient({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingCardAction>(null);
   const [wildColorHintTargetPlayerId, setWildColorHintTargetPlayerId] = useState<PlayerId | null>(null);
-  const [isDebugMode, setIsDebugMode] = useLocalStorageState<boolean>(DEBUG_MODE_STORAGE_KEY, true);
-  const [showNegativeColorHints, setShowNegativeColorHints] = useLocalStorageState<boolean>(
-    NEGATIVE_COLOR_HINTS_STORAGE_KEY,
-    true
+  const [isDebugMode, setIsDebugMode] = useLocalStorageState(storageKeys.debugMode, true);
+  const storageNamespace = useMemo(
+    () => (isDebugNetworkFrame && framePlayerId ? createDebugNamespace(framePlayerId) : null),
+    [framePlayerId, isDebugNetworkFrame]
   );
-  const [showNegativeNumberHints, setShowNegativeNumberHints] = useLocalStorageState<boolean>(
-    NEGATIVE_NUMBER_HINTS_STORAGE_KEY,
-    true
+  const [playerName, setPlayerName] = useLocalStorageState(storageKeys.playerName, '', storageNamespace);
+  const [showNegativeColorHints, setShowNegativeColorHints] = useLocalStorageState(
+    storageKeys.negativeColorHints,
+    true,
+    storageNamespace
+  );
+  const [showNegativeNumberHints, setShowNegativeNumberHints] = useLocalStorageState(
+    storageKeys.negativeNumberHints,
+    true,
+    storageNamespace
   );
   const logListRef = useRef<HTMLDivElement | null>(null);
 
@@ -573,6 +614,15 @@ function GameClient({
   const debugNetwork = useDebugNetworkSession(isDebugNetworkFrame ? framePlayerId : null);
   const activeSession: OnlineSession = isDebugNetworkFrame ? debugNetwork : online;
   const onlineState = activeSession.state;
+  const setActiveSelfName = activeSession.setSelfName;
+
+  useEffect(() => {
+    if (isLocalDebugMode) {
+      return;
+    }
+
+    setActiveSelfName(playerName);
+  }, [isLocalDebugMode, playerName, setActiveSelfName]);
 
   const activeGameState = isLocalDebugMode ? debugGameState : onlineState.gameState;
   const discardCounts = useMemo(() => {
@@ -964,21 +1014,34 @@ function GameClient({
     setIsMenuOpen(false);
   }
 
-  function handleLeavePress(): void {
+  function handleLocalDebugToggle(): void {
+    if (isDebugNetworkFrame) {
+      return;
+    }
+
     setIsMenuOpen(false);
     setIsLogDrawerOpen(false);
-    setIsDebugMode(false);
-    commitLocal(() => {
-      debugGame.cancelSelection();
-    });
-  }
+    setPendingAction(null);
 
-  function handleDebugToggle(): void {
-    setIsDebugMode((current) => !current);
-    setIsMenuOpen(false);
-    commitLocal(() => {
+    const next = !isDebugMode;
+    if (next) {
+      const snapshot = onlineState.gameState;
+      if (snapshot) {
+        try {
+          debugGame.replaceState(snapshot);
+          setDebugGameState(debugGame.getSnapshot());
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown debug state error';
+          window.alert(`Unable to enable local debug mode: ${message}`);
+          return;
+        }
+      }
+    } else {
       debugGame.cancelSelection();
-    });
+      setDebugGameState(debugGame.getSnapshot());
+    }
+
+    setIsDebugMode(next);
   }
 
   function handleEnableDebugMode(): void {
@@ -1019,6 +1082,68 @@ function GameClient({
     setWildColorHintTargetPlayerId(null);
   }
 
+  async function handleCopyStatePress(): Promise<void> {
+    setIsMenuOpen(false);
+    if (!activeGameState) {
+      window.alert('No game state available yet.');
+      return;
+    }
+
+    try {
+      await writeToClipboard(JSON.stringify(activeGameState));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown clipboard error';
+      window.alert(`Unable to copy game state: ${message}`);
+    }
+  }
+
+  async function handleLoadStatePress(): Promise<void> {
+    if (isDebugNetworkFrame) {
+      return;
+    }
+
+    setIsMenuOpen(false);
+    setIsLogDrawerOpen(false);
+    setPendingAction(null);
+
+    let loaded: HanabiState | null = null;
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
+      try {
+        const clipboardText = await navigator.clipboard.readText();
+        if (clipboardText.trim().length > 0) {
+          loaded = parseHanabiStatePayload(clipboardText.trim());
+        }
+      } catch {
+        loaded = null;
+      }
+    }
+
+    if (!loaded) {
+      const raw = window.prompt('Paste a Hanabi game state JSON (from "Debug: copy state")');
+      if (!raw || raw.trim().length === 0) {
+        return;
+      }
+
+      try {
+        loaded = parseHanabiStatePayload(raw.trim());
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown load error';
+        window.alert(`Unable to load game state: ${message}`);
+        return;
+      }
+    }
+
+    try {
+      debugGame.replaceState(loaded);
+      setDebugGameState(debugGame.getSnapshot());
+      setIsDebugMode(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown debug state error';
+      window.alert(`Unable to apply game state: ${message}`);
+    }
+  }
+
   if (showLobby) {
     return (
       <LobbyScreen
@@ -1028,6 +1153,9 @@ function GameClient({
         members={onlineState.members}
         hostId={onlineState.hostId}
         isHost={onlineState.isHost}
+        selfId={onlineState.selfId}
+        selfName={playerName}
+        onSelfNameChange={setPlayerName}
         phase={onlineState.phase}
         settings={onlineState.settings}
         isGameInProgress={onlineState.phase === 'playing' && !isOnlineParticipant}
@@ -1225,34 +1353,23 @@ function GameClient({
               onClick={handleHintNumberPress}
               disabled={numberHintDisabled}
             >
-              <span className="action-main">Number</span>
-            </button>
+	              <span className="action-main">Number</span>
+	            </button>
 	          </div>
 	
 	          <div className="action-slot">
-	            {showReconnectAction ? (
-	              <button
-	                type="button"
-	                className="action-button"
-	                data-testid="actions-reconnect"
-	                onClick={handleReconnectPress}
-	              >
-	                <span className="action-main">Reconnect</span>
-	              </button>
-	            ) : (
-	              <button
-	                type="button"
-	                className="action-button menu-toggle"
-	                aria-label="Open menu"
-	                aria-expanded={isMenuOpen}
-	                data-testid="actions-menu"
-	                onClick={toggleMenu}
-	              >
-	                <span />
-	                <span />
-	                <span />
-	              </button>
-	            )}
+	            <button
+	              type="button"
+	              className="action-button menu-toggle"
+	              aria-label="Open menu"
+	              aria-expanded={isMenuOpen}
+	              data-testid="actions-menu"
+	              onClick={toggleMenu}
+	            >
+	              <span />
+	              <span />
+	              <span />
+	            </button>
 	          </div>
 
           <div className="action-slot">
@@ -1310,71 +1427,97 @@ function GameClient({
         </aside>
       )}
 
-	      <>
-	        <button
-	          type="button"
-	          className={`menu-scrim ${isMenuOpen ? 'open' : ''}`}
-	          aria-label="Close menu"
-	          aria-hidden={!isMenuOpen}
-	          tabIndex={isMenuOpen ? 0 : -1}
-	          onClick={closeMenu}
-	        />
+      <>
+        <button
+          type="button"
+          className={`menu-scrim ${isMenuOpen ? 'open' : ''}`}
+          aria-label="Close menu"
+          aria-hidden={!isMenuOpen}
+          tabIndex={isMenuOpen ? 0 : -1}
+          onClick={closeMenu}
+        />
 
-	        <aside className={`menu-panel ${isMenuOpen ? 'open' : ''}`} aria-hidden={!isMenuOpen}>
-	          <button
-	            type="button"
-	            className="menu-item menu-toggle-item"
-	            data-testid="menu-dark-mode-toggle"
-	            aria-pressed={isDarkMode}
-	            onClick={handleDarkModeToggle}
-	          >
-	            <span>Dark Mode</span>
-	            <span data-testid="menu-dark-mode-value">{isDarkMode ? 'On' : 'Off'}</span>
-	          </button>
+        <aside className={`menu-panel ${isMenuOpen ? 'open' : ''}`} aria-hidden={!isMenuOpen}>
+          <button
+            type="button"
+            className="menu-item menu-toggle-item"
+            data-testid="menu-dark-mode-toggle"
+            aria-pressed={isDarkMode}
+            onClick={handleDarkModeToggle}
+          >
+            <span>Dark Mode</span>
+            <span data-testid="menu-dark-mode-value">{isDarkMode ? 'On' : 'Off'}</span>
+          </button>
 
-	          <button
-	            type="button"
-	            className="menu-item menu-toggle-item"
-	            data-testid="menu-negative-color-toggle"
-	            onClick={handleNegativeColorHintsToggle}
-	          >
-	            <span>Negative Color Hints</span>
-	            <span data-testid="menu-negative-color-value">{showNegativeColorHints ? 'On' : 'Off'}</span>
-	          </button>
-	          <button
-	            type="button"
-	            className="menu-item menu-toggle-item"
-	            data-testid="menu-negative-number-toggle"
-	            onClick={handleNegativeNumberHintsToggle}
-	          >
-	            <span>Negative Number Hints</span>
-	            <span data-testid="menu-negative-number-value">{showNegativeNumberHints ? 'On' : 'Off'}</span>
-	          </button>
-
-	          {isLocalDebugMode && (
-	            <>
-	              <button type="button" className="menu-item" data-testid="menu-leave" onClick={handleLeavePress}>Leave</button>
-	              <button
-	                type="button"
-	                className="menu-item menu-toggle-item"
-	                data-testid="menu-debug-toggle"
-	                onClick={handleDebugToggle}
-	              >
-	                <span>Debug</span>
-	                <span data-testid="menu-debug-value">{isLocalDebugMode ? 'On' : 'Off'}</span>
-	              </button>
-	              <button
-	                type="button"
-	                className="menu-item"
-	                data-testid="menu-debug-network"
-	                onClick={handleOpenDebugNetworkShell}
-	              >
-	                Debug Network
-	              </button>
-	            </>
-	          )}
-	        </aside>
-	      </>
+          {!isDebugNetworkFrame && (
+            <button
+              type="button"
+              className="menu-item menu-toggle-item"
+              data-testid="menu-local-debug-toggle"
+              onClick={handleLocalDebugToggle}
+            >
+              <span>Local Debug</span>
+              <span data-testid="menu-local-debug-value">{isLocalDebugMode ? 'On' : 'Off'}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            className="menu-item"
+            data-testid="menu-debug-copy-state"
+            onClick={() => void handleCopyStatePress()}
+          >
+            Debug: Copy State
+          </button>
+          {!isDebugNetworkFrame && (
+            <button
+              type="button"
+              className="menu-item"
+              data-testid="menu-debug-load-state"
+              onClick={() => void handleLoadStatePress()}
+            >
+              Debug: Load State
+            </button>
+          )}
+          {!isLocalDebugMode && showReconnectAction && (
+            <button
+              type="button"
+              className="menu-item"
+              data-testid="menu-reconnect"
+              onClick={handleReconnectPress}
+            >
+              Reconnect
+            </button>
+          )}
+          {onOpenDebugNetworkShell && (
+            <button
+              type="button"
+              className="menu-item"
+              data-testid="menu-debug-network"
+              onClick={handleOpenDebugNetworkShell}
+            >
+              Debug Network
+            </button>
+          )}
+          <button
+            type="button"
+            className="menu-item menu-toggle-item"
+            data-testid="menu-negative-color-toggle"
+            onClick={handleNegativeColorHintsToggle}
+          >
+            <span>Negative Color Hints</span>
+            <span data-testid="menu-negative-color-value">{showNegativeColorHints ? 'On' : 'Off'}</span>
+          </button>
+          <button
+            type="button"
+            className="menu-item menu-toggle-item"
+            data-testid="menu-negative-number-toggle"
+            onClick={handleNegativeNumberHintsToggle}
+          >
+            <span>Negative Number Hints</span>
+            <span data-testid="menu-negative-number-value">{showNegativeNumberHints ? 'On' : 'Off'}</span>
+          </button>
+        </aside>
+      </>
 
       <button
         type="button"
@@ -1417,6 +1560,9 @@ function LobbyScreen({
   members,
   hostId,
   isHost,
+  selfId,
+  selfName,
+  onSelfNameChange,
   phase,
   settings,
   isGameInProgress,
@@ -1434,6 +1580,9 @@ function LobbyScreen({
   members: RoomMember[];
   hostId: string | null;
   isHost: boolean;
+  selfId: string | null;
+  selfName: string;
+  onSelfNameChange: (next: string) => void;
   phase: 'lobby' | 'playing';
   settings: LobbySettings;
   isGameInProgress: boolean;
@@ -1452,58 +1601,76 @@ function LobbyScreen({
   const handSize = members.length <= 3 ? 5 : 4;
   const deckSize = 50 + (settings.includeMulticolor ? (settings.multicolorShortDeck ? 5 : 10) : 0);
   const maxScore = (settings.includeMulticolor ? 6 : 5) * 5;
+  const defaultNamePlaceholder = selfId ? `Player ${selfId.slice(-4).toUpperCase()}` : 'Player';
 
   return (
     <main className="lobby" data-testid="lobby-root">
       <section className="lobby-card">
-        <header className="lobby-header">
-          <h1 className="lobby-title">Room Staging</h1>
-          <div className="lobby-header-actions">
-            <button
-              type="button"
-              className="lobby-button subtle"
-              onClick={onToggleDarkMode}
-              aria-pressed={isDarkMode}
-              data-testid="lobby-theme-toggle"
-            >
-              Dark: {isDarkMode ? 'On' : 'Off'}
-            </button>
-            {onEnableDebugMode && (
+        <div className="lobby-summary">
+          <header className="lobby-header">
+            <h1 className="lobby-title">Room Staging</h1>
+            <div className="lobby-header-actions">
               <button
                 type="button"
                 className="lobby-button subtle"
-                onClick={onEnableDebugMode}
-                data-testid="lobby-debug-mode"
+                onClick={onToggleDarkMode}
+                aria-pressed={isDarkMode}
+                data-testid="lobby-theme-toggle"
               >
-                Debug Local
+                Dark: {isDarkMode ? 'On' : 'Off'}
               </button>
-            )}
-            {onEnableDebugNetwork && (
-              <button
-                type="button"
-                className="lobby-button subtle"
-                onClick={onEnableDebugNetwork}
-                data-testid="lobby-debug-network"
-              >
-                Debug Network
-              </button>
-            )}
+              {onEnableDebugMode && (
+                <button
+                  type="button"
+                  className="lobby-button subtle"
+                  onClick={onEnableDebugMode}
+                  data-testid="lobby-debug-mode"
+                >
+                  Debug Local
+                </button>
+              )}
+              {onEnableDebugNetwork && (
+                <button
+                  type="button"
+                  className="lobby-button subtle"
+                  onClick={onEnableDebugNetwork}
+                  data-testid="lobby-debug-network"
+                >
+                  Debug Network
+                </button>
+              )}
+            </div>
+          </header>
+
+          <p className="lobby-room-line" data-testid="lobby-room-line">Room {roomId}</p>
+
+          <div className="lobby-name-row" data-testid="lobby-name-row">
+            <label className="lobby-name-label" htmlFor="lobby-name-input">Name</label>
+            <input
+              id="lobby-name-input"
+              className="lobby-name-input"
+              value={selfName}
+              onChange={(event) => onSelfNameChange(event.target.value)}
+              placeholder={defaultNamePlaceholder}
+              maxLength={24}
+              autoComplete="nickname"
+              spellCheck={false}
+              data-testid="lobby-name-input"
+            />
           </div>
-        </header>
 
-        <p className="lobby-room-line" data-testid="lobby-room-line">Room {roomId}</p>
+          {error && (
+            <p className="lobby-note error" data-testid="lobby-error">
+              {error}
+            </p>
+          )}
 
-        {error && (
-          <p className="lobby-note error" data-testid="lobby-error">
-            {error}
-          </p>
-        )}
-
-        {isGameInProgress && (
-          <p className="lobby-note warning" data-testid="lobby-game-progress">
-            Game in progress. You will join next round from this room.
-          </p>
-        )}
+          {isGameInProgress && (
+            <p className="lobby-note warning" data-testid="lobby-game-progress">
+              Game in progress. You will join next round from this room.
+            </p>
+          )}
+        </div>
 
         <section className="lobby-players">
           <h2 className="lobby-section-title">Players ({members.length})</h2>

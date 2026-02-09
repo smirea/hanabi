@@ -14,11 +14,13 @@ import {
 const NETWORK_APP_ID = 'hanabi-mobile-web';
 const DEFAULT_ROOM_ID = 'default-room';
 const SNAPSHOT_NAMESPACE = 'snapshot';
-const REQUEST_SNAPSHOT_NAMESPACE = 'request-snapshot';
+const REQUEST_SNAPSHOT_NAMESPACE = 'snap-req';
 const HELLO_NAMESPACE = 'hello';
-const PLAYER_ACTION_NAMESPACE = 'player-action';
+const PLAYER_ACTION_NAMESPACE = 'ply-act';
 const SNAPSHOT_HEARTBEAT_MS = 4_000;
 const SNAPSHOT_SYNC_MS = 2_000;
+
+const TRYSTERO_ACTION_NAME_MAX_BYTES = 12;
 
 if (NETWORK_APP_ID.trim().length === 0) {
   throw new Error('NETWORK_APP_ID must not be empty');
@@ -26,6 +28,15 @@ if (NETWORK_APP_ID.trim().length === 0) {
 
 if (DEFAULT_ROOM_ID.trim().length === 0) {
   throw new Error('DEFAULT_ROOM_ID must not be empty');
+}
+
+const actionTypeEncoder = new TextEncoder();
+const actionTypeNames = [SNAPSHOT_NAMESPACE, REQUEST_SNAPSHOT_NAMESPACE, HELLO_NAMESPACE, PLAYER_ACTION_NAMESPACE];
+for (const name of actionTypeNames) {
+  const byteLength = actionTypeEncoder.encode(name).length;
+  if (byteLength > TRYSTERO_ACTION_NAME_MAX_BYTES) {
+    throw new Error(`Trystero action type "${name}" is ${byteLength} bytes; must be <= ${TRYSTERO_ACTION_NAME_MAX_BYTES}`);
+  }
 }
 
 export type LobbySettings = {
@@ -177,6 +188,7 @@ export type OnlineSession = {
   updateSettings: (next: Partial<LobbySettings>) => void;
   sendAction: (action: NetworkAction) => void;
   requestSync: () => void;
+  setSelfName: (name: string) => void;
 };
 
 export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): OnlineSession {
@@ -184,11 +196,13 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
     ...INITIAL_STATE,
     roomId
   }));
+  const desiredSelfNameRef = useRef('');
   const controllerRef = useRef<{
     requestSync: () => void;
     sendAction: (action: NetworkAction) => void;
     updateSettings: (next: Partial<LobbySettings>) => void;
     startGame: () => void;
+    setSelfName: (name: string) => void;
   } | null>(null);
 
   useEffect(() => {
@@ -215,6 +229,19 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
     let sendSnapshot: ((message: SnapshotMessage, target?: string | string[] | null) => Promise<void[]>) | null = null;
     let sendSnapshotRequest: ((message: SnapshotRequestMessage, target?: string | string[] | null) => Promise<void[]>) | null = null;
     let sendPlayerAction: ((message: PlayerActionMessage, target?: string | string[] | null) => Promise<void[]>) | null = null;
+
+    const sanitizeName = (raw: string): string | null => {
+      if (typeof raw !== 'string') {
+        return null;
+      }
+
+      const trimmed = raw.trim().replace(/\s+/g, ' ');
+      if (trimmed.length === 0) {
+        return null;
+      }
+
+      return trimmed.slice(0, 24);
+    };
 
     const pushState = (nextStatus: OnlineState['status'], error: string | null = null): void => {
       if (!active) {
@@ -371,7 +398,8 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
       }
 
       selfId = moduleApi.selfId;
-      const selfName = formatPeerName(selfId);
+      const defaultSelfName = formatPeerName(selfId);
+      const selfName = sanitizeName(desiredSelfNameRef.current) ?? defaultSelfName;
       peerNames.set(selfId, selfName);
       setState({
         ...INITIAL_STATE,
@@ -553,6 +581,22 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
             draft.phase = 'playing';
             draft.gameState = game.getSnapshot();
           });
+        },
+        setSelfName: (name) => {
+          const resolvedName = sanitizeName(name) ?? defaultSelfName;
+          const currentName = peerNames.get(selfId) ?? defaultSelfName;
+          if (resolvedName === currentName) {
+            return;
+          }
+
+          peerNames.set(selfId, resolvedName);
+          if (sendHello) {
+            void sendHello({ name: resolvedName }, null);
+          }
+
+          if (isHost) {
+            refreshHostedMembers();
+          }
         }
       };
 
@@ -623,15 +667,21 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
     controllerRef.current?.requestSync();
   }, []);
 
+  const setSelfName = useCallback((name: string) => {
+    desiredSelfNameRef.current = name;
+    controllerRef.current?.setSelfName(name);
+  }, []);
+
   return useMemo(
     () => ({
       state,
       startGame,
       updateSettings,
       sendAction,
-      requestSync
+      requestSync,
+      setSelfName
     }),
-    [requestSync, sendAction, startGame, state, updateSettings]
+    [requestSync, sendAction, setSelfName, startGame, state, updateSettings]
   );
 }
 
