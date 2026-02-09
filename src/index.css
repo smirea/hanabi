@@ -1254,7 +1254,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  vertical-align: -0.12em;
+  vertical-align: -0.1em;
   height: 1.12rem;
   padding: 0 0.38rem;
   border-radius: 0.36rem;
@@ -1268,12 +1268,13 @@ body {
 
 .log-chip-card {
   --log-card-ink: color-mix(in srgb, var(--chip-color) 72%, black);
-  padding: 0;
-  aspect-ratio: 3 / 4;
-  border-radius: 0.36rem;
-  height: 1.46rem;
-  position: relative;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.18rem;
+  padding: 0 0.36rem;
+  border-radius: 0.42rem;
+  height: 1.28rem;
   overflow: hidden;
   background:
     linear-gradient(
@@ -1288,28 +1289,23 @@ body {
 }
 
 .log-card-num {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -58%);
-  font-size: 0.86rem;
+  font-size: 0.76rem;
   font-weight: 900;
   line-height: 1;
   letter-spacing: -0.02em;
 }
 
 .log-card-suit {
-  position: absolute;
-  right: 0.14rem;
-  bottom: 0.12rem;
   opacity: 0.95;
+  display: inline-flex;
+  align-items: center;
 }
 
 .log-chip-number {
   padding: 0;
   aspect-ratio: 3 / 4;
   border-radius: 0.36rem;
-  height: 1.46rem;
+  height: 1.28rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1322,7 +1318,7 @@ body {
   padding: 0;
   aspect-ratio: 3 / 4;
   border-radius: 0.36rem;
-  height: 1.46rem;
+  height: 1.28rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1339,8 +1335,8 @@ body {
 }
 
 .log-chip-suit svg {
-  width: 0.9rem;
-  height: 0.9rem;
+  width: 0.84rem;
+  height: 0.84rem;
 }
 
 .log-item-message {

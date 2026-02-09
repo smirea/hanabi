@@ -112,7 +112,7 @@ function LogCardChip({ suit, number }: { suit: Suit; number: number }) {
       aria-label={`${suitNames[suit]} ${number}`}
     >
       <span className="log-card-num">{number}</span>
-      <SuitSymbol suit={suit} size={14} className="log-card-suit" />
+      <SuitSymbol suit={suit} size={13} className="log-card-suit" />
     </span>
   );
 }
