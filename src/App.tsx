@@ -41,10 +41,12 @@ import {
   type OnlineState,
   type RoomMember
 } from './network';
+import { useRoomDirectoryAdvertiser } from './roomDirectory';
+import { isValidRoomCode } from './roomCodes';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
 import { useSessionStorageState } from './hooks/useSessionStorageState';
-import { createDebugNamespace, storageKeys } from './storage';
 import { useDebugScreensController } from './debugScreens';
+import { createDebugNamespace, createSessionNamespace, getSessionIdFromHash, storageKeys } from './storage';
 
 const LOCAL_DEBUG_SETUP = {
   playerNames: ['Ari', 'Blair', 'Casey'],
@@ -563,7 +565,20 @@ function parseHanabiStatePayload(rawText: string): HanabiState {
   return HanabiGame.fromState(candidate as HanabiState).getSnapshot();
 }
 
-function App() {
+function App({
+  roomCode = DEFAULT_ROOM_ID,
+  onLeaveRoom
+}: {
+  roomCode?: string;
+  onLeaveRoom?: () => void;
+}) {
+  const [hash, setHash] = useState(() => {
+    if (typeof window === 'undefined') {
+      return '';
+    }
+
+    return window.location.hash;
+  });
   const [debugFramePlayerId, setDebugFramePlayerId] = useState<string | null>(() => {
     if (typeof window === 'undefined') {
       return null;
@@ -578,7 +593,9 @@ function App() {
     }
 
     const onHashChange = (): void => {
-      setDebugFramePlayerId(getDebugNetworkPlayerIdFromHash(window.location.hash));
+      const nextHash = window.location.hash;
+      setHash(nextHash);
+      setDebugFramePlayerId(getDebugNetworkPlayerIdFromHash(nextHash));
     };
 
     window.addEventListener('hashchange', onHashChange);
@@ -587,8 +604,21 @@ function App() {
     };
   }, []);
 
-  const [isDebugNetworkShellOpen, setIsDebugNetworkShellOpen] = useLocalStorageState(storageKeys.debugNetworkShell, false);
-  const [isDarkMode, setIsDarkMode] = useLocalStorageState(storageKeys.darkMode, false);
+  const storageNamespace = useMemo(() => {
+    if (debugFramePlayerId) {
+      return createDebugNamespace(debugFramePlayerId);
+    }
+
+    const sessionId = getSessionIdFromHash(hash);
+    return sessionId ? createSessionNamespace(sessionId) : null;
+  }, [debugFramePlayerId, hash]);
+
+  const [isDebugNetworkShellOpen, setIsDebugNetworkShellOpen] = useLocalStorageState(
+    storageKeys.debugNetworkShell,
+    false,
+    storageNamespace
+  );
+  const [isDarkMode, setIsDarkMode] = useLocalStorageState(storageKeys.darkMode, false, storageNamespace);
 
   useEffect(() => {
     if (typeof document === 'undefined') {
@@ -609,12 +639,20 @@ function App() {
         onOpenDebugNetworkShell={null}
         isDarkMode={isDarkMode}
         onToggleDarkMode={() => setIsDarkMode((current) => !current)}
+        roomId={roomCode}
+        onLeaveRoom={onLeaveRoom ?? null}
+        storageNamespace={storageNamespace}
       />
     );
   }
 
   if (isDebugNetworkShellOpen) {
-    return <DebugNetworkShell onExit={() => setIsDebugNetworkShellOpen(false)} />;
+    return (
+      <DebugNetworkShell
+        onExit={() => setIsDebugNetworkShellOpen(false)}
+        storageNamespace={storageNamespace}
+      />
+    );
   }
 
   return (
@@ -624,17 +662,26 @@ function App() {
       onOpenDebugNetworkShell={() => setIsDebugNetworkShellOpen(true)}
       isDarkMode={isDarkMode}
       onToggleDarkMode={() => setIsDarkMode((current) => !current)}
+      roomId={roomCode}
+      onLeaveRoom={onLeaveRoom ?? null}
+      storageNamespace={storageNamespace}
     />
   );
 }
 
-function DebugNetworkShell({ onExit }: { onExit: () => void }) {
+function DebugNetworkShell({ onExit, storageNamespace }: { onExit: () => void; storageNamespace: string | null }) {
   const [storedPlayers, setStoredPlayers] = useLocalStorageState(
     storageKeys.debugNetworkPlayers,
     getDebugNetworkPlayersFromRoom()
+    ,
+    storageNamespace
   );
   const normalizedPlayers = useMemo(() => normalizeShellPlayers(storedPlayers), [storedPlayers]);
-  const [activePlayer, setActivePlayer] = useLocalStorageState(storageKeys.debugNetworkActivePlayer, normalizedPlayers[0]);
+  const [activePlayer, setActivePlayer] = useLocalStorageState(
+    storageKeys.debugNetworkActivePlayer,
+    normalizedPlayers[0],
+    storageNamespace
+  );
 
   useEffect(() => {
     if (arraysEqual(storedPlayers, normalizedPlayers)) {
@@ -766,13 +813,19 @@ function GameClient({
   framePlayerId,
   onOpenDebugNetworkShell,
   isDarkMode,
-  onToggleDarkMode
+  onToggleDarkMode,
+  roomId,
+  onLeaveRoom,
+  storageNamespace
 }: {
   runtime: ClientRuntime;
   framePlayerId: string | null;
   onOpenDebugNetworkShell: (() => void) | null;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
+  roomId: string;
+  onLeaveRoom: (() => void) | null;
+  storageNamespace: string | null;
 }) {
   const isDebugNetworkFrame = runtime === 'debug-network-frame';
 
@@ -790,11 +843,7 @@ function GameClient({
   const [pendingAction, setPendingAction] = useState<PendingCardAction>(null);
   const [endgamePanel, setEndgamePanel] = useState<'summary' | 'log'>('summary');
   const [wildColorHintTargetPlayerId, setWildColorHintTargetPlayerId] = useState<PlayerId | null>(null);
-  const [isDebugMode, setIsDebugMode] = useLocalStorageState(storageKeys.debugMode, false);
-  const storageNamespace = useMemo(
-    () => (isDebugNetworkFrame && framePlayerId ? createDebugNamespace(framePlayerId) : null),
-    [framePlayerId, isDebugNetworkFrame]
-  );
+  const [isDebugMode, setIsDebugMode] = useLocalStorageState(storageKeys.debugMode, false, storageNamespace);
   const [playerName, setPlayerName] = useLocalStorageState(storageKeys.playerName, '', storageNamespace);
   const [isTvMode, setIsTvMode] = useSessionStorageState(storageKeys.tvMode, false, storageNamespace);
   const [showNegativeColorHints, setShowNegativeColorHints] = useLocalStorageState(
@@ -850,7 +899,7 @@ function GameClient({
   });
 
   const isLocalDebugMode = !isDebugNetworkFrame && isDebugMode;
-  const online = useOnlineSession(!isLocalDebugMode && !isDebugNetworkFrame, DEFAULT_ROOM_ID);
+  const online = useOnlineSession(!isLocalDebugMode && !isDebugNetworkFrame, roomId);
   const debugNetwork = useDebugNetworkSession(isDebugNetworkFrame ? framePlayerId : null);
   const activeSession: OnlineSession = isDebugNetworkFrame ? debugNetwork : online;
   const onlineState = activeSession.state;
@@ -1014,6 +1063,25 @@ function GameClient({
     || onlineState.gameState === null
     || (!isOnlineParticipant && !showTv)
   );
+
+  const shouldAdvertiseRoom = !isLocalDebugMode
+    && !isDebugNetworkFrame
+    && onlineState.status === 'connected'
+    && onlineState.isHost
+    && onlineState.phase === 'lobby'
+    && isValidRoomCode(roomId);
+
+  const directoryMembers = useMemo(
+    () => onlineState.members.map((member) => ({ name: member.name, isTv: member.isTv })),
+    [onlineState.members]
+  );
+
+  useRoomDirectoryAdvertiser({
+    enabled: shouldAdvertiseRoom,
+    code: roomId,
+    snapshotVersion: onlineState.snapshotVersion,
+    members: directoryMembers
+  });
 
   const perspectivePlayerId = useMemo(() => {
     if (!activeGameState) {
@@ -2119,6 +2187,7 @@ function GameClient({
         isGameInProgress={onlineState.phase === 'playing' && !isOnlineParticipant}
         onStart={activeSession.startGame}
         onReconnect={activeSession.requestSync}
+        onLeaveRoom={onLeaveRoom}
         isDarkMode={isDarkMode}
         onToggleDarkMode={onToggleDarkMode}
         onEnableDebugMode={isDebugNetworkFrame ? null : handleEnableDebugMode}
@@ -2147,14 +2216,26 @@ function GameClient({
       <main className="lobby" data-testid="lobby-root">
         <section className="lobby-card">
           <h1 className="lobby-title">Waiting For Room Snapshot</h1>
-          <button
-            type="button"
-            className="lobby-button"
-            onClick={activeSession.requestSync}
-            data-testid="lobby-reconnect"
-          >
-            Reconnect
-          </button>
+          <div className="room-wait-actions">
+            <button
+              type="button"
+              className="lobby-button"
+              onClick={activeSession.requestSync}
+              data-testid="lobby-reconnect"
+            >
+              Reconnect
+            </button>
+            {onLeaveRoom && (
+              <button
+                type="button"
+                className="lobby-button subtle"
+                onClick={onLeaveRoom}
+                data-testid="lobby-leave-room"
+              >
+                Leave
+              </button>
+            )}
+          </div>
         </section>
       </main>
     );
@@ -2477,111 +2558,124 @@ function GameClient({
           onClick={closeMenu}
         />
 
-	        <aside className={`menu-panel ${isMenuOpen ? 'open' : ''}`} aria-hidden={!isMenuOpen}>
-	          <button
-	            type="button"
-	            className={`menu-item menu-danger ${isLeaveGameArmed ? 'armed' : ''}`}
-	            data-testid="menu-leave-game"
-	            onClick={handleLeaveGamePress}
-	          >
-	            {isLeaveGameArmed ? 'Are you sure?' : 'Leave game'}
-	          </button>
-	
-	          <section className="menu-section" aria-label="Configuration">
-	            <div className="menu-section-title">Config</div>
-	            <button
-	              type="button"
-	              className="menu-item menu-toggle-item"
-	              data-testid="menu-dark-mode-toggle"
-	              aria-pressed={isDarkMode}
-	              onClick={handleDarkModeToggle}
-	            >
-	              <span>Dark Mode</span>
-	              <span data-testid="menu-dark-mode-value">{isDarkMode ? 'On' : 'Off'}</span>
-	            </button>
-	            <button
-	              type="button"
-	              className="menu-item menu-toggle-item"
-	              data-testid="menu-negative-color-toggle"
-	              onClick={handleNegativeColorHintsToggle}
-	            >
-	              <span>Negative Color Hints</span>
-	              <span data-testid="menu-negative-color-value">{showNegativeColorHints ? 'On' : 'Off'}</span>
-	            </button>
-	            <button
-	              type="button"
-	              className="menu-item menu-toggle-item"
-	              data-testid="menu-negative-number-toggle"
-	              onClick={handleNegativeNumberHintsToggle}
-	            >
-	              <span>Negative Number Hints</span>
-	              <span data-testid="menu-negative-number-value">{showNegativeNumberHints ? 'On' : 'Off'}</span>
-	            </button>
-	            {!isLocalDebugMode && showReconnectAction && (
-	              <button
-	                type="button"
-	                className="menu-item"
-	                data-testid="menu-reconnect"
-	                onClick={handleReconnectPress}
-	              >
-	                Reconnect
-	              </button>
-	            )}
-	          </section>
-	
-	          <section className="menu-section" aria-label="Debug">
-	            <div className="menu-section-title">Debug</div>
-	            {!isDebugNetworkFrame && (
-	              <button
-	                type="button"
-	                className="menu-item menu-toggle-item"
-	                data-testid="menu-local-debug-toggle"
-	                onClick={handleLocalDebugToggle}
-	              >
-	                <span>Local Debug</span>
-	                <span data-testid="menu-local-debug-value">{isLocalDebugMode ? 'On' : 'Off'}</span>
-	              </button>
-	            )}
-	            <button
-	              type="button"
-	              className="menu-item"
-	              data-testid="menu-debug-copy-state"
-	              onClick={() => void handleCopyStatePress()}
-	            >
-	              Debug: Copy State
-	            </button>
-	            {!isDebugNetworkFrame && (
-	              <button
-	                type="button"
-	                className="menu-item"
-	                data-testid="menu-debug-load-state"
-	                onClick={() => void handleLoadStatePress()}
-	              >
-	                Debug: Load State
-	              </button>
-	            )}
-	            {onOpenDebugNetworkShell && (
-	              <button
-	                type="button"
-	                className="menu-item"
-	                data-testid="menu-debug-network"
-	                onClick={handleOpenDebugNetworkShell}
-	              >
-	                Debug Network
-	              </button>
-	            )}
-	          </section>
-	
-	          <a
-	            className="menu-item menu-link"
-	            data-testid="menu-view-github"
-	            href="https://github.com/smirea/hanabi"
-	            target="_blank"
-	            rel="noreferrer noopener"
-	          >
-	            View on GitHub
-	          </a>
-	        </aside>
+        <aside className={`menu-panel ${isMenuOpen ? 'open' : ''}`} aria-hidden={!isMenuOpen}>
+          <button
+            type="button"
+            className={`menu-item menu-danger ${isLeaveGameArmed ? 'armed' : ''}`}
+            data-testid="menu-leave-game"
+            onClick={handleLeaveGamePress}
+          >
+            {isLeaveGameArmed ? 'Are you sure?' : 'Leave game'}
+          </button>
+
+          <section className="menu-section" aria-label="Configuration">
+            <div className="menu-section-title">Config</div>
+            <button
+              type="button"
+              className="menu-item menu-toggle-item"
+              data-testid="menu-dark-mode-toggle"
+              aria-pressed={isDarkMode}
+              onClick={handleDarkModeToggle}
+            >
+              <span>Dark Mode</span>
+              <span data-testid="menu-dark-mode-value">{isDarkMode ? 'On' : 'Off'}</span>
+            </button>
+            <button
+              type="button"
+              className="menu-item menu-toggle-item"
+              data-testid="menu-negative-color-toggle"
+              onClick={handleNegativeColorHintsToggle}
+            >
+              <span>Negative Color Hints</span>
+              <span data-testid="menu-negative-color-value">{showNegativeColorHints ? 'On' : 'Off'}</span>
+            </button>
+            <button
+              type="button"
+              className="menu-item menu-toggle-item"
+              data-testid="menu-negative-number-toggle"
+              onClick={handleNegativeNumberHintsToggle}
+            >
+              <span>Negative Number Hints</span>
+              <span data-testid="menu-negative-number-value">{showNegativeNumberHints ? 'On' : 'Off'}</span>
+            </button>
+            {!isLocalDebugMode && showReconnectAction && (
+              <button
+                type="button"
+                className="menu-item"
+                data-testid="menu-reconnect"
+                onClick={handleReconnectPress}
+              >
+                Reconnect
+              </button>
+            )}
+            {!isLocalDebugMode && !isDebugNetworkFrame && onLeaveRoom && (
+              <button
+                type="button"
+                className="menu-item"
+                data-testid="menu-leave-room"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onLeaveRoom();
+                }}
+              >
+                Leave Room
+              </button>
+            )}
+          </section>
+
+          <section className="menu-section" aria-label="Debug">
+            <div className="menu-section-title">Debug</div>
+            {!isDebugNetworkFrame && (
+              <button
+                type="button"
+                className="menu-item menu-toggle-item"
+                data-testid="menu-local-debug-toggle"
+                onClick={handleLocalDebugToggle}
+              >
+                <span>Local Debug</span>
+                <span data-testid="menu-local-debug-value">{isLocalDebugMode ? 'On' : 'Off'}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              className="menu-item"
+              data-testid="menu-debug-copy-state"
+              onClick={() => void handleCopyStatePress()}
+            >
+              Debug: Copy State
+            </button>
+            {!isDebugNetworkFrame && (
+              <button
+                type="button"
+                className="menu-item"
+                data-testid="menu-debug-load-state"
+                onClick={() => void handleLoadStatePress()}
+              >
+                Debug: Load State
+              </button>
+            )}
+            {onOpenDebugNetworkShell && (
+              <button
+                type="button"
+                className="menu-item"
+                data-testid="menu-debug-network"
+                onClick={handleOpenDebugNetworkShell}
+              >
+                Debug Network
+              </button>
+            )}
+          </section>
+
+          <a
+            className="menu-item menu-link"
+            data-testid="menu-view-github"
+            href="https://github.com/smirea/hanabi"
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            View on GitHub
+          </a>
+        </aside>
       </>
 
       {isLogDrawerMounted && (
@@ -2986,6 +3080,7 @@ function LobbyScreen({
   isGameInProgress,
   onStart,
   onReconnect,
+  onLeaveRoom,
   isDarkMode,
   onToggleDarkMode,
   onEnableDebugMode,
@@ -3008,6 +3103,7 @@ function LobbyScreen({
   isGameInProgress: boolean;
   onStart: () => void;
   onReconnect: () => void;
+  onLeaveRoom: (() => void) | null;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
   onEnableDebugMode: (() => void) | null;
@@ -3082,6 +3178,16 @@ function LobbyScreen({
           <header className="lobby-header">
             <h1 className="lobby-title">Room Staging</h1>
             <div className="lobby-header-actions">
+              {onLeaveRoom && (
+                <button
+                  type="button"
+                  className="lobby-button subtle"
+                  onClick={onLeaveRoom}
+                  data-testid="lobby-leave-room"
+                >
+                  Leave
+                </button>
+              )}
               <button
                 type="button"
                 className="lobby-button subtle lobby-quick-toggle"

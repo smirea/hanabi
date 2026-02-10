@@ -21,3 +21,6 @@ output/playwright
 
 # other
 .DS_Store
+
+# Playwright CLI artifacts
+.playwright-cli/
