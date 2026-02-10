@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { installDebugNamespace } from './debugScreens';
 import { RouterProvider } from '@tanstack/react-router';
 import { router } from './router';
 import './index.css';
@@ -22,7 +23,7 @@ function resolveInitialDarkMode(): boolean {
   } catch {
   }
 
-  return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? false;
+  return false;
 }
 
 const rootElement = document.getElementById('root');
@@ -36,6 +37,8 @@ document.documentElement.dataset.theme = isDarkMode ? 'dark' : 'light';
 document
   .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
   ?.setAttribute('content', isDarkMode ? '#0b0d14' : '#f5f7fc');
+
+installDebugNamespace();
 
 createRoot(rootElement).render(
   <StrictMode>

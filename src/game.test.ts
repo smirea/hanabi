@@ -361,6 +361,7 @@ describe('HanabiGame', () => {
     expect(() => new HanabiGame({ playerNames: ['A', 'B', 'C', 'D', 'E', 'F'] })).toThrow(
       'Hanabi supports 2 to 5 players'
     );
+    expect(() => new HanabiGame({ playerNames: ['A', 'A'] })).toThrow('playerNames must be unique');
     expect(() => new HanabiGame({ playerNames: ['A', 'B'], playerIds: ['same', 'same'] })).toThrow(
       'playerIds must be unique'
     );
@@ -560,7 +561,7 @@ describe('HanabiGame', () => {
     }
   });
 
-  test('repeated exclusions are not duplicated across repeated hints', () => {
+  test('redundant hints are rejected and do not duplicate exclusions', () => {
     const game = new HanabiGame({
       playerNames: ['A', 'B'],
       deck: twoPlayerDeck(
@@ -573,10 +574,20 @@ describe('HanabiGame', () => {
     const targetCard = game.state.players[1].cards.find((cardId) => game.state.cards[cardId].suit !== 'R')!;
     game.giveColorHint('p2', 'R');
     game.giveNumberHint('p1', 1);
-    game.giveColorHint('p2', 'R');
 
     const exclusions = game.state.cards[targetCard].hints.notColors.filter((value) => value === 'R');
     expect(exclusions).toHaveLength(1);
+
+    const hintTokensBefore = game.state.hintTokens;
+    const currentPlayerBefore = game.state.players[game.state.currentTurnPlayerIndex]?.id ?? null;
+    expect(currentPlayerBefore).toBe('p1');
+
+    expect(() => game.giveColorHint('p2', 'R')).toThrow('Hint would provide no new information');
+    expect(game.state.hintTokens).toBe(hintTokensBefore);
+    expect(game.state.players[game.state.currentTurnPlayerIndex]?.id ?? null).toBe(currentPlayerBefore);
+
+    const exclusionsAfter = game.state.cards[targetCard].hints.notColors.filter((value) => value === 'R');
+    expect(exclusionsAfter).toHaveLength(1);
   });
 
   test('touched hint removes stale exclusions imported via snapshot', () => {

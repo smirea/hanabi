@@ -678,6 +678,62 @@ export class HanabiGame {
     }
 
     const touchedSet = new Set(touchedCardIds);
+
+    const redundant = (() => {
+      if (this.state.settings.multicolorWildHints && suit !== 'M') {
+        const allowedSuits: Suit[] = [suit, 'M'];
+        for (const cardId of targetPlayer.cards) {
+          const card = this.getCardOrThrow(cardId);
+          const touched = touchedSet.has(cardId);
+          const currentPossibleSuits = this.getPossibleSuits(card);
+          const nextPossibleSuits = touched
+            ? currentPossibleSuits.filter((candidate) => allowedSuits.includes(candidate))
+            : currentPossibleSuits.filter((candidate) => !allowedSuits.includes(candidate));
+
+          if (nextPossibleSuits.length === 0) {
+            return false;
+          }
+
+          if (currentPossibleSuits.length !== nextPossibleSuits.length) {
+            return false;
+          }
+
+          for (let index = 0; index < currentPossibleSuits.length; index += 1) {
+            if (currentPossibleSuits[index] !== nextPossibleSuits[index]) {
+              return false;
+            }
+          }
+        }
+
+        return true;
+      }
+
+      for (const cardId of targetPlayer.cards) {
+        const card = this.getCardOrThrow(cardId);
+        if (touchedSet.has(cardId)) {
+          if (card.hints.color !== suit) {
+            return false;
+          }
+
+          if (card.hints.notColors.includes(suit)) {
+            return false;
+          }
+
+          continue;
+        }
+
+        if (!card.hints.notColors.includes(suit)) {
+          return false;
+        }
+      }
+
+      return true;
+    })();
+
+    if (redundant) {
+      throw new Error('Hint would provide no new information');
+    }
+
     this.clearRecentHints();
     this.state.hintTokens -= 1;
 
@@ -715,6 +771,20 @@ export class HanabiGame {
     }
 
     const touchedSet = new Set(touchedCardIds);
+
+    const redundant = targetPlayer.cards.every((cardId) => {
+      const card = this.getCardOrThrow(cardId);
+      if (touchedSet.has(cardId)) {
+        return card.hints.number === number && !card.hints.notNumbers.includes(number);
+      }
+
+      return card.hints.notNumbers.includes(number);
+    });
+
+    if (redundant) {
+      throw new Error('Hint would provide no new information');
+    }
+
     this.clearRecentHints();
     this.state.hintTokens -= 1;
 
@@ -747,6 +817,9 @@ export class HanabiGame {
     for (const name of playerNames) {
       assert(typeof name === 'string' && name.trim().length > 0, 'player names must be non-empty strings');
     }
+
+    const uniquePlayerNames = new Set(playerNames.map((name) => name.trim().replace(/\s+/g, ' ').toLowerCase()));
+    assert(uniquePlayerNames.size === playerNames.length, 'playerNames must be unique');
 
     const includeMulticolor = input?.includeMulticolor ?? false;
     const multicolorShortDeck = input?.multicolorShortDeck ?? false;

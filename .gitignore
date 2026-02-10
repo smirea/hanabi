@@ -3,6 +3,8 @@ node_modules
 # output
 out
 dist
+output/playwright
+.playwright-cli
 *.tgz
 
 # dotenv environment variable files
