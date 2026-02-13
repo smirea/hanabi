@@ -88,7 +88,7 @@ function findTeammateCardIndexWithNumberOverOne(playerId: string): number {
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
-  window.location.hash = '';
+  window.history.replaceState(null, '', '/');
 });
 
 describe('App local debug wiring', () => {
@@ -244,6 +244,21 @@ describe('App local debug wiring', () => {
     cleanup();
     render(<App />);
     expect(screen.getByTestId('lobby-name-input')).toHaveValue('Stefan');
+  });
+
+  test('staging lobby room follows the room query param and updates URL when changed', () => {
+    window.localStorage.setItem('hanabi.debug_mode', 'false');
+    window.history.replaceState(null, '', '/?room=alpha_7');
+    render(<App />);
+
+    expect(screen.getByTestId('lobby-room-line')).toHaveTextContent('Room alpha_7');
+    expect((screen.getByTestId('lobby-room-input') as HTMLInputElement).value).toBe('alpha_7');
+
+    fireEvent.change(screen.getByTestId('lobby-room-input'), { target: { value: 'table-42' } });
+    fireEvent.click(screen.getByTestId('lobby-room-apply'));
+
+    expect(screen.getByTestId('lobby-room-line')).toHaveTextContent('Room table-42');
+    expect(window.location.search).toBe('?room=table-42');
   });
 
   test('debug network frames namespace player config by debug id', () => {

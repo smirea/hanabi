@@ -55,6 +55,8 @@ const LOCAL_DEBUG_SETUP = {
 };
 
 const MAX_PEG_PIPS = 4;
+const ROOM_QUERY_PARAM = 'room';
+const ROOM_ID_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9_-]{0,31})$/;
 
 type PegPipState = 'filled' | 'hollow' | 'unused';
 type PendingCardAction = 'play' | 'discard' | 'hint-color' | 'hint-number' | null;
@@ -524,6 +526,54 @@ function sanitizeLobbyName(raw: string): string | null {
   return trimmed.slice(0, 24);
 }
 
+function normalizeRoomId(raw: string | null | undefined): string | null {
+  if (typeof raw !== 'string') {
+    return null;
+  }
+
+  const normalized = raw.trim();
+  if (!ROOM_ID_PATTERN.test(normalized)) {
+    return null;
+  }
+
+  return normalized;
+}
+
+function resolveRoomIdFromUrl(url: URL): string {
+  return normalizeRoomId(url.searchParams.get(ROOM_QUERY_PARAM)) ?? DEFAULT_ROOM_ID;
+}
+
+function writeRoomIdToHistory(roomId: string, mode: 'push' | 'replace'): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const normalizedRoomId = normalizeRoomId(roomId);
+  if (!normalizedRoomId) {
+    throw new Error('Room id must be 1-32 chars using letters, numbers, "-" or "_"');
+  }
+
+  const url = new URL(window.location.href);
+  if (normalizedRoomId === DEFAULT_ROOM_ID) {
+    url.searchParams.delete(ROOM_QUERY_PARAM);
+  } else {
+    url.searchParams.set(ROOM_QUERY_PARAM, normalizedRoomId);
+  }
+
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  if (nextUrl === currentUrl) {
+    return;
+  }
+
+  if (mode === 'push') {
+    window.history.pushState(null, '', nextUrl);
+    return;
+  }
+
+  window.history.replaceState(null, '', nextUrl);
+}
+
 async function writeToClipboard(text: string): Promise<void> {
   if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(text);
@@ -572,6 +622,18 @@ function App({
   roomCode?: string;
   onLeaveRoom?: () => void;
 }) {
+  const allowRoomQueryRouting = roomCode === DEFAULT_ROOM_ID;
+  const [roomId, setRoomId] = useState<string>(() => {
+    if (!allowRoomQueryRouting) {
+      return roomCode;
+    }
+
+    if (typeof window === 'undefined') {
+      return DEFAULT_ROOM_ID;
+    }
+
+    return resolveRoomIdFromUrl(new URL(window.location.href));
+  });
   const [hash, setHash] = useState(() => {
     if (typeof window === 'undefined') {
       return '';
@@ -604,6 +666,63 @@ function App({
     };
   }, []);
 
+  useEffect(() => {
+    if (!allowRoomQueryRouting) {
+      const normalizedRoomId = normalizeRoomId(roomCode);
+      if (!normalizedRoomId) {
+        throw new Error('Room code must be 1-32 chars using letters, numbers, "-" or "_"');
+      }
+
+      setRoomId(normalizedRoomId);
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      setRoomId(DEFAULT_ROOM_ID);
+      return;
+    }
+
+    setRoomId(resolveRoomIdFromUrl(new URL(window.location.href)));
+  }, [allowRoomQueryRouting, roomCode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !allowRoomQueryRouting) {
+      return;
+    }
+
+    const onPopState = (): void => {
+      setRoomId(resolveRoomIdFromUrl(new URL(window.location.href)));
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+    };
+  }, [allowRoomQueryRouting]);
+
+  useEffect(() => {
+    if (!allowRoomQueryRouting) {
+      return;
+    }
+
+    writeRoomIdToHistory(roomId, 'replace');
+  }, [allowRoomQueryRouting, roomId]);
+
+  const handleRoomIdChange = useCallback((nextRoomId: string): void => {
+    const normalizedRoomId = normalizeRoomId(nextRoomId);
+    if (!normalizedRoomId) {
+      throw new Error('Room id must be 1-32 chars using letters, numbers, "-" or "_"');
+    }
+
+    if (normalizedRoomId === roomId) {
+      writeRoomIdToHistory(normalizedRoomId, 'replace');
+      return;
+    }
+
+    setRoomId(normalizedRoomId);
+    writeRoomIdToHistory(normalizedRoomId, 'push');
+  }, [roomId]);
+
   const storageNamespace = useMemo(() => {
     if (debugFramePlayerId) {
       return createDebugNamespace(debugFramePlayerId);
@@ -635,11 +754,12 @@ function App({
     return (
       <GameClient
         runtime="debug-network-frame"
+        roomId={roomId}
         framePlayerId={debugFramePlayerId}
+        onRoomIdChange={null}
         onOpenDebugNetworkShell={null}
         isDarkMode={isDarkMode}
         onToggleDarkMode={() => setIsDarkMode((current) => !current)}
-        roomId={roomCode}
         onLeaveRoom={onLeaveRoom ?? null}
         storageNamespace={storageNamespace}
       />
@@ -658,11 +778,12 @@ function App({
   return (
     <GameClient
       runtime="standard"
+      roomId={roomId}
       framePlayerId={null}
+      onRoomIdChange={allowRoomQueryRouting ? handleRoomIdChange : null}
       onOpenDebugNetworkShell={() => setIsDebugNetworkShellOpen(true)}
       isDarkMode={isDarkMode}
       onToggleDarkMode={() => setIsDarkMode((current) => !current)}
-      roomId={roomCode}
       onLeaveRoom={onLeaveRoom ?? null}
       storageNamespace={storageNamespace}
     />
@@ -810,20 +931,22 @@ function DebugNetworkShell({ onExit, storageNamespace }: { onExit: () => void; s
 
 function GameClient({
   runtime,
+  roomId,
   framePlayerId,
+  onRoomIdChange,
   onOpenDebugNetworkShell,
   isDarkMode,
   onToggleDarkMode,
-  roomId,
   onLeaveRoom,
   storageNamespace
 }: {
   runtime: ClientRuntime;
+  roomId: string;
   framePlayerId: string | null;
+  onRoomIdChange: ((nextRoomId: string) => void) | null;
   onOpenDebugNetworkShell: (() => void) | null;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
-  roomId: string;
   onLeaveRoom: (() => void) | null;
   storageNamespace: string | null;
 }) {
@@ -2171,7 +2294,7 @@ function GameClient({
   if (showLobby) {
     return (
       <LobbyScreen
-        roomId={onlineState.roomId}
+        roomId={roomId}
         status={onlineState.status}
         error={onlineState.error}
         members={onlineState.members}
@@ -2190,6 +2313,7 @@ function GameClient({
         onLeaveRoom={onLeaveRoom}
         isDarkMode={isDarkMode}
         onToggleDarkMode={onToggleDarkMode}
+        onRoomIdChange={isDebugNetworkFrame ? null : onRoomIdChange}
         onEnableDebugMode={isDebugNetworkFrame ? null : handleEnableDebugMode}
         onEnableDebugNetwork={isDebugNetworkFrame ? null : handleOpenDebugNetworkShell}
         onUpdateSettings={activeSession.updateSettings}
@@ -2213,31 +2337,11 @@ function GameClient({
 
   if (!activeGameState || !perspective) {
     return (
-      <main className="lobby" data-testid="lobby-root">
-        <section className="lobby-card">
-          <h1 className="lobby-title">Waiting For Room Snapshot</h1>
-          <div className="room-wait-actions">
-            <button
-              type="button"
-              className="lobby-button"
-              onClick={activeSession.requestSync}
-              data-testid="lobby-reconnect"
-            >
-              Reconnect
-            </button>
-            {onLeaveRoom && (
-              <button
-                type="button"
-                className="lobby-button subtle"
-                onClick={onLeaveRoom}
-                data-testid="lobby-leave-room"
-              >
-                Leave
-              </button>
-            )}
-          </div>
-        </section>
-      </main>
+      <LobbyWaitingForSnapshot
+        roomId={roomId}
+        onReconnect={activeSession.requestSync}
+        onLeaveRoom={onLeaveRoom}
+      />
     );
   }
 
@@ -3083,6 +3187,7 @@ function LobbyScreen({
   onLeaveRoom,
   isDarkMode,
   onToggleDarkMode,
+  onRoomIdChange,
   onEnableDebugMode,
   onEnableDebugNetwork,
   onUpdateSettings
@@ -3106,6 +3211,7 @@ function LobbyScreen({
   onLeaveRoom: (() => void) | null;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
+  onRoomIdChange: ((nextRoomId: string) => void) | null;
   onEnableDebugMode: (() => void) | null;
   onEnableDebugNetwork: (() => void) | null;
   onUpdateSettings: (next: Partial<LobbySettings>) => void;
@@ -3123,6 +3229,28 @@ function LobbyScreen({
   const deckSize = 50 + (settings.includeMulticolor ? (settings.multicolorShortDeck ? 5 : 10) : 0);
   const maxScore = (settings.includeMulticolor ? 6 : 5) * 5;
   const defaultNamePlaceholder = selfId ? `Player ${selfId.slice(-4).toUpperCase()}` : 'Player';
+  const [roomDraft, setRoomDraft] = useState(roomId);
+  const [roomError, setRoomError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRoomDraft(roomId);
+    setRoomError(null);
+  }, [roomId]);
+
+  function handleRoomSubmit(): void {
+    if (!onRoomIdChange) {
+      return;
+    }
+
+    const normalizedRoomId = normalizeRoomId(roomDraft);
+    if (!normalizedRoomId) {
+      setRoomError('Use 1-32 letters/numbers plus "-" or "_".');
+      return;
+    }
+
+    setRoomError(null);
+    onRoomIdChange(normalizedRoomId);
+  }
   const configRows = [
     {
       id: 'extra-suit',
@@ -3172,11 +3300,33 @@ function LobbyScreen({
   ] as const;
 
   return (
-    <main className="lobby" data-testid="lobby-root">
-      <section className="lobby-card">
+    <main className="app lobby-app" data-testid="lobby-root">
+      <section className="stats lobby-shell-stats">
+        <div className="stat lobby-shell-stat" data-testid="lobby-shell-room">
+          <span className="lobby-shell-stat-label">Room</span>
+          <span className="lobby-shell-stat-value">{roomId}</span>
+        </div>
+        <div className="stat lobby-shell-stat" data-testid="lobby-shell-players">
+          <span className="lobby-shell-stat-label">Players</span>
+          <span className="lobby-shell-stat-value">{seatedCount}</span>
+        </div>
+        <div className="stat lobby-shell-stat" data-testid="lobby-shell-tv">
+          <span className="lobby-shell-stat-label">TV</span>
+          <span className="lobby-shell-stat-value">{tvCount}</span>
+        </div>
+      </section>
+
+      <section className="lobby-shell-banner">
+        <p className="lobby-shell-kicker">Hanabi Online</p>
+        <h1 className="lobby-shell-title">Room Staging</h1>
+        <p className="lobby-shell-subtitle">Join the room, pick your role, then wait for the host to begin.</p>
+      </section>
+
+      <section className="lobby-shell-body">
+        <section className="lobby-card">
         <div className="lobby-summary">
           <header className="lobby-header">
-            <h1 className="lobby-title">Room Staging</h1>
+            <h2 className="lobby-title">Setup</h2>
             <div className="lobby-header-actions">
               {onLeaveRoom && (
                 <button
@@ -3232,6 +3382,42 @@ function LobbyScreen({
             </div>
           </header>
 
+          <div className="lobby-room-route" data-testid="lobby-room-route">
+            <label className="lobby-name-label" htmlFor="lobby-room-input">
+              <span className="lobby-name-label-title">Room ID</span>
+              <span className="lobby-name-label-subtitle">Share this query-param link to invite others.</span>
+            </label>
+            <form
+              className="lobby-room-route-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                handleRoomSubmit();
+              }}
+            >
+              <input
+                id="lobby-room-input"
+                className="lobby-room-input"
+                value={roomDraft}
+                onChange={(event) => {
+                  setRoomDraft(event.target.value);
+                  setRoomError(null);
+                }}
+                readOnly={!onRoomIdChange}
+                placeholder="room-alpha"
+                maxLength={32}
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+                data-testid="lobby-room-input"
+              />
+              {onRoomIdChange && (
+                <button type="submit" className="lobby-button subtle lobby-room-apply" data-testid="lobby-room-apply">
+                  Open
+                </button>
+              )}
+            </form>
+          </div>
+
           <p className="lobby-room-line" data-testid="lobby-room-line">Room {roomId}</p>
 
           <div className="lobby-name-row" data-testid="lobby-name-row">
@@ -3251,6 +3437,12 @@ function LobbyScreen({
               data-testid="lobby-name-input"
             />
           </div>
+
+          {roomError && (
+            <p className="lobby-note error" data-testid="lobby-room-error">
+              {roomError}
+            </p>
+          )}
 
           {error && (
             <p className="lobby-note error" data-testid="lobby-error">
@@ -3362,6 +3554,66 @@ function LobbyScreen({
               Waiting on {host?.name ?? 'host'} to start.
             </p>
           )}
+        </section>
+        </section>
+      </section>
+    </main>
+  );
+}
+
+function LobbyWaitingForSnapshot({
+  roomId,
+  onReconnect,
+  onLeaveRoom
+}: {
+  roomId: string;
+  onReconnect: () => void;
+  onLeaveRoom: (() => void) | null;
+}) {
+  return (
+    <main className="app lobby-app" data-testid="lobby-root">
+      <section className="stats lobby-shell-stats">
+        <div className="stat lobby-shell-stat" data-testid="lobby-shell-room">
+          <span className="lobby-shell-stat-label">Room</span>
+          <span className="lobby-shell-stat-value">{roomId}</span>
+        </div>
+        <div className="stat lobby-shell-stat" data-testid="lobby-shell-players">
+          <span className="lobby-shell-stat-label">Players</span>
+          <span className="lobby-shell-stat-value">-</span>
+        </div>
+        <div className="stat lobby-shell-stat" data-testid="lobby-shell-tv">
+          <span className="lobby-shell-stat-label">Sync</span>
+          <span className="lobby-shell-stat-value">...</span>
+        </div>
+      </section>
+      <section className="lobby-shell-banner">
+        <p className="lobby-shell-kicker">Hanabi Online</p>
+        <h1 className="lobby-shell-title">Connecting To Room</h1>
+        <p className="lobby-shell-subtitle">Waiting for a host snapshot in room {roomId}.</p>
+      </section>
+      <section className="lobby-shell-body">
+        <section className="lobby-card lobby-card-compact">
+          <p className="lobby-note warning">Waiting For Room Snapshot</p>
+          <div className="room-wait-actions">
+            <button
+              type="button"
+              className="lobby-button primary"
+              onClick={onReconnect}
+              data-testid="lobby-reconnect"
+            >
+              Reconnect
+            </button>
+            {onLeaveRoom && (
+              <button
+                type="button"
+                className="lobby-button subtle"
+                onClick={onLeaveRoom}
+                data-testid="lobby-leave-room"
+              >
+                Leave
+              </button>
+            )}
+          </div>
         </section>
       </section>
     </main>
