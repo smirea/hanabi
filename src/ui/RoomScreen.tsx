@@ -26,10 +26,29 @@ export function RoomScreen({ code }: { code: string }) {
 
   if (!isValid) {
     return (
-      <main className="lobby" data-testid="room-invalid-root">
-        <section className="lobby-card">
-          <header className="lobby-header">
-            <h1 className="lobby-title">Invalid Room</h1>
+      <main className="app lobby-app" data-testid="room-invalid-root">
+        <section className="stats lobby-shell-stats">
+          <div className="stat lobby-shell-stat" data-testid="room-invalid-shell-room">
+            <span className="lobby-shell-stat-label">Room</span>
+            <span className="lobby-shell-stat-value">{code.toUpperCase() || 'Unknown'}</span>
+          </div>
+          <div className="stat lobby-shell-stat" data-testid="room-invalid-shell-status">
+            <span className="lobby-shell-stat-label">Status</span>
+            <span className="lobby-shell-stat-value">Invalid</span>
+          </div>
+          <div className="stat lobby-shell-stat" data-testid="room-invalid-shell-format">
+            <span className="lobby-shell-stat-label">Format</span>
+            <span className="lobby-shell-stat-value">4 letters</span>
+          </div>
+        </section>
+        <section className="lobby-shell-banner">
+          <p className="lobby-shell-kicker">Hanabi Online</p>
+          <h1 className="lobby-shell-title">Invalid Room</h1>
+          <p className="lobby-shell-subtitle">Room codes must be 4 letters (A-Z).</p>
+        </section>
+        <section className="lobby-shell-body">
+          <section className="lobby-card lobby-card-compact">
+            <p className="lobby-note error">Room codes must be 4 letters (A-Z).</p>
             <button
               type="button"
               className="lobby-button"
@@ -38,8 +57,7 @@ export function RoomScreen({ code }: { code: string }) {
             >
               Back
             </button>
-          </header>
-          <p className="lobby-note error">Room codes must be 4 letters (A-Z).</p>
+          </section>
         </section>
       </main>
     );
