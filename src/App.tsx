@@ -4,6 +4,7 @@ import {
   CardsThree,
   Drop,
   Fire,
+  GearSix,
   Heart,
   Leaf,
   LightbulbFilament,
@@ -708,21 +709,6 @@ function App({
     writeRoomIdToHistory(roomId, 'replace');
   }, [allowRoomQueryRouting, roomId]);
 
-  const handleRoomIdChange = useCallback((nextRoomId: string): void => {
-    const normalizedRoomId = normalizeRoomId(nextRoomId);
-    if (!normalizedRoomId) {
-      throw new Error('Room id must be 1-32 chars using letters, numbers, "-" or "_"');
-    }
-
-    if (normalizedRoomId === roomId) {
-      writeRoomIdToHistory(normalizedRoomId, 'replace');
-      return;
-    }
-
-    setRoomId(normalizedRoomId);
-    writeRoomIdToHistory(normalizedRoomId, 'push');
-  }, [roomId]);
-
   const storageNamespace = useMemo(() => {
     if (debugFramePlayerId) {
       return createDebugNamespace(debugFramePlayerId);
@@ -756,7 +742,6 @@ function App({
         runtime="debug-network-frame"
         roomId={roomId}
         framePlayerId={debugFramePlayerId}
-        onRoomIdChange={null}
         onOpenDebugNetworkShell={null}
         isDarkMode={isDarkMode}
         onToggleDarkMode={() => setIsDarkMode((current) => !current)}
@@ -780,7 +765,6 @@ function App({
       runtime="standard"
       roomId={roomId}
       framePlayerId={null}
-      onRoomIdChange={allowRoomQueryRouting ? handleRoomIdChange : null}
       onOpenDebugNetworkShell={() => setIsDebugNetworkShellOpen(true)}
       isDarkMode={isDarkMode}
       onToggleDarkMode={() => setIsDarkMode((current) => !current)}
@@ -933,7 +917,6 @@ function GameClient({
   runtime,
   roomId,
   framePlayerId,
-  onRoomIdChange,
   onOpenDebugNetworkShell,
   isDarkMode,
   onToggleDarkMode,
@@ -943,7 +926,6 @@ function GameClient({
   runtime: ClientRuntime;
   roomId: string;
   framePlayerId: string | null;
-  onRoomIdChange: ((nextRoomId: string) => void) | null;
   onOpenDebugNetworkShell: (() => void) | null;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
@@ -2313,7 +2295,6 @@ function GameClient({
         onLeaveRoom={onLeaveRoom}
         isDarkMode={isDarkMode}
         onToggleDarkMode={onToggleDarkMode}
-        onRoomIdChange={isDebugNetworkFrame ? null : onRoomIdChange}
         onEnableDebugMode={isDebugNetworkFrame ? null : handleEnableDebugMode}
         onEnableDebugNetwork={isDebugNetworkFrame ? null : handleOpenDebugNetworkShell}
         onUpdateSettings={activeSession.updateSettings}
@@ -3187,7 +3168,6 @@ function LobbyScreen({
   onLeaveRoom,
   isDarkMode,
   onToggleDarkMode,
-  onRoomIdChange,
   onEnableDebugMode,
   onEnableDebugNetwork,
   onUpdateSettings
@@ -3211,7 +3191,6 @@ function LobbyScreen({
   onLeaveRoom: (() => void) | null;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
-  onRoomIdChange: ((nextRoomId: string) => void) | null;
   onEnableDebugMode: (() => void) | null;
   onEnableDebugNetwork: (() => void) | null;
   onUpdateSettings: (next: Partial<LobbySettings>) => void;
@@ -3229,27 +3208,45 @@ function LobbyScreen({
   const deckSize = 50 + (settings.includeMulticolor ? (settings.multicolorShortDeck ? 5 : 10) : 0);
   const maxScore = (settings.includeMulticolor ? 6 : 5) * 5;
   const defaultNamePlaceholder = selfId ? `Player ${selfId.slice(-4).toUpperCase()}` : 'Player';
-  const [roomDraft, setRoomDraft] = useState(roomId);
-  const [roomError, setRoomError] = useState<string | null>(null);
+  const [isConfigMenuOpen, setIsConfigMenuOpen] = useState(false);
+  const configMenuRef = useRef<HTMLDivElement | null>(null);
+  const hasDebugActions = Boolean(onEnableDebugMode || onEnableDebugNetwork);
 
   useEffect(() => {
-    setRoomDraft(roomId);
-    setRoomError(null);
-  }, [roomId]);
-
-  function handleRoomSubmit(): void {
-    if (!onRoomIdChange) {
+    if (!isConfigMenuOpen) {
       return;
     }
 
-    const normalizedRoomId = normalizeRoomId(roomDraft);
-    if (!normalizedRoomId) {
-      setRoomError('Use 1-32 letters/numbers plus "-" or "_".');
-      return;
+    function handlePointerDown(event: PointerEvent): void {
+      const menuNode = configMenuRef.current;
+      if (!menuNode) {
+        setIsConfigMenuOpen(false);
+        return;
+      }
+
+      if (!menuNode.contains(event.target as Node)) {
+        setIsConfigMenuOpen(false);
+      }
     }
 
-    setRoomError(null);
-    onRoomIdChange(normalizedRoomId);
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key === 'Escape') {
+        setIsConfigMenuOpen(false);
+      }
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isConfigMenuOpen]);
+
+  function handleConfigAction(action: () => void): void {
+    setIsConfigMenuOpen(false);
+    action();
   }
   const configRows = [
     {
@@ -3301,148 +3298,98 @@ function LobbyScreen({
 
   return (
     <main className="app lobby-app" data-testid="lobby-root">
-      <section className="stats lobby-shell-stats">
-        <div className="stat lobby-shell-stat" data-testid="lobby-shell-room">
-          <span className="lobby-shell-stat-label">Room</span>
-          <span className="lobby-shell-stat-value">{roomId}</span>
-        </div>
-        <div className="stat lobby-shell-stat" data-testid="lobby-shell-players">
-          <span className="lobby-shell-stat-label">Players</span>
-          <span className="lobby-shell-stat-value">{seatedCount}</span>
-        </div>
-        <div className="stat lobby-shell-stat" data-testid="lobby-shell-tv">
-          <span className="lobby-shell-stat-label">TV</span>
-          <span className="lobby-shell-stat-value">{tvCount}</span>
-        </div>
-      </section>
-
-      <section className="lobby-shell-banner">
-        <p className="lobby-shell-kicker">Hanabi Online</p>
-        <h1 className="lobby-shell-title">Room Staging</h1>
-        <p className="lobby-shell-subtitle">Join the room, pick your role, then wait for the host to begin.</p>
-      </section>
-
       <section className="lobby-shell-body">
         <section className="lobby-card">
         <div className="lobby-summary">
           <header className="lobby-header">
-            <h2 className="lobby-title">Setup</h2>
+            <div className="lobby-header-start">
+              <div className="lobby-config-menu" ref={configMenuRef}>
+                <button
+                  type="button"
+                  className="lobby-button subtle lobby-config-toggle"
+                  aria-haspopup="menu"
+                  aria-expanded={isConfigMenuOpen}
+                  aria-label="Open lobby settings"
+                  onClick={() => setIsConfigMenuOpen((open) => !open)}
+                  data-testid="lobby-config-toggle"
+                >
+                  <GearSix size={16} weight="bold" aria-hidden />
+                </button>
+                {isConfigMenuOpen && (
+                  <div className="lobby-config-dropdown" role="menu" data-testid="lobby-config-dropdown">
+                    <button
+                      type="button"
+                      className="lobby-config-dropdown-item"
+                      onClick={() => handleConfigAction(onToggleDarkMode)}
+                      role="menuitem"
+                      data-testid="lobby-theme-toggle"
+                    >
+                      <span>Dark mode</span>
+                      <span>{isDarkMode ? 'On' : 'Off'}</span>
+                    </button>
+                    {hasDebugActions && (
+                      <div className="lobby-config-divider" role="separator" />
+                    )}
+                    {onEnableDebugMode && (
+                      <button
+                        type="button"
+                        className="lobby-config-dropdown-item"
+                        onClick={() => handleConfigAction(onEnableDebugMode)}
+                        role="menuitem"
+                        data-testid="lobby-debug-mode"
+                      >
+                        Debug local
+                      </button>
+                    )}
+                    {onEnableDebugNetwork && (
+                      <button
+                        type="button"
+                        className="lobby-config-dropdown-item"
+                        onClick={() => handleConfigAction(onEnableDebugNetwork)}
+                        role="menuitem"
+                        data-testid="lobby-debug-network"
+                      >
+                        Debug network
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="lobby-header-actions">
               {onLeaveRoom && (
                 <button
                   type="button"
-                  className="lobby-button subtle"
+                  className="lobby-button primary"
                   onClick={onLeaveRoom}
                   data-testid="lobby-leave-room"
                 >
                   Leave
                 </button>
               )}
-              <button
-                type="button"
-                className="lobby-button subtle lobby-quick-toggle"
-                onClick={onToggleDarkMode}
-                aria-pressed={isDarkMode}
-                data-testid="lobby-theme-toggle"
-              >
-                <span className="lobby-quick-text">
-                  <span className="lobby-quick-label">Dark mode</span>
-                  <span className="lobby-quick-subtitle">Applies on this device only.</span>
-                </span>
-                <span className="lobby-quick-value">{isDarkMode ? 'On' : 'Off'}</span>
-              </button>
-              {onEnableDebugMode && (
-                <button
-                  type="button"
-                  className="lobby-button subtle lobby-quick-toggle"
-                  onClick={onEnableDebugMode}
-                  data-testid="lobby-debug-mode"
-                >
-                  <span className="lobby-quick-text">
-                    <span className="lobby-quick-label">Debug local</span>
-                    <span className="lobby-quick-subtitle">Switch to a local sandbox game.</span>
-                  </span>
-                  <span className="lobby-quick-value">Enable</span>
-                </button>
-              )}
-              {onEnableDebugNetwork && (
-                <button
-                  type="button"
-                  className="lobby-button subtle lobby-quick-toggle"
-                  onClick={onEnableDebugNetwork}
-                  data-testid="lobby-debug-network"
-                >
-                  <span className="lobby-quick-text">
-                    <span className="lobby-quick-label">Debug network</span>
-                    <span className="lobby-quick-subtitle">Open the multi-client simulator.</span>
-                  </span>
-                  <span className="lobby-quick-value">Open</span>
-                </button>
-              )}
             </div>
           </header>
 
-          <div className="lobby-room-route" data-testid="lobby-room-route">
-            <label className="lobby-name-label" htmlFor="lobby-room-input">
-              <span className="lobby-name-label-title">Room ID</span>
-              <span className="lobby-name-label-subtitle">Share this query-param link to invite others.</span>
-            </label>
-            <form
-              className="lobby-room-route-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                handleRoomSubmit();
-              }}
-            >
+          <div className="lobby-identity-grid" data-testid="lobby-identity-grid">
+            <div className="lobby-identity-field">
+              <label className="lobby-identity-label" htmlFor="lobby-name-input">Name</label>
               <input
-                id="lobby-room-input"
-                className="lobby-room-input"
-                value={roomDraft}
-                onChange={(event) => {
-                  setRoomDraft(event.target.value);
-                  setRoomError(null);
-                }}
-                readOnly={!onRoomIdChange}
-                placeholder="room-alpha"
-                maxLength={32}
+                id="lobby-name-input"
+                className="lobby-name-input"
+                value={selfName}
+                onChange={(event) => onSelfNameChange(event.target.value)}
+                placeholder={defaultNamePlaceholder}
+                maxLength={24}
+                autoComplete="nickname"
                 spellCheck={false}
-                autoCapitalize="off"
-                autoCorrect="off"
-                data-testid="lobby-room-input"
+                data-testid="lobby-name-input"
               />
-              {onRoomIdChange && (
-                <button type="submit" className="lobby-button subtle lobby-room-apply" data-testid="lobby-room-apply">
-                  Open
-                </button>
-              )}
-            </form>
+            </div>
+            <div className="lobby-identity-field">
+              <span className="lobby-identity-label">Room</span>
+              <p className="lobby-room-code" data-testid="lobby-room-code">{roomId}</p>
+            </div>
           </div>
-
-          <p className="lobby-room-line" data-testid="lobby-room-line">Room {roomId}</p>
-
-          <div className="lobby-name-row" data-testid="lobby-name-row">
-            <label className="lobby-name-label" htmlFor="lobby-name-input">
-              <span className="lobby-name-label-title">Name</span>
-              <span className="lobby-name-label-subtitle">Shown to other players.</span>
-            </label>
-            <input
-              id="lobby-name-input"
-              className="lobby-name-input"
-              value={selfName}
-              onChange={(event) => onSelfNameChange(event.target.value)}
-              placeholder={defaultNamePlaceholder}
-              maxLength={24}
-              autoComplete="nickname"
-              spellCheck={false}
-              data-testid="lobby-name-input"
-            />
-          </div>
-
-          {roomError && (
-            <p className="lobby-note error" data-testid="lobby-room-error">
-              {roomError}
-            </p>
-          )}
 
           {error && (
             <p className="lobby-note error" data-testid="lobby-error">
@@ -3473,17 +3420,17 @@ function LobbyScreen({
                 </div>
                 <div className="lobby-chip-row">
                   {member.peerId === hostId && <span className="lobby-chip host">Host</span>}
-                  {member.isTv && <span className="lobby-chip tv">TV</span>}
+                  {member.isTv && member.peerId !== selfId && <span className="lobby-chip tv">TV</span>}
                   {member.peerId === selfId && (
                     <button
                       type="button"
                       className={`lobby-tv-toggle ${selfIsTv ? 'on' : 'off'}`}
                       onClick={() => onSelfIsTvChange(!selfIsTv)}
                       aria-pressed={selfIsTv}
+                      aria-label={selfIsTv ? 'Disable TV mode' : 'Enable TV mode'}
                       data-testid="lobby-tv-toggle"
                     >
-                      <span>TV</span>
-                      <span>{selfIsTv ? 'On' : 'Off'}</span>
+                      TV
                     </button>
                   )}
                 </div>
@@ -3572,28 +3519,9 @@ function LobbyWaitingForSnapshot({
 }) {
   return (
     <main className="app lobby-app" data-testid="lobby-root">
-      <section className="stats lobby-shell-stats">
-        <div className="stat lobby-shell-stat" data-testid="lobby-shell-room">
-          <span className="lobby-shell-stat-label">Room</span>
-          <span className="lobby-shell-stat-value">{roomId}</span>
-        </div>
-        <div className="stat lobby-shell-stat" data-testid="lobby-shell-players">
-          <span className="lobby-shell-stat-label">Players</span>
-          <span className="lobby-shell-stat-value">-</span>
-        </div>
-        <div className="stat lobby-shell-stat" data-testid="lobby-shell-tv">
-          <span className="lobby-shell-stat-label">Sync</span>
-          <span className="lobby-shell-stat-value">...</span>
-        </div>
-      </section>
-      <section className="lobby-shell-banner">
-        <p className="lobby-shell-kicker">Hanabi Online</p>
-        <h1 className="lobby-shell-title">Connecting To Room</h1>
-        <p className="lobby-shell-subtitle">Waiting for a host snapshot in room {roomId}.</p>
-      </section>
       <section className="lobby-shell-body">
         <section className="lobby-card lobby-card-compact">
-          <p className="lobby-note warning">Waiting For Room Snapshot</p>
+          <p className="lobby-note warning">Waiting for room snapshot in room {roomId}.</p>
           <div className="room-wait-actions">
             <button
               type="button"

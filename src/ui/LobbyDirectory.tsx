@@ -13,17 +13,6 @@ export function LobbyDirectory() {
   const canJoin = isValidRoomCode(normalizedJoin);
 
   const visibleRooms = useMemo(() => directory.rooms, [directory.rooms]);
-  const statusLabel = directory.status === 'connected'
-    ? 'Online'
-    : directory.status === 'connecting'
-      ? 'Connecting'
-      : directory.status === 'error'
-        ? 'Offline'
-        : 'Idle';
-  const visiblePlayers = useMemo(
-    () => visibleRooms.reduce((count, room) => count + room.seatedCount, 0),
-    [visibleRooms]
-  );
 
   function goToRoom(code: string): void {
     void navigate({
@@ -47,28 +36,7 @@ export function LobbyDirectory() {
 
   return (
     <main className="app lobby-app" data-testid="room-directory-root">
-      <section className="stats lobby-shell-stats">
-        <div className="stat lobby-shell-stat" data-testid="room-directory-shell-rooms">
-          <span className="lobby-shell-stat-label">Rooms</span>
-          <span className="lobby-shell-stat-value">{visibleRooms.length}</span>
-        </div>
-        <div className="stat lobby-shell-stat" data-testid="room-directory-shell-players">
-          <span className="lobby-shell-stat-label">Players</span>
-          <span className="lobby-shell-stat-value">{visiblePlayers}</span>
-        </div>
-        <div className="stat lobby-shell-stat" data-testid="room-directory-shell-status">
-          <span className="lobby-shell-stat-label">Status</span>
-          <span className="lobby-shell-stat-value">{statusLabel}</span>
-        </div>
-      </section>
-
-      <section className="lobby-shell-banner">
-        <p className="lobby-shell-kicker">Hanabi Online</p>
-        <h1 className="lobby-shell-title">Welcome</h1>
-        <p className="lobby-shell-subtitle">Create a room or join one with a 4-letter code.</p>
-      </section>
-
-      <section className="lobby-shell-body">
+      <section className="lobby-shell-body lobby-shell-body-full">
         <section className="lobby-card">
           <header className="lobby-header">
             <h2 className="lobby-title">Join Or Create</h2>

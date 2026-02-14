@@ -225,6 +225,7 @@ describe('App local debug wiring', () => {
       expect(document.documentElement.dataset.theme).toBe('light');
     });
 
+    fireEvent.click(screen.getByTestId('lobby-config-toggle'));
     fireEvent.click(screen.getByTestId('lobby-theme-toggle'));
 
     expect(window.localStorage.getItem('hanabi.dark_mode')).toBe('true');
@@ -246,19 +247,14 @@ describe('App local debug wiring', () => {
     expect(screen.getByTestId('lobby-name-input')).toHaveValue('Stefan');
   });
 
-  test('staging lobby room follows the room query param and updates URL when changed', () => {
+  test('staging lobby room follows the room query param', () => {
     window.localStorage.setItem('hanabi.debug_mode', 'false');
     window.history.replaceState(null, '', '/?room=alpha_7');
     render(<App />);
 
-    expect(screen.getByTestId('lobby-room-line')).toHaveTextContent('Room alpha_7');
-    expect((screen.getByTestId('lobby-room-input') as HTMLInputElement).value).toBe('alpha_7');
-
-    fireEvent.change(screen.getByTestId('lobby-room-input'), { target: { value: 'table-42' } });
-    fireEvent.click(screen.getByTestId('lobby-room-apply'));
-
-    expect(screen.getByTestId('lobby-room-line')).toHaveTextContent('Room table-42');
-    expect(window.location.search).toBe('?room=table-42');
+    expect(screen.getByTestId('lobby-room-code')).toHaveTextContent('alpha_7');
+    expect(screen.queryByTestId('lobby-room-input')).not.toBeInTheDocument();
+    expect(window.location.search).toBe('?room=alpha_7');
   });
 
   test('debug network frames namespace player config by debug id', () => {
