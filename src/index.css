@@ -19,7 +19,7 @@
   --bottom-panel-height: calc(var(--actions-height) + var(--last-action-height));
   --app-max-width: 26rem;
   --app-inline: clamp(0px, calc((100vw - var(--app-max-width)) / 2), 999px);
-  --app-max-height: 52.75rem;
+  --app-max-height: 43.75rem;
   --app-block: clamp(0px, calc((100dvh - var(--app-max-height)) / 2), 999px);
 }
 
@@ -570,6 +570,12 @@ body {
   place-items: center;
 }
 
+.lobby-actions-config .lobby-config-toggle {
+  width: 2.08rem;
+  min-width: 2.08rem;
+  min-height: 2.08rem;
+}
+
 .lobby-config-dropdown {
   position: absolute;
   top: calc(100% + 0.26rem);
@@ -1032,8 +1038,18 @@ body {
 
 .lobby-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 0.3rem;
+  align-items: stretch;
+}
+
+.lobby-action-main {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.lobby-reconnect {
+  grid-column: 1 / -1;
 }
 
 .lobby-button {

@@ -3298,78 +3298,9 @@ function LobbyScreen({
 
   return (
     <main className="app lobby-app" data-testid="lobby-root">
-      <section className="lobby-shell-body">
+      <section className="lobby-shell-body lobby-shell-body-full">
         <section className="lobby-card">
         <div className="lobby-summary">
-          <header className="lobby-header">
-            <div className="lobby-header-start">
-              <div className="lobby-config-menu" ref={configMenuRef}>
-                <button
-                  type="button"
-                  className="lobby-button subtle lobby-config-toggle"
-                  aria-haspopup="menu"
-                  aria-expanded={isConfigMenuOpen}
-                  aria-label="Open lobby settings"
-                  onClick={() => setIsConfigMenuOpen((open) => !open)}
-                  data-testid="lobby-config-toggle"
-                >
-                  <GearSix size={16} weight="bold" aria-hidden />
-                </button>
-                {isConfigMenuOpen && (
-                  <div className="lobby-config-dropdown" role="menu" data-testid="lobby-config-dropdown">
-                    <button
-                      type="button"
-                      className="lobby-config-dropdown-item"
-                      onClick={() => handleConfigAction(onToggleDarkMode)}
-                      role="menuitem"
-                      data-testid="lobby-theme-toggle"
-                    >
-                      <span>Dark mode</span>
-                      <span>{isDarkMode ? 'On' : 'Off'}</span>
-                    </button>
-                    {hasDebugActions && (
-                      <div className="lobby-config-divider" role="separator" />
-                    )}
-                    {onEnableDebugMode && (
-                      <button
-                        type="button"
-                        className="lobby-config-dropdown-item"
-                        onClick={() => handleConfigAction(onEnableDebugMode)}
-                        role="menuitem"
-                        data-testid="lobby-debug-mode"
-                      >
-                        Debug local
-                      </button>
-                    )}
-                    {onEnableDebugNetwork && (
-                      <button
-                        type="button"
-                        className="lobby-config-dropdown-item"
-                        onClick={() => handleConfigAction(onEnableDebugNetwork)}
-                        role="menuitem"
-                        data-testid="lobby-debug-network"
-                      >
-                        Debug network
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="lobby-header-actions">
-              {onLeaveRoom && (
-                <button
-                  type="button"
-                  className="lobby-button primary"
-                  onClick={onLeaveRoom}
-                  data-testid="lobby-leave-room"
-                >
-                  Leave
-                </button>
-              )}
-            </div>
-          </header>
-
           <div className="lobby-identity-grid" data-testid="lobby-identity-grid">
             <div className="lobby-identity-field">
               <label className="lobby-identity-label" htmlFor="lobby-name-input">Name</label>
@@ -3487,17 +3418,90 @@ function LobbyScreen({
         )}
 
         <section className="lobby-actions">
+          <div className="lobby-config-menu lobby-actions-config" ref={configMenuRef}>
+            <button
+              type="button"
+              className="lobby-button subtle lobby-config-toggle"
+              aria-haspopup="menu"
+              aria-expanded={isConfigMenuOpen}
+              aria-label="Open lobby settings"
+              onClick={() => setIsConfigMenuOpen((open) => !open)}
+              data-testid="lobby-config-toggle"
+            >
+              <GearSix size={16} weight="bold" aria-hidden />
+            </button>
+            {isConfigMenuOpen && (
+              <div className="lobby-config-dropdown" role="menu" data-testid="lobby-config-dropdown">
+                <button
+                  type="button"
+                  className="lobby-config-dropdown-item"
+                  onClick={() => handleConfigAction(onToggleDarkMode)}
+                  role="menuitem"
+                  data-testid="lobby-theme-toggle"
+                >
+                  <span>Dark mode</span>
+                  <span>{isDarkMode ? 'On' : 'Off'}</span>
+                </button>
+                {(onLeaveRoom || hasDebugActions) && (
+                  <div className="lobby-config-divider" role="separator" />
+                )}
+                {onLeaveRoom && (
+                  <button
+                    type="button"
+                    className="lobby-config-dropdown-item"
+                    onClick={() => handleConfigAction(onLeaveRoom)}
+                    role="menuitem"
+                    data-testid="lobby-leave-room"
+                  >
+                    Leave room
+                  </button>
+                )}
+                {onLeaveRoom && hasDebugActions && (
+                  <div className="lobby-config-divider" role="separator" />
+                )}
+                {onEnableDebugMode && (
+                  <button
+                    type="button"
+                    className="lobby-config-dropdown-item"
+                    onClick={() => handleConfigAction(onEnableDebugMode)}
+                    role="menuitem"
+                    data-testid="lobby-debug-mode"
+                  >
+                    Debug local
+                  </button>
+                )}
+                {onEnableDebugNetwork && (
+                  <button
+                    type="button"
+                    className="lobby-config-dropdown-item"
+                    onClick={() => handleConfigAction(onEnableDebugNetwork)}
+                    role="menuitem"
+                    data-testid="lobby-debug-network"
+                  >
+                    Debug network
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
           {showReconnect && (
-            <button type="button" className="lobby-button" onClick={onReconnect} data-testid="lobby-reconnect">
+            <button type="button" className="lobby-button lobby-reconnect" onClick={onReconnect} data-testid="lobby-reconnect">
               Reconnect
             </button>
           )}
           {isHost && phase === 'lobby' ? (
-            <button type="button" className="lobby-button primary" onClick={onStart} disabled={!canStart} data-testid="lobby-start">
+            <button
+              type="button"
+              className="lobby-button primary lobby-action-main"
+              onClick={onStart}
+              disabled={!canStart}
+              data-testid="lobby-start"
+            >
               Start Game
             </button>
           ) : (
-            <p className="lobby-waiting" data-testid="lobby-waiting-host">
+            <p className="lobby-waiting lobby-action-main" data-testid="lobby-waiting-host">
               Waiting on {host?.name ?? 'host'} to start.
             </p>
           )}
@@ -3519,7 +3523,7 @@ function LobbyWaitingForSnapshot({
 }) {
   return (
     <main className="app lobby-app" data-testid="lobby-root">
-      <section className="lobby-shell-body">
+      <section className="lobby-shell-body lobby-shell-body-full">
         <section className="lobby-card lobby-card-compact">
           <p className="lobby-note warning">Waiting for room snapshot in room {roomId}.</p>
           <div className="room-wait-actions">
