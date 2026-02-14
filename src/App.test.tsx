@@ -225,7 +225,6 @@ describe('App local debug wiring', () => {
       expect(document.documentElement.dataset.theme).toBe('light');
     });
 
-    fireEvent.click(screen.getByTestId('lobby-config-toggle'));
     fireEvent.click(screen.getByTestId('lobby-theme-toggle'));
 
     expect(window.localStorage.getItem('hanabi.dark_mode')).toBe('true');

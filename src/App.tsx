@@ -8,6 +8,7 @@ import {
   Heart,
   Leaf,
   LightbulbFilament,
+  Moon,
   Rainbow,
   Snowflake,
   Sun,
@@ -3432,19 +3433,6 @@ function LobbyScreen({
             </button>
             {isConfigMenuOpen && (
               <div className="lobby-config-dropdown" role="menu" data-testid="lobby-config-dropdown">
-                <button
-                  type="button"
-                  className="lobby-config-dropdown-item"
-                  onClick={() => handleConfigAction(onToggleDarkMode)}
-                  role="menuitem"
-                  data-testid="lobby-theme-toggle"
-                >
-                  <span>Dark mode</span>
-                  <span>{isDarkMode ? 'On' : 'Off'}</span>
-                </button>
-                {(onLeaveRoom || hasDebugActions) && (
-                  <div className="lobby-config-divider" role="separator" />
-                )}
                 {onLeaveRoom && (
                   <button
                     type="button"
@@ -3505,6 +3493,16 @@ function LobbyScreen({
               Waiting on {host?.name ?? 'host'} to start.
             </p>
           )}
+          <button
+            type="button"
+            className="lobby-button subtle lobby-theme-toggle-action"
+            onClick={onToggleDarkMode}
+            aria-pressed={isDarkMode}
+            aria-label={isDarkMode ? 'Disable dark mode' : 'Enable dark mode'}
+            data-testid="lobby-theme-toggle"
+          >
+            {isDarkMode ? <Sun size={16} weight="fill" aria-hidden /> : <Moon size={16} weight="fill" aria-hidden />}
+          </button>
         </section>
         </section>
       </section>
