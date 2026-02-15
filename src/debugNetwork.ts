@@ -9,6 +9,13 @@ import {
   type RoomMember
 } from './network';
 import { electHostId } from './hostElection';
+import {
+  applyNetworkAction,
+  normalizeSettings,
+  normalizeUniquePlayerNameKey,
+  resolveUniquePlayerName,
+  sanitizePlayerName
+} from './networkShared';
 
 const DEBUG_NETWORK_ROOM_STORAGE_KEY = 'hanabi.debug_network.room.v1';
 const DEBUG_PLAYER_HASH_PREFIX = '#debug-';
@@ -29,20 +36,6 @@ const DEFAULT_SETTINGS: LobbySettings = {
   multicolorWildHints: false,
   endlessMode: false
 };
-
-function normalizeSettings(input: Partial<LobbySettings> | undefined): LobbySettings {
-  const includeMulticolor = Boolean(input?.includeMulticolor);
-  const multicolorWildHints = includeMulticolor && Boolean(input?.multicolorWildHints);
-  const multicolorShortDeck = includeMulticolor && !multicolorWildHints && Boolean(input?.multicolorShortDeck);
-  const endlessMode = Boolean(input?.endlessMode);
-
-  return {
-    includeMulticolor,
-    multicolorShortDeck,
-    multicolorWildHints,
-    endlessMode
-  };
-}
 
 function normalizePlayerIds(input: string[]): string[] {
   const seen = new Set<string>();
@@ -94,39 +87,6 @@ function createRoomState(players: string[]): DebugNetworkRoomState {
   };
 }
 
-function sanitizeName(raw: string): string | null {
-  const trimmed = raw.trim().replace(/\s+/g, ' ');
-  if (trimmed.length === 0) {
-    return null;
-  }
-
-  return trimmed.slice(0, 24);
-}
-
-function normalizeUniqueKey(value: string): string {
-  return value.trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
-function resolveUniqueName(baseName: string, used: Set<string>): string {
-  const normalizedBase = normalizeUniqueKey(baseName);
-  if (!used.has(normalizedBase)) {
-    return baseName;
-  }
-
-  for (let suffix = 2; suffix < 100; suffix += 1) {
-    const suffixText = ` ${suffix}`;
-    const maxBaseLength = Math.max(1, 24 - suffixText.length);
-    const trimmedBase = baseName.slice(0, maxBaseLength).trimEnd();
-    const candidate = `${trimmedBase}${suffixText}`;
-    const normalizedCandidate = normalizeUniqueKey(candidate);
-    if (!used.has(normalizedCandidate)) {
-      return candidate;
-    }
-  }
-
-  return `${baseName.slice(0, 23).trimEnd()}*`;
-}
-
 function normalizeNames(input: unknown, players: string[]): Record<string, string> {
   if (!input || typeof input !== 'object') {
     return {};
@@ -145,7 +105,7 @@ function normalizeNames(input: unknown, players: string[]): Record<string, strin
       continue;
     }
 
-    const name = sanitizeName(rawName);
+    const name = sanitizePlayerName(rawName);
     if (!name) {
       continue;
     }
@@ -266,9 +226,9 @@ function getHostId(players: string[]): string | null {
 function buildMembers(players: string[], names: Record<string, string>, tvFlags: Record<string, boolean>): RoomMember[] {
   const used = new Set<string>();
   return players.map((peerId, index) => {
-    const baseName = sanitizeName(names[peerId] ?? `Player ${index + 1}`) ?? `Player ${index + 1}`;
-    const uniqueName = resolveUniqueName(baseName, used);
-    used.add(normalizeUniqueKey(uniqueName));
+    const baseName = sanitizePlayerName(names[peerId] ?? `Player ${index + 1}`) ?? `Player ${index + 1}`;
+    const uniqueName = resolveUniquePlayerName(baseName, used);
+    used.add(normalizeUniquePlayerNameKey(uniqueName));
 
     return {
       peerId,
@@ -328,34 +288,6 @@ function ensurePlayerInRoom(playerId: string): DebugNetworkRoomState {
   };
   writeRoomState(nextState);
   return nextState;
-}
-
-function applyNetworkAction(game: HanabiGame, action: NetworkAction): void {
-  const currentPlayer = game.state.players[game.state.currentTurnPlayerIndex];
-  if (!currentPlayer) {
-    throw new Error('Current turn player is missing');
-  }
-
-  if (currentPlayer.id !== action.actorId) {
-    throw new Error('Action actor is not the current turn player');
-  }
-
-  if (action.type === 'play') {
-    game.playCard(action.cardId);
-    return;
-  }
-
-  if (action.type === 'discard') {
-    game.discardCard(action.cardId);
-    return;
-  }
-
-  if (action.type === 'hint-color') {
-    game.giveColorHint(action.targetPlayerId, action.suit);
-    return;
-  }
-
-  game.giveNumberHint(action.targetPlayerId, action.number);
 }
 
 function commitRoomState(
@@ -581,7 +513,7 @@ export function useDebugNetworkSession(playerId: string | null): OnlineSession {
       return;
     }
 
-    const resolved = sanitizeName(name);
+    const resolved = sanitizePlayerName(name);
     const nextState = commitRoomState(playerId, (draft) => {
       const current = draft.names[playerId] ?? null;
       const next = resolved ?? null;

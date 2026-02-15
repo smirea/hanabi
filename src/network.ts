@@ -2,13 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HanabiGame, type CardNumber, type HanabiState, type Suit } from './game';
 import { electHostId } from './hostElection';
 import { getScopedNetworkAppId } from './networkConstants';
+import { applyNetworkAction, normalizeSettings, sanitizePlayerName } from './networkShared';
 import {
-  applyNetworkAction,
   assignMembers,
   areMembersEqual,
   formatPeerName,
   isRoomSnapshot,
-  normalizeSettings,
   shouldAcceptSnapshot
 } from './networkLogic';
 
@@ -233,19 +232,6 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
     let sendSnapshotRequest: ((message: SnapshotRequestMessage, target?: string | string[] | null) => Promise<void[]>) | null = null;
     let sendPlayerAction: ((message: PlayerActionMessage, target?: string | string[] | null) => Promise<void[]>) | null = null;
 
-    const sanitizeName = (raw: string): string | null => {
-      if (typeof raw !== 'string') {
-        return null;
-      }
-
-      const trimmed = raw.trim().replace(/\s+/g, ' ');
-      if (trimmed.length === 0) {
-        return null;
-      }
-
-      return trimmed.slice(0, 24);
-    };
-
     const pushState = (nextStatus: OnlineState['status'], error: string | null = null): void => {
       if (!active) {
         return;
@@ -403,7 +389,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
 
       selfId = moduleApi.selfId;
       const defaultSelfName = formatPeerName(selfId);
-      const selfName = sanitizeName(desiredSelfNameRef.current) ?? defaultSelfName;
+      const selfName = sanitizePlayerName(desiredSelfNameRef.current) ?? defaultSelfName;
       peerNames.set(selfId, selfName);
       peerIsTv.set(selfId, Boolean(desiredSelfIsTvRef.current));
       setState({
@@ -596,7 +582,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
           });
         },
         setSelfName: (name) => {
-          const resolvedName = sanitizeName(name) ?? defaultSelfName;
+          const resolvedName = sanitizePlayerName(name) ?? defaultSelfName;
           const currentName = peerNames.get(selfId) ?? defaultSelfName;
           if (resolvedName === currentName) {
             return;
