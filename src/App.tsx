@@ -2319,31 +2319,11 @@ function GameClient({
 
   if (!activeGameState || !perspective) {
     return (
-      <main className="lobby" data-testid="lobby-root">
-        <section className="lobby-card">
-          <h1 className="lobby-title">Waiting For Room Snapshot</h1>
-          <div className="room-wait-actions">
-            <button
-              type="button"
-              className="lobby-button"
-              onClick={activeSession.requestSync}
-              data-testid="lobby-reconnect"
-            >
-              Reconnect
-            </button>
-            {onLeaveRoom && (
-              <button
-                type="button"
-                className="lobby-button subtle"
-                onClick={onLeaveRoom}
-                data-testid="lobby-leave-room"
-              >
-                Leave
-              </button>
-            )}
-          </div>
-        </section>
-      </main>
+      <LobbyWaitingForSnapshot
+        roomId={roomId}
+        onReconnect={activeSession.requestSync}
+        onLeaveRoom={onLeaveRoom}
+      />
     );
   }
 
@@ -3322,79 +3302,25 @@ function LobbyScreen({
       <section className="lobby-shell-body lobby-shell-body-full">
         <section className="lobby-card">
         <div className="lobby-summary">
-          <header className="lobby-header">
-            <h1 className="lobby-title">Room Staging</h1>
-            <div className="lobby-header-actions">
-              {onLeaveRoom && (
-                <button
-                  type="button"
-                  className="lobby-button subtle"
-                  onClick={onLeaveRoom}
-                  data-testid="lobby-leave-room"
-                >
-                  Leave
-                </button>
-              )}
-              <button
-                type="button"
-                className="lobby-button subtle lobby-quick-toggle"
-                onClick={onToggleDarkMode}
-                aria-pressed={isDarkMode}
-                data-testid="lobby-theme-toggle-quick"
-              >
-                <span className="lobby-quick-text">
-                  <span className="lobby-quick-label">Dark mode</span>
-                  <span className="lobby-quick-subtitle">Applies on this device only.</span>
-                </span>
-                <span className="lobby-quick-value">{isDarkMode ? 'On' : 'Off'}</span>
-              </button>
-              {onEnableDebugMode && (
-                <button
-                  type="button"
-                  className="lobby-button subtle lobby-quick-toggle"
-                  onClick={onEnableDebugMode}
-                  data-testid="lobby-debug-mode"
-                >
-                  <span className="lobby-quick-text">
-                    <span className="lobby-quick-label">Debug local</span>
-                    <span className="lobby-quick-subtitle">Switch to a local sandbox game.</span>
-                  </span>
-                  <span className="lobby-quick-value">Enable</span>
-                </button>
-              )}
-              {onEnableDebugNetwork && (
-                <button
-                  type="button"
-                  className="lobby-button subtle lobby-quick-toggle"
-                  onClick={onEnableDebugNetwork}
-                  data-testid="lobby-debug-network"
-                >
-                  <span className="lobby-quick-text">
-                    <span className="lobby-quick-label">Debug network</span>
-                    <span className="lobby-quick-subtitle">Open the multi-client simulator.</span>
-                  </span>
-                  <span className="lobby-quick-value">Open</span>
-                </button>
-              )}
+          <div className="lobby-identity-grid" data-testid="lobby-identity-grid">
+            <div className="lobby-identity-field">
+              <label className="lobby-identity-label" htmlFor="lobby-name-input">Name</label>
+              <input
+                id="lobby-name-input"
+                className="lobby-name-input"
+                value={selfName}
+                onChange={(event) => onSelfNameChange(event.target.value)}
+                placeholder={defaultNamePlaceholder}
+                maxLength={24}
+                autoComplete="nickname"
+                spellCheck={false}
+                data-testid="lobby-name-input"
+              />
             </div>
-          </header>
-
-          <label className="lobby-name-field">
-            <span className="lobby-name-label">Name</span>
-            <input
-              type="text"
-              value={selfName}
-              onChange={(event) => onSelfNameChange(event.target.value)}
-              placeholder={defaultNamePlaceholder}
-              autoComplete="name"
-              maxLength={24}
-              className="lobby-input"
-              data-testid="lobby-name-input"
-            />
-          </label>
-          <div className="lobby-room-field">
-            <span className="lobby-name-label">Room</span>
-            <p className="lobby-room-code" data-testid="lobby-room-code">{roomId}</p>
+            <div className="lobby-identity-field">
+              <span className="lobby-identity-label">Room</span>
+              <p className="lobby-room-code" data-testid="lobby-room-code">{roomId}</p>
+            </div>
           </div>
 
           {error && (
