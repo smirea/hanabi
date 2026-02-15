@@ -418,6 +418,11 @@ export class HanabiGame {
 
   public beginPlaySelection(): void {
     this.assertTurnCanBePlayed();
+    const currentPlayer = this.state.players[this.state.currentTurnPlayerIndex];
+    if (currentPlayer.cards.length === 0) {
+      throw new Error('Cannot play with no cards in hand');
+    }
+
     this.state.ui = {
       ...createEmptyUiState(),
       pendingAction: 'play'
@@ -426,6 +431,11 @@ export class HanabiGame {
 
   public beginDiscardSelection(): void {
     this.assertTurnCanBePlayed();
+    const currentPlayer = this.state.players[this.state.currentTurnPlayerIndex];
+    if (currentPlayer.cards.length === 0) {
+      throw new Error('Cannot discard with no cards in hand');
+    }
+
     if (this.state.hintTokens >= this.state.settings.maxHintTokens) {
       throw new Error('Cannot discard while all hint tokens are available');
     }
@@ -602,24 +612,24 @@ export class HanabiGame {
 
     if (!success && this.state.fuseTokensUsed >= this.state.settings.maxFuseTokens) {
       this.transitionToTerminalState('lost', 'fuse_limit_reached');
-      this.finalizeAction(false);
+      this.finalizeAction();
       return;
     }
 
     if (!success && this.state.settings.endlessMode && !this.isPerfectionStillPossible()) {
       this.transitionToTerminalState('lost', 'indispensable_card_discarded');
-      this.finalizeAction(false);
+      this.finalizeAction();
       return;
     }
 
     if (success && this.areAllFireworksComplete()) {
       this.transitionToTerminalState('won', 'all_fireworks_completed');
-      this.finalizeAction(false);
+      this.finalizeAction();
       return;
     }
 
-    const lastCardDrawnThisTurn = this.drawCardForPlayer(this.state.currentTurnPlayerIndex);
-    this.finalizeAction(lastCardDrawnThisTurn);
+    this.drawCardForPlayer(this.state.currentTurnPlayerIndex);
+    this.finalizeAction();
   }
 
   public discardCard(cardId: CardId): void {
@@ -644,12 +654,12 @@ export class HanabiGame {
     this.appendDiscardLog(currentPlayer, card, true);
     if (this.state.settings.endlessMode && !this.isPerfectionStillPossible()) {
       this.transitionToTerminalState('lost', 'indispensable_card_discarded');
-      this.finalizeAction(false);
+      this.finalizeAction();
       return;
     }
 
-    const lastCardDrawnThisTurn = this.drawCardForPlayer(this.state.currentTurnPlayerIndex);
-    this.finalizeAction(lastCardDrawnThisTurn);
+    this.drawCardForPlayer(this.state.currentTurnPlayerIndex);
+    this.finalizeAction();
   }
 
   public giveColorHint(targetPlayerId: PlayerId, suit: Suit): void {
@@ -753,7 +763,7 @@ export class HanabiGame {
     }
 
     this.appendHintLog(currentPlayer, targetPlayer, 'color', touchedCardIds, suit, null);
-    this.finalizeAction(false);
+    this.finalizeAction();
   }
 
   public giveNumberHint(targetPlayerId: PlayerId, number: CardNumber): void {
@@ -800,7 +810,7 @@ export class HanabiGame {
     }
 
     this.appendHintLog(currentPlayer, targetPlayer, 'number', touchedCardIds, null, number);
-    this.finalizeAction(false);
+    this.finalizeAction();
   }
 
   private static createInitialState(input: NewGameInput | undefined): HanabiState {
@@ -1169,32 +1179,53 @@ export class HanabiGame {
 
     const player = this.state.players[playerIndex];
     player.cards.push(drawnCardId);
-
-    const lastCardDrawn = this.state.drawDeck.length === 0;
-    if (lastCardDrawn && !this.state.settings.endlessMode && this.state.status === 'active') {
-      this.state.status = 'last_round';
-      this.state.lastRound = { turnsRemaining: this.state.players.length };
-    }
-
-    return lastCardDrawn;
+    return this.state.drawDeck.length === 0;
   }
 
-  private advanceTurn(lastCardDrawnThisTurn: boolean): void {
-    if (this.state.status === 'last_round') {
-      if (!this.state.lastRound) {
-        throw new Error('Last round status requires lastRound metadata');
+  private canPlayerGiveHint(playerIndex: number): boolean {
+    if (this.state.hintTokens <= 0) {
+      return false;
+    }
+
+    for (let index = 0; index < this.state.players.length; index += 1) {
+      if (index === playerIndex) {
+        continue;
       }
 
-      if (!lastCardDrawnThisTurn) {
-        this.state.lastRound.turnsRemaining -= 1;
-        if (this.state.lastRound.turnsRemaining <= 0) {
-          this.transitionToTerminalState('finished', 'final_round_complete');
-          return;
-        }
+      if (this.state.players[index].cards.length > 0) {
+        return true;
       }
     }
 
-    this.state.currentTurnPlayerIndex = (this.state.currentTurnPlayerIndex + 1) % this.state.players.length;
+    return false;
+  }
+
+  private playerHasLegalAction(playerIndex: number): boolean {
+    const player = this.state.players[playerIndex];
+    if (!player) {
+      throw new Error(`Unknown player index: ${playerIndex}`);
+    }
+
+    if (player.cards.length > 0) {
+      return true;
+    }
+
+    return this.canPlayerGiveHint(playerIndex);
+  }
+
+  private advanceTurn(): void {
+    const playerCount = this.state.players.length;
+    const currentIndex = this.state.currentTurnPlayerIndex;
+
+    for (let offset = 1; offset <= playerCount; offset += 1) {
+      const candidateIndex = (currentIndex + offset) % playerCount;
+      if (this.playerHasLegalAction(candidateIndex)) {
+        this.state.currentTurnPlayerIndex = candidateIndex;
+        return;
+      }
+    }
+
+    this.state.currentTurnPlayerIndex = (currentIndex + 1) % playerCount;
   }
 
   private areAllFireworksComplete(): boolean {
@@ -1207,9 +1238,9 @@ export class HanabiGame {
     this.appendStatusLog(status, reason);
   }
 
-  private finalizeAction(lastCardDrawnThisTurn: boolean): void {
+  private finalizeAction(): void {
     if (!HanabiGame.isTerminalStatus(this.state.status)) {
-      this.advanceTurn(lastCardDrawnThisTurn);
+      this.advanceTurn();
     }
 
     this.state.turn += 1;
@@ -1295,6 +1326,11 @@ export class HanabiGame {
 
     if (typeof (cloned.settings as any).multicolorWildHints !== 'boolean') {
       (cloned.settings as any).multicolorWildHints = false;
+    }
+
+    if (cloned.status === 'last_round') {
+      cloned.status = 'active';
+      cloned.lastRound = null;
     }
 
     return cloned;

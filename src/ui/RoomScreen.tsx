@@ -60,7 +60,7 @@ export function RoomScreen({ code }: { code: string }) {
             <button
               type="button"
               className="lobby-button"
-              onClick={() => void navigate({ to: '/', search: {}, hash: currentHash })}
+              onClick={() => void navigate({ to: '/', search: { room: undefined }, hash: currentHash })}
               data-testid="room-invalid-back"
             >
               Back
@@ -75,7 +75,7 @@ export function RoomScreen({ code }: { code: string }) {
     <App
       roomCode={normalized}
       onLeaveRoom={() => {
-        void navigate({ to: '/', search: {}, hash: currentHash });
+        void navigate({ to: '/', search: { room: undefined }, hash: currentHash });
       }}
     />
   );

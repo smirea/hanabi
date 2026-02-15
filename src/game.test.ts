@@ -268,7 +268,7 @@ describe('HanabiGame', () => {
     expect(() => losingGame.beginPlaySelection()).toThrow('Game is over (lost)');
   });
 
-  test('last round starts on final draw and ends after remaining turns', () => {
+  test('running out of deck cards does not end the game', () => {
     const game = new HanabiGame({
       playerNames: ['A', 'B'],
       deck: twoPlayerDeck(
@@ -281,19 +281,14 @@ describe('HanabiGame', () => {
     const openingPlay = game.state.players[0].cards[0];
     game.playCard(openingPlay);
     expect(game.state.drawDeck).toHaveLength(0);
-    expect(game.state.status).toBe('last_round');
-    expect(game.state.lastRound?.turnsRemaining).toBe(2);
+    expect(game.state.status).toBe('active');
+    expect(game.state.lastRound).toBeNull();
     expect(game.state.currentTurnPlayerIndex).toBe(1);
 
     game.giveNumberHint('p1', 2);
-    expect(game.state.status).toBe('last_round');
-    expect(game.state.lastRound?.turnsRemaining).toBe(1);
+    expect(game.state.status).toBe('active');
+    expect(game.state.lastRound).toBeNull();
     expect(game.state.currentTurnPlayerIndex).toBe(0);
-
-    game.giveNumberHint('p2', 1);
-    expect(game.state.status).toBe('finished');
-    expect(game.isGameOver()).toBeTrue();
-    expect(() => game.beginNumberHintSelection()).toThrow('Game is over (finished)');
   });
 
   test('playing the final needed card wins immediately', () => {
@@ -631,7 +626,7 @@ describe('HanabiGame', () => {
     });
   });
 
-  test('endless mode does not transition into last round when deck empties', () => {
+  test('endless mode still stays active when deck empties', () => {
     const game = new HanabiGame({
       playerNames: ['A', 'B'],
       endlessMode: true,
@@ -649,6 +644,64 @@ describe('HanabiGame', () => {
 
     game.giveNumberHint('p1', 2);
     expect(game.state.status).toBe('active');
+  });
+
+  test('play/discard selection is blocked when the current player has no cards', () => {
+    const baseGame = new HanabiGame({
+      playerNames: ['A', 'B'],
+      deck: twoPlayerDeck(
+        [card('R', 1), card('Y', 2), card('G', 2), card('B', 2), card('W', 2)],
+        [card('R', 2), card('Y', 1), card('G', 1), card('B', 1), card('W', 1)]
+      )
+    });
+
+    const state = baseGame.getSnapshot();
+    const emptiedHand = state.players[0].cards.splice(0);
+    state.discardPile.push(...emptiedHand);
+    state.currentTurnPlayerIndex = 0;
+    state.hintTokens = 0;
+
+    const game = new HanabiGame({ state });
+    expect(() => game.beginPlaySelection()).toThrow('Cannot play with no cards in hand');
+    expect(() => game.beginDiscardSelection()).toThrow('Cannot discard with no cards in hand');
+  });
+
+  test('turn automatically skips players who have no legal actions', () => {
+    const baseGame = new HanabiGame({
+      playerNames: ['A', 'B', 'C'],
+      shuffleSeed: 42
+    });
+
+    const state = baseGame.getSnapshot();
+    const skippedHand = state.players[1].cards.splice(0);
+    state.discardPile.push(...skippedHand);
+    state.currentTurnPlayerIndex = 0;
+    state.hintTokens = 0;
+
+    const game = new HanabiGame({ state });
+    const cardId = game.state.players[0].cards.find((candidate) => game.state.cards[candidate].number !== 5)!;
+    game.playCard(cardId);
+
+    expect(game.state.currentTurnPlayerIndex).toBe(2);
+  });
+
+  test('players with no cards are not skipped when hints are available', () => {
+    const baseGame = new HanabiGame({
+      playerNames: ['A', 'B', 'C'],
+      shuffleSeed: 99
+    });
+
+    const state = baseGame.getSnapshot();
+    const emptyHand = state.players[1].cards.splice(0);
+    state.discardPile.push(...emptyHand);
+    state.currentTurnPlayerIndex = 0;
+    state.hintTokens = 1;
+
+    const game = new HanabiGame({ state });
+    const cardId = game.state.players[0].cards.find((candidate) => game.state.cards[candidate].number !== 5)!;
+    game.playCard(cardId);
+
+    expect(game.state.currentTurnPlayerIndex).toBe(1);
   });
 
   test('actions do not draw cards when deck is already empty', () => {

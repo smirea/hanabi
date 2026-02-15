@@ -7,7 +7,8 @@ export const storageKeys = {
   tvMode: 'tv_mode',
   darkMode: 'dark_mode',
   negativeColorHints: 'negative_color_hints',
-  negativeNumberHints: 'negative_number_hints'
+  negativeNumberHints: 'negative_number_hints',
+  turnSoundEnabled: 'turn_sound_enabled'
 } as const;
 
 export type StorageKey = typeof storageKeys[keyof typeof storageKeys];
@@ -22,6 +23,7 @@ export type StorageValueByKey = {
   dark_mode: boolean;
   negative_color_hints: boolean;
   negative_number_hints: boolean;
+  turn_sound_enabled: boolean;
 };
 
 const STORAGE_PREFIX = 'hanabi.';
@@ -80,7 +82,8 @@ const storageParsers: { [K in StorageKey]: (value: unknown) => StorageValueByKey
   tv_mode: (value) => (typeof value === 'boolean' ? value : null),
   dark_mode: (value) => (typeof value === 'boolean' ? value : null),
   negative_color_hints: (value) => (typeof value === 'boolean' ? value : null),
-  negative_number_hints: (value) => (typeof value === 'boolean' ? value : null)
+  negative_number_hints: (value) => (typeof value === 'boolean' ? value : null),
+  turn_sound_enabled: (value) => (typeof value === 'boolean' ? value : null)
 };
 
 export function parseStoredValue<K extends StorageKey>(key: K, raw: string): StorageValueByKey[K] | null {

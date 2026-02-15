@@ -111,6 +111,22 @@ describe('App local debug wiring', () => {
     expect(screen.getByTestId('card-p1-0')).not.toHaveTextContent('?');
   });
 
+  test('players are ordered by next turn from each viewer perspective', () => {
+    render(<App />);
+
+    const tableShell = screen.getByTestId('table-shell');
+    const initialOrder = [...tableShell.querySelectorAll('article.player')]
+      .map((node) => node.getAttribute('data-testid'));
+    expect(initialOrder).toEqual(['player-p2', 'player-p3', 'player-p1']);
+
+    fireEvent.click(screen.getByTestId('actions-play'));
+    fireEvent.click(screen.getByTestId('card-p1-0'));
+
+    const nextOrder = [...tableShell.querySelectorAll('article.player')]
+      .map((node) => node.getAttribute('data-testid'));
+    expect(nextOrder).toEqual(['player-p3', 'player-p1', 'player-p2']);
+  });
+
   test('number hint resolves from tapped target card and consumes one hint token', () => {
     render(<App />);
 
@@ -189,6 +205,19 @@ describe('App local debug wiring', () => {
     fireEvent.click(screen.getByTestId('actions-menu'));
     fireEvent.click(screen.getByTestId('menu-negative-number-toggle'));
     expect(document.querySelectorAll('.badge.not-number').length).toBe(0);
+  });
+
+  test('turn sound toggle defaults on and persists from burger menu', () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByTestId('actions-menu'));
+    expect(screen.getByTestId('menu-turn-sound-value')).toHaveTextContent('On');
+
+    fireEvent.click(screen.getByTestId('menu-turn-sound-toggle'));
+    expect(window.localStorage.getItem('hanabi.turn_sound_enabled')).toBe('false');
+
+    fireEvent.click(screen.getByTestId('actions-menu'));
+    expect(screen.getByTestId('menu-turn-sound-value')).toHaveTextContent('Off');
   });
 
   test('dark mode toggle persists from burger menu and updates the document theme', async () => {

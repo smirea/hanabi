@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { NETWORK_APP_ID } from './networkConstants';
+import { getScopedNetworkAppId } from './networkConstants';
 import { isValidRoomCode } from './roomCodes';
 
 const DIRECTORY_ROOM_ID = 'hanabi-room-directory-v1';
@@ -99,6 +99,7 @@ export function useRoomDirectoryListing(enabled: boolean): {
     let active = true;
     let room: TrysteroRoom | null = null;
     let pruneIntervalId: ReturnType<typeof setInterval> | null = null;
+    const scopedAppId = getScopedNetworkAppId();
 
     const now = () => Date.now();
 
@@ -130,7 +131,7 @@ export function useRoomDirectoryListing(enabled: boolean): {
         return;
       }
 
-      room = moduleApi.joinRoom({ appId: NETWORK_APP_ID }, DIRECTORY_ROOM_ID);
+      room = moduleApi.joinRoom({ appId: scopedAppId }, DIRECTORY_ROOM_ID);
       const [, getAnnouncement] = room.makeAction<DirectoryAnnouncement>(DIRECTORY_ACTION_NAMESPACE);
       getAnnouncement((message) => {
         if (!active) {
@@ -233,6 +234,7 @@ export function useRoomDirectoryAdvertiser({
     let active = true;
     let room: TrysteroRoom | null = null;
     let heartbeatId: ReturnType<typeof setInterval> | null = null;
+    const scopedAppId = getScopedNetworkAppId();
 
     const sendCurrent = (send: ((message: DirectoryAnnouncement, target?: string | string[] | null) => Promise<void[]>) | null): void => {
       if (!send) {
@@ -253,7 +255,7 @@ export function useRoomDirectoryAdvertiser({
         return;
       }
 
-      room = moduleApi.joinRoom({ appId: NETWORK_APP_ID }, DIRECTORY_ROOM_ID);
+      room = moduleApi.joinRoom({ appId: scopedAppId }, DIRECTORY_ROOM_ID);
       const [sendAnnouncement] = room.makeAction<DirectoryAnnouncement>(DIRECTORY_ACTION_NAMESPACE);
       sendCurrent(sendAnnouncement);
 

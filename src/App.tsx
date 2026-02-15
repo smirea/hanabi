@@ -69,7 +69,7 @@ const suitColors: Record<Suit, string> = {
   Y: '#f4c21b',
   G: '#2dc96d',
   B: '#4f8eff',
-  W: '#2dd4bf',
+  W: '#ff79b5',
   M: '#8b5cf6'
 };
 
@@ -475,6 +475,21 @@ function isRedundantHint(state: HanabiState, targetPlayerId: PlayerId, hint: Hin
   }
 
   return { redundant: !wouldChange, touchedCardIds };
+}
+
+function isKnownRedundantPlay(state: HanabiState, cardId: CardId): boolean {
+  const card = state.cards[cardId];
+  if (!card) {
+    return false;
+  }
+
+  const knownColor = card.hints.color;
+  const knownNumber = card.hints.number;
+  if (knownColor === null || knownNumber === null) {
+    return false;
+  }
+
+  return state.fireworks[knownColor].length >= knownNumber;
 }
 
 function normalizeShellPlayers(input: string[]): string[] {
@@ -962,18 +977,28 @@ function GameClient({
     true,
     storageNamespace
   );
+  const [turnSoundEnabled, setTurnSoundEnabled] = useLocalStorageState(
+    storageKeys.turnSoundEnabled,
+    true,
+    storageNamespace
+  );
   const logListRef = useRef<HTMLDivElement | null>(null);
   const animationLayerRef = useRef<HTMLDivElement | null>(null);
   const deckPillRef = useRef<HTMLDivElement | null>(null);
   const cardNodeByIdRef = useRef<Map<CardId, HTMLButtonElement>>(new Map());
+  const playerNameNodeByIdRef = useRef<Map<PlayerId, HTMLSpanElement>>(new Map());
+  const playerNameFxListenerByNodeRef = useRef<WeakMap<HTMLSpanElement, (event: AnimationEvent) => void>>(new WeakMap());
+  const turnAudioContextRef = useRef<AudioContext | null>(null);
   const cardFxListenerByNodeRef = useRef<WeakMap<HTMLButtonElement, Map<string, (event: AnimationEvent) => void>>>(new WeakMap());
   const hintTokenSlotRefs = useRef<Array<HTMLSpanElement | null>>([]);
   const fuseTokenSlotRefs = useRef<Array<HTMLSpanElement | null>>([]);
   const [isActionAnimationRunning, setIsActionAnimationRunning] = useState(false);
   const [turnLockPlayerId, setTurnLockPlayerId] = useState<PlayerId | null>(null);
+  const [redundantPlayConfirmCardId, setRedundantPlayConfirmCardId] = useState<CardId | null>(null);
   const logDrawerTokenRef = useRef(0);
   const logDrawerCloseTimeoutRef = useRef<number | null>(null);
   const animationRunIdRef = useRef(0);
+  const lastTurnCueSignatureRef = useRef<string | null>(null);
   const prevGameStateRef = useRef<HanabiState | null>(null);
   const layoutSnapshotRef = useRef<{ deckRect: DOMRect | null; cardRects: Map<CardId, DOMRect> } | null>(null);
   const prevLayoutSnapshotRef = useRef<{ deckRect: DOMRect | null; cardRects: Map<CardId, DOMRect> } | null>(null);
@@ -983,6 +1008,7 @@ function GameClient({
     prevGameStateRef.current = null;
     layoutSnapshotRef.current = null;
     prevLayoutSnapshotRef.current = null;
+    lastTurnCueSignatureRef.current = null;
     setIsActionAnimationRunning(false);
     setTurnLockPlayerId(null);
     setIsMenuOpen(false);
@@ -990,6 +1016,7 @@ function GameClient({
     setIsLogDrawerMounted(false);
     setPendingAction(null);
     setWildColorHintTargetPlayerId(null);
+    setRedundantPlayConfirmCardId(null);
     setEndgamePanel('summary');
     if (animationLayerRef.current) {
       animationLayerRef.current.innerHTML = '';
@@ -1242,6 +1269,7 @@ function GameClient({
   useEffect(() => {
     setPendingAction(null);
     setWildColorHintTargetPlayerId(null);
+    setRedundantPlayConfirmCardId(null);
   }, [isLocalDebugMode, onlineState.snapshotVersion, perspective?.turn]);
 
   useEffect(() => {
@@ -1251,6 +1279,118 @@ function GameClient({
 
     setIsMenuOpen(false);
   }, [isLocalDebugMode]);
+
+  useEffect(() => {
+    return () => {
+      const context = turnAudioContextRef.current;
+      if (!context) {
+        return;
+      }
+
+      turnAudioContextRef.current = null;
+      void context.close().catch(() => {
+      });
+    };
+  }, []);
+
+  function triggerPlayerNameFlash(playerId: PlayerId): void {
+    const node = playerNameNodeByIdRef.current.get(playerId);
+    if (!node) {
+      return;
+    }
+
+    const existing = playerNameFxListenerByNodeRef.current.get(node);
+    if (existing) {
+      node.removeEventListener('animationend', existing);
+    }
+
+    node.classList.remove('turn-flash');
+    void node.getBoundingClientRect();
+    node.classList.add('turn-flash');
+
+    const onEnd = (event: AnimationEvent): void => {
+      if (event.animationName !== 'your-turn-name-flash') {
+        return;
+      }
+
+      node.classList.remove('turn-flash');
+      node.removeEventListener('animationend', onEnd);
+      playerNameFxListenerByNodeRef.current.delete(node);
+    };
+
+    playerNameFxListenerByNodeRef.current.set(node, onEnd);
+    node.addEventListener('animationend', onEnd);
+  }
+
+  function playTurnDing(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      const AudioContextCtor = window.AudioContext
+        ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextCtor) {
+        return;
+      }
+
+      let context = turnAudioContextRef.current;
+      if (!context || context.state === 'closed') {
+        context = new AudioContextCtor();
+        turnAudioContextRef.current = context;
+      }
+
+      if (context.state === 'suspended') {
+        void context.resume().catch(() => {
+        });
+      }
+
+      const now = context.currentTime;
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = 'triangle';
+      oscillator.frequency.setValueAtTime(880, now);
+      oscillator.frequency.exponentialRampToValueAtTime(1320, now + 0.1);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.16, now + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start(now);
+      oscillator.stop(now + 0.24);
+    } catch {
+    }
+  }
+
+  useEffect(() => {
+    if (!perspective) {
+      lastTurnCueSignatureRef.current = null;
+      return;
+    }
+
+    const signature = `${perspective.turn}:${perspective.currentTurnPlayerId}`;
+    if (lastTurnCueSignatureRef.current === signature) {
+      return;
+    }
+
+    lastTurnCueSignatureRef.current = signature;
+    if (isLocalDebugMode || isTerminalStatus(perspective.status)) {
+      return;
+    }
+
+    if (perspective.currentTurnPlayerId !== perspective.viewerId) {
+      return;
+    }
+
+    triggerPlayerNameFlash(perspective.viewerId);
+    if (turnSoundEnabled) {
+      playTurnDing();
+    }
+  }, [
+    isLocalDebugMode,
+    perspective,
+    turnSoundEnabled
+  ]);
 
   function triggerSvgFx(svg: SVGElement, fxClass: string): void {
     svg.classList.remove(fxClass);
@@ -1720,6 +1860,7 @@ function GameClient({
       command();
       setDebugGameState(debugGame.getSnapshot());
       setPendingAction(null);
+      setRedundantPlayConfirmCardId(null);
     } catch {
     }
   }
@@ -1743,11 +1884,13 @@ function GameClient({
     }
 
     setWildColorHintTargetPlayerId(null);
+    setRedundantPlayConfirmCardId(null);
     setPendingAction(nextAction);
   }
 
   function handlePlayPress(): void {
     setWildColorHintTargetPlayerId(null);
+    setRedundantPlayConfirmCardId(null);
     if (isLocalDebugMode) {
       setIsMenuOpen(false);
       commitLocal(() => {
@@ -1761,6 +1904,7 @@ function GameClient({
 
   function handleDiscardPress(): void {
     setWildColorHintTargetPlayerId(null);
+    setRedundantPlayConfirmCardId(null);
     if (isLocalDebugMode) {
       setIsMenuOpen(false);
       commitLocal(() => {
@@ -1774,6 +1918,7 @@ function GameClient({
 
   function handleHintColorPress(): void {
     setWildColorHintTargetPlayerId(null);
+    setRedundantPlayConfirmCardId(null);
     if (isLocalDebugMode) {
       setIsMenuOpen(false);
       commitLocal(() => {
@@ -1787,6 +1932,7 @@ function GameClient({
 
   function handleHintNumberPress(): void {
     setWildColorHintTargetPlayerId(null);
+    setRedundantPlayConfirmCardId(null);
     if (isLocalDebugMode) {
       setIsMenuOpen(false);
       commitLocal(() => {
@@ -1827,6 +1973,13 @@ function GameClient({
           return;
         }
 
+        if (isKnownRedundantPlay(debugGame.state, cardId) && redundantPlayConfirmCardId !== cardId) {
+          setRedundantPlayConfirmCardId(cardId);
+          triggerCardFx(cardId, 'hint-redundant');
+          return;
+        }
+
+        setRedundantPlayConfirmCardId(null);
         commitLocal(() => {
           debugGame.playCard(cardId);
         });
@@ -1838,6 +1991,7 @@ function GameClient({
           return;
         }
 
+        setRedundantPlayConfirmCardId(null);
         commitLocal(() => {
           debugGame.discardCard(cardId);
         });
@@ -1849,6 +2003,7 @@ function GameClient({
           return;
         }
 
+        setRedundantPlayConfirmCardId(null);
         const { redundant, touchedCardIds } = isRedundantHint(debugGame.state, playerId, { hintType: 'color', suit: selectedSuit });
         if (redundant) {
           for (const touchedId of touchedCardIds) {
@@ -1868,6 +2023,7 @@ function GameClient({
           return;
         }
 
+        setRedundantPlayConfirmCardId(null);
         const { redundant, touchedCardIds } = isRedundantHint(debugGame.state, playerId, { hintType: 'number', number: selectedNumber });
         if (redundant) {
           for (const touchedId of touchedCardIds) {
@@ -1904,6 +2060,13 @@ function GameClient({
         return;
       }
 
+      if (isKnownRedundantPlay(activeGameState, cardId) && redundantPlayConfirmCardId !== cardId) {
+        setRedundantPlayConfirmCardId(cardId);
+        triggerCardFx(cardId, 'hint-redundant');
+        return;
+      }
+
+      setRedundantPlayConfirmCardId(null);
       action = {
         type: 'play',
         actorId,
@@ -1916,6 +2079,7 @@ function GameClient({
         return;
       }
 
+      setRedundantPlayConfirmCardId(null);
       action = {
         type: 'discard',
         actorId,
@@ -1928,6 +2092,7 @@ function GameClient({
         return;
       }
 
+      setRedundantPlayConfirmCardId(null);
       if (activeGameState.settings.multicolorWildHints && selectedCard.suit === 'M') {
         setWildColorHintTargetPlayerId(playerId);
         return;
@@ -1954,6 +2119,7 @@ function GameClient({
         return;
       }
 
+      setRedundantPlayConfirmCardId(null);
       const { redundant, touchedCardIds } = isRedundantHint(activeGameState, playerId, { hintType: 'number', number: selectedCard.number });
       if (redundant) {
         for (const touchedId of touchedCardIds) {
@@ -1976,11 +2142,13 @@ function GameClient({
 
     activeSession.sendAction(action);
     setPendingAction(null);
+    setRedundantPlayConfirmCardId(null);
     setWildColorHintTargetPlayerId(null);
   }
 
   function cancelWildColorPicker(): void {
     setWildColorHintTargetPlayerId(null);
+    setRedundantPlayConfirmCardId(null);
     if (isLocalDebugMode) {
       commitLocal(() => {
         debugGame.cancelSelection();
@@ -2014,6 +2182,7 @@ function GameClient({
         debugGame.giveColorHint(targetPlayerId, suit);
       });
       setWildColorHintTargetPlayerId(null);
+      setRedundantPlayConfirmCardId(null);
       return;
     }
 
@@ -2044,6 +2213,7 @@ function GameClient({
       suit
     });
     setPendingAction(null);
+    setRedundantPlayConfirmCardId(null);
     setWildColorHintTargetPlayerId(null);
   }
 
@@ -2118,6 +2288,7 @@ function GameClient({
     setIsMenuOpen(false);
     closeLogDrawer();
     setPendingAction(null);
+    setRedundantPlayConfirmCardId(null);
 
     const next = !isDebugMode;
     if (next) {
@@ -2150,6 +2321,7 @@ function GameClient({
     setIsMenuOpen(false);
     closeLogDrawer();
     setPendingAction(null);
+    setRedundantPlayConfirmCardId(null);
     setWildColorHintTargetPlayerId(null);
 
     if (typeof window === 'undefined') {
@@ -2198,6 +2370,12 @@ function GameClient({
     setIsMenuOpen(false);
   }
 
+  function handleTurnSoundToggle(): void {
+    setIsLeaveGameArmed(false);
+    setTurnSoundEnabled((current) => !current);
+    setIsMenuOpen(false);
+  }
+
   function handleDarkModeToggle(): void {
     setIsLeaveGameArmed(false);
     onToggleDarkMode();
@@ -2208,6 +2386,7 @@ function GameClient({
     setIsLeaveGameArmed(false);
     activeSession.requestSync();
     setPendingAction(null);
+    setRedundantPlayConfirmCardId(null);
     setWildColorHintTargetPlayerId(null);
     setIsMenuOpen(false);
   }
@@ -2235,6 +2414,7 @@ function GameClient({
     setIsMenuOpen(false);
     closeLogDrawer();
     setPendingAction(null);
+    setRedundantPlayConfirmCardId(null);
 
     let loaded: HanabiState | null = null;
 
@@ -2334,14 +2514,15 @@ function GameClient({
     ...player,
     isCurrentTurn: player.id === effectiveTurnPlayerId
   }));
-
-  const others = effectivePlayers.filter((player) => player.id !== perspective.viewerId);
-  const viewer = effectivePlayers.find((player) => player.id === perspective.viewerId);
-  if (!viewer) {
+  const viewerIndex = effectivePlayers.findIndex((player) => player.id === perspective.viewerId);
+  if (viewerIndex === -1) {
     throw new Error(`Missing viewer ${perspective.viewerId}`);
   }
 
-  const tablePlayers = [...others, viewer];
+  const tablePlayers = [
+    ...effectivePlayers.slice(viewerIndex + 1),
+    ...effectivePlayers.slice(0, viewerIndex + 1)
+  ];
   const activeTurnIndex = tablePlayers.findIndex((player) => player.id === effectiveTurnPlayerId);
   const isCompactPlayersLayout = tablePlayers.length >= 4;
   const lastLog = perspective.logs[perspective.logs.length - 1] ?? null;
@@ -2358,11 +2539,14 @@ function GameClient({
   const isOnlineTurn = !isLocalDebugMode && onlineState.selfId !== null && perspective.currentTurnPlayerId === onlineState.selfId;
   const canAct = (isLocalDebugMode || (onlineState.status === 'connected' && isOnlineTurn)) && !isActionAnimationRunning;
   const selectedAction: PendingCardAction = isLocalDebugMode ? debugGame.state.ui.pendingAction : pendingAction;
+  const redundantPlayArmed = selectedAction === 'play' && redundantPlayConfirmCardId !== null;
+  const viewerHandCount = perspective.players.find((player) => player.id === perspective.viewerId)?.cards.length ?? 0;
+  const viewerHasCards = viewerHandCount > 0;
   const showReconnectAction = !isLocalDebugMode && onlineState.status !== 'connected';
-  const discardDisabled = gameOver || !canAct || perspective.hintTokens >= perspective.maxHintTokens;
+  const discardDisabled = gameOver || !canAct || !viewerHasCards || perspective.hintTokens >= perspective.maxHintTokens;
   const colorHintDisabled = gameOver || !canAct || perspective.hintTokens <= 0;
   const numberHintDisabled = gameOver || !canAct || perspective.hintTokens <= 0;
-  const playDisabled = gameOver || !canAct;
+  const playDisabled = gameOver || !canAct || !viewerHasCards;
 
   function toggleEndgameLog(): void {
     setEndgamePanel((current) => (current === 'log' ? 'summary' : 'log'));
@@ -2373,6 +2557,7 @@ function GameClient({
     setIsMenuOpen(false);
     closeLogDrawer();
     setPendingAction(null);
+    setRedundantPlayConfirmCardId(null);
     setWildColorHintTargetPlayerId(null);
 
     if (isLocalDebugMode) {
@@ -2497,16 +2682,26 @@ function GameClient({
 	            data-testid={`player-${player.id}`}
           >
 	            <header className="player-header">
-	              <span className="player-name" data-testid={`player-name-${player.id}`}>
-	                {player.isViewer && !isCompactPlayersLayout ? `${player.name} (You)` : player.name}
-	              </span>
-	              {player.isCurrentTurn && (
-	                <span className="turn-chip" data-testid={`player-turn-${player.id}`}>
-	                  <span className="turn-chip-dot" />
-	                  Turn
-	                </span>
-	              )}
-	            </header>
+                <span
+                  className={`player-name ${player.id === perspective.viewerId ? 'you-name' : ''}`}
+                  data-testid={`player-name-${player.id}`}
+                  ref={(node) => {
+                    if (node) {
+                      playerNameNodeByIdRef.current.set(player.id, node);
+                    } else {
+                      playerNameNodeByIdRef.current.delete(player.id);
+                    }
+                  }}
+                >
+                  {player.isViewer && !isCompactPlayersLayout ? `${player.name} (You)` : player.name}
+                </span>
+                {player.isCurrentTurn && (
+                  <span className="turn-chip" data-testid={`player-turn-${player.id}`}>
+                    <span className="turn-chip-dot" />
+                    Turn
+                  </span>
+                )}
+              </header>
 	            <div className="cards" style={{ '--hand-size': String(player.cards.length) } as CSSProperties}>
 	              {player.cards.map((card, cardIndex) => (
 	                <CardView
@@ -2516,6 +2711,7 @@ function GameClient({
                   showNegativeNumberHints={showNegativeNumberHints}
                   onSelect={() => handleCardSelect(player.id, card.id)}
                   testId={`card-${player.id}-${cardIndex}`}
+                  isRedundantPlayArmed={selectedAction === 'play' && redundantPlayConfirmCardId === card.id}
                   onNode={(node) => {
                     if (node) {
                       cardNodeByIdRef.current.set(card.id, node);
@@ -2599,7 +2795,7 @@ function GameClient({
               onClick={handlePlayPress}
               disabled={playDisabled}
             >
-              <span className="action-main">Play</span>
+              <span className="action-main">{redundantPlayArmed ? 'Confirm' : 'Play'}</span>
             </button>
           </div>
         </section>
@@ -2683,6 +2879,15 @@ function GameClient({
             >
               <span>Negative Number Hints</span>
               <span data-testid="menu-negative-number-value">{showNegativeNumberHints ? 'On' : 'Off'}</span>
+            </button>
+            <button
+              type="button"
+              className="menu-item menu-toggle-item"
+              data-testid="menu-turn-sound-toggle"
+              onClick={handleTurnSoundToggle}
+            >
+              <span>Turn Sound</span>
+              <span data-testid="menu-turn-sound-value">{turnSoundEnabled ? 'On' : 'Off'}</span>
             </button>
             {!isLocalDebugMode && showReconnectAction && (
               <button
@@ -3825,6 +4030,7 @@ function CardView({
   showNegativeNumberHints,
   onSelect,
   isDisabled = false,
+  isRedundantPlayArmed = false,
   testId,
   onNode
 }: {
@@ -3833,6 +4039,7 @@ function CardView({
   showNegativeNumberHints: boolean;
   onSelect?: () => void;
   isDisabled?: boolean;
+  isRedundantPlayArmed?: boolean;
   testId: string;
   onNode?: (node: HTMLButtonElement | null) => void;
 }) {
@@ -3865,7 +4072,7 @@ function CardView({
   return (
     <button
       type="button"
-      className={`card ${card.hints.recentlyHinted ? 'recent' : ''}`}
+      className={`card ${card.hints.recentlyHinted ? 'recent' : ''} ${isRedundantPlayArmed ? 'redundant-play-armed' : ''}`}
       style={{ '--card-bg': bgColor } as CSSProperties}
       onClick={isDisabled ? undefined : onSelect}
       data-testid={testId}

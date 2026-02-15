@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HanabiGame, type CardNumber, type HanabiState, type Suit } from './game';
 import { electHostId } from './hostElection';
-import { NETWORK_APP_ID } from './networkConstants';
+import { getScopedNetworkAppId } from './networkConstants';
 import {
   applyNetworkAction,
   assignMembers,
@@ -219,6 +219,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
     let active = true;
     let room: TrysteroRoom | null = null;
     let moduleApi: TrysteroModule | null = null;
+    const scopedAppId = getScopedNetworkAppId();
     let heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
     let syncIntervalId: ReturnType<typeof setInterval> | null = null;
     let selfId = '';
@@ -412,7 +413,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
         selfId
       });
 
-      room = moduleApi.joinRoom({ appId: NETWORK_APP_ID }, roomId);
+      room = moduleApi.joinRoom({ appId: scopedAppId }, roomId);
       const [sendHelloAction, getHelloAction] = room.makeAction<HelloMessage>(HELLO_NAMESPACE);
       const [sendSnapshotAction, getSnapshotAction] = room.makeAction<SnapshotMessage>(SNAPSHOT_NAMESPACE);
       const [sendRequestSnapshotAction, getRequestSnapshotAction] = room.makeAction<SnapshotRequestMessage>(
