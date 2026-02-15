@@ -1,9 +1,9 @@
 import {
   Drop,
+  Fire,
   Heart,
   Leaf,
   Rainbow,
-  Snowflake,
   Sun,
   type IconProps
 } from '@phosphor-icons/react';
@@ -15,7 +15,7 @@ const suitIcons: Record<Suit, ComponentType<IconProps>> = {
   Y: Sun,
   G: Leaf,
   B: Drop,
-  W: Snowflake,
+  W: Fire,
   M: Rainbow
 };
 

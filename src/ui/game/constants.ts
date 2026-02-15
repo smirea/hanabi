@@ -5,7 +5,7 @@ export const suitColors: Record<Suit, string> = {
   Y: '#f4c21b',
   G: '#2dc96d',
   B: '#4f8eff',
-  W: '#ff79b5',
+  W: '#ff7e2e',
   M: '#8b5cf6'
 };
 
@@ -23,6 +23,6 @@ export const suitNames: Record<Suit, string> = {
   Y: 'yellow',
   G: 'green',
   B: 'blue',
-  W: 'ice',
+  W: 'orange',
   M: 'multicolor'
 };
