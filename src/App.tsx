@@ -624,6 +624,18 @@ function App({
   roomCode?: string;
   onLeaveRoom?: () => void;
 }) {
+  const allowRoomQueryRouting = roomCode === DEFAULT_ROOM_ID;
+  const [roomId, setRoomId] = useState<string>(() => {
+    if (!allowRoomQueryRouting) {
+      return roomCode;
+    }
+
+    if (typeof window === 'undefined') {
+      return DEFAULT_ROOM_ID;
+    }
+
+    return resolveRoomIdFromUrl(new URL(window.location.href));
+  });
   const [hash, setHash] = useState(() => {
     if (typeof window === 'undefined') {
       return '';
@@ -656,6 +668,48 @@ function App({
     };
   }, []);
 
+  useEffect(() => {
+    if (!allowRoomQueryRouting) {
+      const normalizedRoomId = normalizeRoomId(roomCode);
+      if (!normalizedRoomId) {
+        throw new Error('Room code must be 1-32 chars using letters, numbers, "-" or "_"');
+      }
+
+      setRoomId(normalizedRoomId);
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      setRoomId(DEFAULT_ROOM_ID);
+      return;
+    }
+
+    setRoomId(resolveRoomIdFromUrl(new URL(window.location.href)));
+  }, [allowRoomQueryRouting, roomCode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !allowRoomQueryRouting) {
+      return;
+    }
+
+    const onPopState = (): void => {
+      setRoomId(resolveRoomIdFromUrl(new URL(window.location.href)));
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+    };
+  }, [allowRoomQueryRouting]);
+
+  useEffect(() => {
+    if (!allowRoomQueryRouting) {
+      return;
+    }
+
+    writeRoomIdToHistory(roomId, 'replace');
+  }, [allowRoomQueryRouting, roomId]);
+
   const storageNamespace = useMemo(() => {
     if (debugFramePlayerId) {
       return createDebugNamespace(debugFramePlayerId);
@@ -687,12 +741,11 @@ function App({
     return (
       <GameClient
         runtime="debug-network-frame"
-        roomId={roomId}
         framePlayerId={debugFramePlayerId}
         onOpenDebugNetworkShell={null}
         isDarkMode={isDarkMode}
         onToggleDarkMode={() => setIsDarkMode((current) => !current)}
-        roomId={roomCode}
+        roomId={roomId}
         onLeaveRoom={onLeaveRoom ?? null}
         storageNamespace={storageNamespace}
       />
@@ -711,12 +764,11 @@ function App({
   return (
     <GameClient
       runtime="standard"
-      roomId={roomId}
       framePlayerId={null}
       onOpenDebugNetworkShell={() => setIsDebugNetworkShellOpen(true)}
       isDarkMode={isDarkMode}
       onToggleDarkMode={() => setIsDarkMode((current) => !current)}
-      roomId={roomCode}
+      roomId={roomId}
       onLeaveRoom={onLeaveRoom ?? null}
       storageNamespace={storageNamespace}
     />
@@ -869,7 +921,6 @@ function GameClient({
   onOpenDebugNetworkShell,
   isDarkMode,
   onToggleDarkMode,
-  roomId,
   onLeaveRoom,
   storageNamespace
 }: {
@@ -879,7 +930,6 @@ function GameClient({
   onOpenDebugNetworkShell: (() => void) | null;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
-  roomId: string;
   onLeaveRoom: (() => void) | null;
   storageNamespace: string | null;
 }) {
@@ -3290,7 +3340,7 @@ function LobbyScreen({
                 className="lobby-button subtle lobby-quick-toggle"
                 onClick={onToggleDarkMode}
                 aria-pressed={isDarkMode}
-                data-testid="lobby-theme-toggle"
+                data-testid="lobby-theme-toggle-quick"
               >
                 <span className="lobby-quick-text">
                   <span className="lobby-quick-label">Dark mode</span>
@@ -3327,6 +3377,24 @@ function LobbyScreen({
                 </button>
               )}
             </div>
+          </header>
+
+          <label className="lobby-name-field">
+            <span className="lobby-name-label">Name</span>
+            <input
+              type="text"
+              value={selfName}
+              onChange={(event) => onSelfNameChange(event.target.value)}
+              placeholder={defaultNamePlaceholder}
+              autoComplete="name"
+              maxLength={24}
+              className="lobby-input"
+              data-testid="lobby-name-input"
+            />
+          </label>
+          <div className="lobby-room-field">
+            <span className="lobby-name-label">Room</span>
+            <p className="lobby-room-code" data-testid="lobby-room-code">{roomId}</p>
           </div>
 
           {error && (
