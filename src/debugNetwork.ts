@@ -10,12 +10,16 @@ import {
 } from './network';
 import { electHostId } from './hostElection';
 import {
+  areLobbySettingsEqual,
   applyNetworkAction,
+  cloneLobbySettings,
+  isValidSeatedPlayerCount,
   normalizeSettings,
   normalizeUniquePlayerNameKey,
   resolveUniquePlayerName,
   sanitizePlayerName
 } from './networkShared';
+import { areArraysEqual } from './utils/arrays';
 
 const DEBUG_NETWORK_ROOM_STORAGE_KEY = 'hanabi.debug_network.room.v1';
 const DEBUG_PLAYER_HASH_PREFIX = '#debug-';
@@ -28,13 +32,6 @@ type DebugNetworkRoomState = {
   names: Record<string, string>;
   tv: Record<string, boolean>;
   gameState: ReturnType<HanabiGame['getSnapshot']> | null;
-};
-
-const DEFAULT_SETTINGS: LobbySettings = {
-  includeMulticolor: false,
-  multicolorShortDeck: false,
-  multicolorWildHints: false,
-  endlessMode: false
 };
 
 function normalizePlayerIds(input: string[]): string[] {
@@ -61,25 +58,11 @@ function normalizePlayerIds(input: string[]): string[] {
   return normalized;
 }
 
-function arraysEqual(left: string[], right: string[]): boolean {
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  for (let index = 0; index < left.length; index += 1) {
-    if (left[index] !== right[index]) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 function createRoomState(players: string[]): DebugNetworkRoomState {
   return {
     version: 1,
     phase: 'lobby',
-    settings: DEFAULT_SETTINGS,
+    settings: cloneLobbySettings(),
     players: normalizePlayerIds(players),
     names: {},
     tv: {},
@@ -248,7 +231,7 @@ function createIdleState(playerId: string | null): OnlineState {
     snapshotVersion: 0,
     phase: 'lobby',
     members: [],
-    settings: DEFAULT_SETTINGS,
+    settings: cloneLobbySettings(),
     gameState: null,
     error: null
   };
@@ -360,7 +343,7 @@ export function getDebugNetworkPlayersFromRoom(): string[] {
 export function syncDebugNetworkRoomPlayers(playerIds: string[]): void {
   const normalizedPlayers = normalizePlayerIds(playerIds);
   const currentState = getRoomStateOrCreate(normalizedPlayers);
-  if (arraysEqual(currentState.players, normalizedPlayers) && currentState.phase === 'lobby' && currentState.gameState === null) {
+  if (areArraysEqual(currentState.players, normalizedPlayers) && currentState.phase === 'lobby' && currentState.gameState === null) {
     return;
   }
 
@@ -422,7 +405,7 @@ export function useDebugNetworkSession(playerId: string | null): OnlineSession {
       }
 
       const seatedPlayers = draft.players.filter((peerId) => !draft.tv[peerId]);
-      if (seatedPlayers.length < 2 || seatedPlayers.length > 5) {
+      if (!isValidSeatedPlayerCount(seatedPlayers.length)) {
         return false;
       }
 
@@ -460,12 +443,7 @@ export function useDebugNetworkSession(playerId: string | null): OnlineSession {
         ...next
       });
 
-      if (
-        previous.includeMulticolor === resolved.includeMulticolor
-        && previous.multicolorShortDeck === resolved.multicolorShortDeck
-        && previous.multicolorWildHints === resolved.multicolorWildHints
-        && previous.endlessMode === resolved.endlessMode
-      ) {
+      if (areLobbySettingsEqual(previous, resolved)) {
         return false;
       }
 

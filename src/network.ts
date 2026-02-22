@@ -2,7 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HanabiGame, type CardNumber, type HanabiState, type Suit } from './game';
 import { electHostId } from './hostElection';
 import { getScopedNetworkAppId } from './networkConstants';
-import { applyNetworkAction, normalizeSettings, sanitizePlayerName } from './networkShared';
+import {
+  applyNetworkAction,
+  cloneLobbySettings,
+  isValidSeatedPlayerCount,
+  normalizeSettings,
+  sanitizePlayerName
+} from './networkShared';
 import {
   assignMembers,
   areMembersEqual,
@@ -99,13 +105,6 @@ export type OnlineState = {
   error: string | null;
 };
 
-const DEFAULT_SETTINGS: LobbySettings = {
-  includeMulticolor: false,
-  multicolorShortDeck: false,
-  multicolorWildHints: false,
-  endlessMode: false
-};
-
 const INITIAL_STATE: OnlineState = {
   status: 'idle',
   roomId: DEFAULT_ROOM_ID,
@@ -115,7 +114,7 @@ const INITIAL_STATE: OnlineState = {
   snapshotVersion: 0,
   phase: 'lobby',
   members: [],
-  settings: DEFAULT_SETTINGS,
+  settings: cloneLobbySettings(),
   gameState: null,
   error: null
 };
@@ -126,7 +125,7 @@ function createInitialSnapshot(selfId: string, selfName: string): RoomSnapshot {
     hostId: selfId,
     phase: 'lobby',
     members: [{ peerId: selfId, name: selfName, isTv: false }],
-    settings: DEFAULT_SETTINGS,
+    settings: cloneLobbySettings(),
     gameState: null
   };
 }
@@ -158,6 +157,7 @@ function toOnlineState(
   if (!snapshot) {
     return {
       ...INITIAL_STATE,
+      settings: cloneLobbySettings(),
       status,
       roomId,
       selfId,
@@ -582,14 +582,14 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
           }
 
           updateHostedSnapshot((draft) => {
+            if (draft.phase !== 'lobby') {
+              return;
+            }
+
             draft.settings = normalizeSettings({
               ...draft.settings,
               ...next
             });
-            if (draft.phase === 'playing') {
-              draft.phase = 'lobby';
-              draft.gameState = null;
-            }
           });
         },
         startGame: () => {
@@ -599,7 +599,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
 
           const orderedPlayers = hostedSnapshot.members.filter((member) => !member.isTv);
 
-          if (orderedPlayers.length < 2 || orderedPlayers.length > 5) {
+          if (!isValidSeatedPlayerCount(orderedPlayers.length)) {
             return;
           }
 

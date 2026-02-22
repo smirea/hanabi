@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getScopedNetworkAppId } from './networkConstants';
+import { MAX_PLAYER_NAME_LENGTH } from './networkShared';
 import { isValidRoomCode } from './roomCodes';
 
 const DIRECTORY_ROOM_ID = 'hanabi-room-directory-v1';
@@ -60,7 +61,7 @@ function isDirectoryAnnouncement(value: unknown): value is DirectoryAnnouncement
 function toListing(message: DirectoryAnnouncement, updatedAt: number): DirectoryRoomListing {
   const members = message.members
     .map((member) => ({
-      name: member.name.trim().slice(0, 24),
+      name: member.name.trim().slice(0, MAX_PLAYER_NAME_LENGTH),
       isTv: Boolean(member.isTv)
     }))
     .filter((member) => member.name.length > 0);

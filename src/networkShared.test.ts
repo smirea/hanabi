@@ -1,7 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import { HanabiGame } from './game';
 import {
+  areLobbySettingsEqual,
   applyNetworkAction,
+  cloneLobbySettings,
+  DEFAULT_LOBBY_SETTINGS,
+  isValidSeatedPlayerCount,
+  MAX_PLAYER_NAME_LENGTH,
   normalizeSettings,
   normalizeUniquePlayerNameKey,
   resolveUniquePlayerName,
@@ -35,6 +40,7 @@ describe('networkShared', () => {
   test('name sanitization and uniqueness helpers normalize and suffix duplicates', () => {
     expect(sanitizePlayerName('   Alex   Rivera   ')).toBe('Alex Rivera');
     expect(sanitizePlayerName('   ')).toBeNull();
+    expect(sanitizePlayerName('A'.repeat(MAX_PLAYER_NAME_LENGTH + 10))?.length).toBe(MAX_PLAYER_NAME_LENGTH);
 
     const used = new Set<string>();
     const first = resolveUniquePlayerName('Alex', used);
@@ -43,6 +49,22 @@ describe('networkShared', () => {
 
     expect(first).toBe('Alex');
     expect(second).toBe('Alex 2');
+  });
+
+  test('lobby settings helpers clone and compare values safely', () => {
+    const cloned = cloneLobbySettings();
+    expect(cloned).toEqual(DEFAULT_LOBBY_SETTINGS);
+    expect(cloned).not.toBe(DEFAULT_LOBBY_SETTINGS);
+
+    expect(areLobbySettingsEqual(cloned, DEFAULT_LOBBY_SETTINGS)).toBe(true);
+    expect(areLobbySettingsEqual(cloned, { ...cloned, endlessMode: true })).toBe(false);
+  });
+
+  test('seated player count helper enforces supported player range', () => {
+    expect(isValidSeatedPlayerCount(1)).toBe(false);
+    expect(isValidSeatedPlayerCount(2)).toBe(true);
+    expect(isValidSeatedPlayerCount(5)).toBe(true);
+    expect(isValidSeatedPlayerCount(6)).toBe(false);
   });
 
   test('applyNetworkAction rejects actions from non-current players', () => {

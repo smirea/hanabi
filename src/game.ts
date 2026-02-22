@@ -436,10 +436,6 @@ export class HanabiGame {
       throw new Error('Cannot discard with no cards in hand');
     }
 
-    if (this.state.hintTokens >= this.state.settings.maxHintTokens) {
-      throw new Error('Cannot discard while all hint tokens are available');
-    }
-
     this.state.ui = {
       ...createEmptyUiState(),
       pendingAction: 'discard'
@@ -628,16 +624,17 @@ export class HanabiGame {
       return;
     }
 
-    this.drawCardForPlayer(this.state.currentTurnPlayerIndex);
-    this.finalizeAction();
+    const deckEmptiedOnDraw = this.drawCardForPlayer(this.state.currentTurnPlayerIndex);
+    if (deckEmptiedOnDraw && !this.state.settings.endlessMode && this.state.status === 'active') {
+      this.state.status = 'last_round';
+      this.state.lastRound = { turnsRemaining: this.state.players.length };
+    }
+
+    this.finalizeAction({ enteredLastRound: deckEmptiedOnDraw });
   }
 
   public discardCard(cardId: CardId): void {
     this.assertTurnCanBePlayed();
-
-    if (this.state.hintTokens >= this.state.settings.maxHintTokens) {
-      throw new Error('Cannot discard while all hint tokens are available');
-    }
 
     const currentPlayer = this.state.players[this.state.currentTurnPlayerIndex];
     const cardIndex = currentPlayer.cards.indexOf(cardId);
@@ -649,17 +646,25 @@ export class HanabiGame {
     this.clearRecentHints();
     currentPlayer.cards.splice(cardIndex, 1);
     this.state.discardPile.push(cardId);
-    this.state.hintTokens += 1;
+    const gainedHint = this.state.hintTokens < this.state.settings.maxHintTokens;
+    if (gainedHint) {
+      this.state.hintTokens += 1;
+    }
 
-    this.appendDiscardLog(currentPlayer, card, true);
+    this.appendDiscardLog(currentPlayer, card, gainedHint);
     if (this.state.settings.endlessMode && !this.isPerfectionStillPossible()) {
       this.transitionToTerminalState('lost', 'indispensable_card_discarded');
       this.finalizeAction();
       return;
     }
 
-    this.drawCardForPlayer(this.state.currentTurnPlayerIndex);
-    this.finalizeAction();
+    const deckEmptiedOnDraw = this.drawCardForPlayer(this.state.currentTurnPlayerIndex);
+    if (deckEmptiedOnDraw && !this.state.settings.endlessMode && this.state.status === 'active') {
+      this.state.status = 'last_round';
+      this.state.lastRound = { turnsRemaining: this.state.players.length };
+    }
+
+    this.finalizeAction({ enteredLastRound: deckEmptiedOnDraw });
   }
 
   public giveColorHint(targetPlayerId: PlayerId, suit: Suit): void {
@@ -1182,6 +1187,16 @@ export class HanabiGame {
     return this.state.drawDeck.length === 0;
   }
 
+  private anyPlayerHasLegalAction(): boolean {
+    for (let index = 0; index < this.state.players.length; index += 1) {
+      if (this.playerHasLegalAction(index)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   private canPlayerGiveHint(playerIndex: number): boolean {
     if (this.state.hintTokens <= 0) {
       return false;
@@ -1238,7 +1253,29 @@ export class HanabiGame {
     this.appendStatusLog(status, reason);
   }
 
-  private finalizeAction(): void {
+  private finalizeAction({ enteredLastRound = false }: { enteredLastRound?: boolean } = {}): void {
+    if (!HanabiGame.isTerminalStatus(this.state.status) && this.areAllFireworksComplete()) {
+      this.transitionToTerminalState('won', 'all_fireworks_completed');
+    }
+
+    if (!HanabiGame.isTerminalStatus(this.state.status) && this.state.status === 'last_round') {
+      if (!this.state.lastRound) {
+        throw new Error('lastRound state is required while status is last_round');
+      }
+
+      if (!enteredLastRound) {
+        this.state.lastRound.turnsRemaining -= 1;
+      }
+
+      if (this.state.lastRound.turnsRemaining <= 0) {
+        this.transitionToTerminalState('finished', 'final_round_complete');
+      }
+    }
+
+    if (!HanabiGame.isTerminalStatus(this.state.status) && !this.anyPlayerHasLegalAction()) {
+      this.transitionToTerminalState('finished', 'final_round_complete');
+    }
+
     if (!HanabiGame.isTerminalStatus(this.state.status)) {
       this.advanceTurn();
     }

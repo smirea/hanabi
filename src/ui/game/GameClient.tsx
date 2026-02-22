@@ -13,9 +13,11 @@ import {
 import { useDebugScreensController } from '../../debugScreens';
 import { useDebugNetworkSession } from '../../debugNetwork';
 import {
+  type NetworkAction,
   type OnlineSession,
   useOnlineSession
 } from '../../network';
+import { sanitizePlayerName } from '../../networkShared';
 import { isValidRoomCode } from '../../roomCodes';
 import { useRoomDirectoryAdvertiser } from '../../roomDirectory';
 import { storageKeys } from '../../storage';
@@ -36,6 +38,7 @@ import {
   resolveDirectColorHintAction
 } from './hooks/useCardActionHandlers';
 import { useGameAnimations } from './hooks/useGameAnimations';
+import { useTransientActionState } from './hooks/useTransientActionState';
 import { getLogBadge, renderLogMessage } from './utils/logFormatting';
 
 const LOCAL_DEBUG_SETUP = {
@@ -48,19 +51,6 @@ type ClientRuntime = 'standard' | 'debug-network-frame';
 
 function isTerminalStatus(status: HanabiPerspectiveState['status']): boolean {
   return status === 'won' || status === 'lost' || status === 'finished';
-}
-
-function sanitizeLobbyName(raw: string): string | null {
-  if (typeof raw !== 'string') {
-    return null;
-  }
-
-  const trimmed = raw.trim().replace(/\s+/g, ' ');
-  if (trimmed.length === 0) {
-    return null;
-  }
-
-  return trimmed.slice(0, 24);
 }
 
 async function writeToClipboard(text: string): Promise<void> {
@@ -136,9 +126,17 @@ function GameClient({
   const [isLogDrawerMounted, setIsLogDrawerMounted] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLeaveGameArmed, setIsLeaveGameArmed] = useState(false);
-  const [pendingAction, setPendingAction] = useState<PendingCardAction>(null);
   const [endgamePanel, setEndgamePanel] = useState<'summary' | 'log'>('summary');
-  const [wildColorHintTargetPlayerId, setWildColorHintTargetPlayerId] = useState<PlayerId | null>(null);
+  const {
+    pendingAction,
+    setPendingAction,
+    wildColorHintTargetPlayerId,
+    setWildColorHintTargetPlayerId,
+    redundantPlayConfirmCardId,
+    setRedundantPlayConfirmCardId,
+    clearActionDraft,
+    clearHintDraft
+  } = useTransientActionState();
   const [isDebugMode, setIsDebugMode] = useLocalStorageState(storageKeys.debugMode, false, storageNamespace);
   const [playerName, setPlayerName] = useLocalStorageState(storageKeys.playerName, '', storageNamespace);
   const [isTvMode, setIsTvMode] = useSessionStorageState(storageKeys.tvMode, false, storageNamespace);
@@ -158,7 +156,6 @@ function GameClient({
     storageNamespace
   );
   const logListRef = useRef<HTMLDivElement | null>(null);
-  const [redundantPlayConfirmCardId, setRedundantPlayConfirmCardId] = useState<CardId | null>(null);
   const logDrawerTokenRef = useRef(0);
   const logDrawerCloseTimeoutRef = useRef<number | null>(null);
 
@@ -192,7 +189,7 @@ function GameClient({
       return;
     }
 
-    const sanitizedLocalName = sanitizeLobbyName(playerName);
+    const sanitizedLocalName = sanitizePlayerName(playerName);
     if (!sanitizedLocalName) {
       if (memberName !== playerName) {
         setPlayerName(memberName);
@@ -425,11 +422,9 @@ function GameClient({
     setIsMenuOpen(false);
     setIsLogDrawerOpen(false);
     setIsLogDrawerMounted(false);
-    setPendingAction(null);
-    setWildColorHintTargetPlayerId(null);
-    setRedundantPlayConfirmCardId(null);
+    clearActionDraft();
     setEndgamePanel('summary');
-  }, [resetAnimations]);
+  }, [clearActionDraft, resetAnimations]);
 
   useDebugScreensController({
     enabled: !isDebugNetworkFrame,
@@ -454,10 +449,8 @@ function GameClient({
   }, []);
 
   useEffect(() => {
-    setPendingAction(null);
-    setWildColorHintTargetPlayerId(null);
-    setRedundantPlayConfirmCardId(null);
-  }, [isLocalDebugMode, onlineState.snapshotVersion, perspective?.turn]);
+    clearActionDraft();
+  }, [clearActionDraft, isLocalDebugMode, onlineState.snapshotVersion, perspective?.turn]);
 
   useEffect(() => {
     if (isLocalDebugMode) {
@@ -471,13 +464,12 @@ function GameClient({
     try {
       command();
       setDebugGameState(debugGame.getSnapshot());
-      setPendingAction(null);
-      setRedundantPlayConfirmCardId(null);
+      clearActionDraft();
     } catch {
     }
   }
 
-  function selectOnlineAction(nextAction: PendingCardAction): void {
+  function selectOnlineAction(nextAction: Exclude<PendingCardAction, null>): void {
     if (isLocalDebugMode || !perspective || !onlineState.selfId) {
       return;
     }
@@ -487,73 +479,109 @@ function GameClient({
       return;
     }
 
-    if (nextAction === 'discard' && perspective.hintTokens >= perspective.maxHintTokens) {
-      return;
-    }
-
     if ((nextAction === 'hint-color' || nextAction === 'hint-number') && perspective.hintTokens <= 0) {
       return;
     }
 
-    setWildColorHintTargetPlayerId(null);
-    setRedundantPlayConfirmCardId(null);
+    clearHintDraft();
     setPendingAction(nextAction);
   }
 
-  function handlePlayPress(): void {
-    setWildColorHintTargetPlayerId(null);
-    setRedundantPlayConfirmCardId(null);
+  function handleActionPress(nextAction: Exclude<PendingCardAction, null>, beginLocal: () => void): void {
+    clearHintDraft();
     if (isLocalDebugMode) {
       setIsMenuOpen(false);
-      commitLocal(() => {
-        debugGame.beginPlaySelection();
-      });
+      commitLocal(beginLocal);
       return;
     }
 
-    selectOnlineAction('play');
+    selectOnlineAction(nextAction);
+  }
+
+  function handlePlayPress(): void {
+    handleActionPress('play', () => {
+      debugGame.beginPlaySelection();
+    });
   }
 
   function handleDiscardPress(): void {
-    setWildColorHintTargetPlayerId(null);
-    setRedundantPlayConfirmCardId(null);
-    if (isLocalDebugMode) {
-      setIsMenuOpen(false);
-      commitLocal(() => {
-        debugGame.beginDiscardSelection();
-      });
-      return;
-    }
-
-    selectOnlineAction('discard');
+    handleActionPress('discard', () => {
+      debugGame.beginDiscardSelection();
+    });
   }
 
   function handleHintColorPress(): void {
-    setWildColorHintTargetPlayerId(null);
-    setRedundantPlayConfirmCardId(null);
-    if (isLocalDebugMode) {
-      setIsMenuOpen(false);
-      commitLocal(() => {
-        debugGame.beginColorHintSelection();
-      });
-      return;
-    }
-
-    selectOnlineAction('hint-color');
+    handleActionPress('hint-color', () => {
+      debugGame.beginColorHintSelection();
+    });
   }
 
   function handleHintNumberPress(): void {
-    setWildColorHintTargetPlayerId(null);
+    handleActionPress('hint-number', () => {
+      debugGame.beginNumberHintSelection();
+    });
+  }
+
+  function applyRedundantHintFeedback(touchedCardIds: CardId[]): void {
     setRedundantPlayConfirmCardId(null);
-    if (isLocalDebugMode) {
-      setIsMenuOpen(false);
+    for (const touchedId of touchedCardIds) {
+      triggerCardFx(touchedId, 'hint-redundant');
+    }
+  }
+
+  function commitLocalAction(action: NetworkAction): void {
+    if (action.type === 'play') {
       commitLocal(() => {
-        debugGame.beginNumberHintSelection();
+        debugGame.playCard(action.cardId);
       });
       return;
     }
 
-    selectOnlineAction('hint-number');
+    if (action.type === 'discard') {
+      commitLocal(() => {
+        debugGame.discardCard(action.cardId);
+      });
+      return;
+    }
+
+    if (action.type === 'hint-color') {
+      commitLocal(() => {
+        debugGame.giveColorHint(action.targetPlayerId, action.suit);
+      });
+      return;
+    }
+
+    commitLocal(() => {
+      debugGame.giveNumberHint(action.targetPlayerId, action.number);
+    });
+  }
+
+  function applyResolvedCardSelection(
+    resolved: ReturnType<typeof resolveCardSelectionAction>,
+    onAction: (action: NetworkAction) => void
+  ): void {
+    if (resolved.kind === 'arm-redundant-play') {
+      setRedundantPlayConfirmCardId(resolved.cardId);
+      triggerCardFx(resolved.cardId, 'hint-redundant');
+      return;
+    }
+
+    if (resolved.kind === 'wild-color-picker') {
+      setWildColorHintTargetPlayerId(resolved.targetPlayerId);
+      setRedundantPlayConfirmCardId(null);
+      return;
+    }
+
+    if (resolved.kind === 'redundant-hint') {
+      applyRedundantHintFeedback(resolved.touchedCardIds);
+      return;
+    }
+
+    if (resolved.kind !== 'action') {
+      return;
+    }
+
+    onAction(resolved.action);
   }
 
   function handleCardSelect(playerId: PlayerId, cardId: CardId): void {
@@ -573,54 +601,8 @@ function GameClient({
         redundantPlayConfirmCardId
       });
 
-      if (resolved.kind === 'arm-redundant-play') {
-        setRedundantPlayConfirmCardId(resolved.cardId);
-        triggerCardFx(resolved.cardId, 'hint-redundant');
-        return;
-      }
-
-      if (resolved.kind === 'wild-color-picker') {
-        setWildColorHintTargetPlayerId(resolved.targetPlayerId);
-        return;
-      }
-
-      if (resolved.kind === 'redundant-hint') {
-        setRedundantPlayConfirmCardId(null);
-        for (const touchedId of resolved.touchedCardIds) {
-          triggerCardFx(touchedId, 'hint-redundant');
-        }
-        return;
-      }
-
-      if (resolved.kind !== 'action') {
-        return;
-      }
-
-      setRedundantPlayConfirmCardId(null);
-      const action = resolved.action;
-      if (action.type === 'play') {
-        commitLocal(() => {
-          debugGame.playCard(action.cardId);
-        });
-        return;
-      }
-
-      if (action.type === 'discard') {
-        commitLocal(() => {
-          debugGame.discardCard(action.cardId);
-        });
-        return;
-      }
-
-      if (action.type === 'hint-color') {
-        commitLocal(() => {
-          debugGame.giveColorHint(action.targetPlayerId, action.suit);
-        });
-        return;
-      }
-
-      commitLocal(() => {
-        debugGame.giveNumberHint(action.targetPlayerId, action.number);
+      applyResolvedCardSelection(resolved, (action) => {
+        commitLocalAction(action);
       });
       return;
     }
@@ -639,39 +621,14 @@ function GameClient({
       redundantPlayConfirmCardId
     });
 
-    if (resolved.kind === 'arm-redundant-play') {
-      setRedundantPlayConfirmCardId(resolved.cardId);
-      triggerCardFx(resolved.cardId, 'hint-redundant');
-      return;
-    }
-
-    if (resolved.kind === 'wild-color-picker') {
-      setWildColorHintTargetPlayerId(resolved.targetPlayerId);
-      setRedundantPlayConfirmCardId(null);
-      return;
-    }
-
-    if (resolved.kind === 'redundant-hint') {
-      setRedundantPlayConfirmCardId(null);
-      for (const touchedId of resolved.touchedCardIds) {
-        triggerCardFx(touchedId, 'hint-redundant');
-      }
-      return;
-    }
-
-    if (resolved.kind !== 'action') {
-      return;
-    }
-
-    activeSession.sendAction(resolved.action);
-    setPendingAction(null);
-    setRedundantPlayConfirmCardId(null);
-    setWildColorHintTargetPlayerId(null);
+    applyResolvedCardSelection(resolved, (action) => {
+      activeSession.sendAction(action);
+      clearActionDraft();
+    });
   }
 
   function cancelWildColorPicker(): void {
-    setWildColorHintTargetPlayerId(null);
-    setRedundantPlayConfirmCardId(null);
+    clearHintDraft();
     if (isLocalDebugMode) {
       commitLocal(() => {
         debugGame.cancelSelection();
@@ -679,7 +636,7 @@ function GameClient({
       return;
     }
 
-    setPendingAction(null);
+    clearActionDraft();
   }
 
   function handleWildColorPick(suit: Suit): void {
@@ -705,9 +662,7 @@ function GameClient({
         suit
       });
       if (resolved.kind === 'redundant-hint') {
-        for (const touchedId of resolved.touchedCardIds) {
-          triggerCardFx(touchedId, 'hint-redundant');
-        }
+        applyRedundantHintFeedback(resolved.touchedCardIds);
         return;
       }
 
@@ -715,11 +670,8 @@ function GameClient({
         return;
       }
 
-      commitLocal(() => {
-        debugGame.giveColorHint(targetPlayerId, suit);
-      });
-      setWildColorHintTargetPlayerId(null);
-      setRedundantPlayConfirmCardId(null);
+      commitLocalAction(resolved.action);
+      clearHintDraft();
       return;
     }
 
@@ -734,22 +686,17 @@ function GameClient({
       suit
     });
     if (resolved.kind === 'redundant-hint') {
-      for (const touchedId of resolved.touchedCardIds) {
-        triggerCardFx(touchedId, 'hint-redundant');
-      }
+      applyRedundantHintFeedback(resolved.touchedCardIds);
       return;
     }
 
     if (resolved.kind !== 'action') {
-      setPendingAction(null);
-      setWildColorHintTargetPlayerId(null);
+      clearActionDraft();
       return;
     }
 
     activeSession.sendAction(resolved.action);
-    setPendingAction(null);
-    setRedundantPlayConfirmCardId(null);
-    setWildColorHintTargetPlayerId(null);
+    clearActionDraft();
   }
 
   function openLogDrawer(): void {
@@ -822,8 +769,7 @@ function GameClient({
     setIsLeaveGameArmed(false);
     setIsMenuOpen(false);
     closeLogDrawer();
-    setPendingAction(null);
-    setRedundantPlayConfirmCardId(null);
+    clearActionDraft();
 
     const next = !isDebugMode;
     if (next) {
@@ -855,9 +801,7 @@ function GameClient({
     setIsLeaveGameArmed(false);
     setIsMenuOpen(false);
     closeLogDrawer();
-    setPendingAction(null);
-    setRedundantPlayConfirmCardId(null);
-    setWildColorHintTargetPlayerId(null);
+    clearActionDraft();
 
     if (typeof window === 'undefined') {
       return;
@@ -920,9 +864,7 @@ function GameClient({
   function handleReconnectPress(): void {
     setIsLeaveGameArmed(false);
     activeSession.requestSync();
-    setPendingAction(null);
-    setRedundantPlayConfirmCardId(null);
-    setWildColorHintTargetPlayerId(null);
+    clearActionDraft();
     setIsMenuOpen(false);
   }
 
@@ -948,8 +890,7 @@ function GameClient({
 
     setIsMenuOpen(false);
     closeLogDrawer();
-    setPendingAction(null);
-    setRedundantPlayConfirmCardId(null);
+    clearActionDraft();
 
     let loaded: HanabiState | null = null;
 
@@ -1078,7 +1019,7 @@ function GameClient({
   const viewerHandCount = perspective.players.find((player) => player.id === perspective.viewerId)?.cards.length ?? 0;
   const viewerHasCards = viewerHandCount > 0;
   const showReconnectAction = !isLocalDebugMode && onlineState.status !== 'connected';
-  const discardDisabled = gameOver || !canAct || !viewerHasCards || perspective.hintTokens >= perspective.maxHintTokens;
+  const discardDisabled = gameOver || !canAct || !viewerHasCards;
   const colorHintDisabled = gameOver || !canAct || perspective.hintTokens <= 0;
   const numberHintDisabled = gameOver || !canAct || perspective.hintTokens <= 0;
   const playDisabled = gameOver || !canAct || !viewerHasCards;
@@ -1091,9 +1032,7 @@ function GameClient({
     setEndgamePanel('summary');
     setIsMenuOpen(false);
     closeLogDrawer();
-    setPendingAction(null);
-    setRedundantPlayConfirmCardId(null);
-    setWildColorHintTargetPlayerId(null);
+    clearActionDraft();
 
     if (isLocalDebugMode) {
       debugGame.replaceState(new HanabiGame(LOCAL_DEBUG_SETUP).getSnapshot());

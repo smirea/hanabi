@@ -1,4 +1,5 @@
 import type { CardId, CardNumber, HanabiState, PlayerId, Suit } from '../../../game';
+import { areArraysEqual } from '../../../utils/arrays';
 
 function doesCardMatchColorHint(settings: HanabiState['settings'], cardSuit: Suit, hintSuit: Suit): boolean {
   if (cardSuit === hintSuit) {
@@ -30,20 +31,6 @@ function getHintTouchedCardIds(state: HanabiState, targetPlayerId: PlayerId, hin
 
     return doesCardMatchColorHint(state.settings, card.suit, hint.suit);
   });
-}
-
-function arraysEqual<T>(left: readonly T[], right: readonly T[]): boolean {
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  for (let index = 0; index < left.length; index += 1) {
-    if (left[index] !== right[index]) {
-      return false;
-    }
-  }
-
-  return true;
 }
 
 export function isRedundantHint(state: HanabiState, targetPlayerId: PlayerId, hint: HintRedundancy): { redundant: boolean; touchedCardIds: CardId[] } {
@@ -93,7 +80,7 @@ export function isRedundantHint(state: HanabiState, targetPlayerId: PlayerId, hi
         ? currentPossibleSuits.filter((candidate) => allowedSuits.includes(candidate))
         : currentPossibleSuits.filter((candidate) => !allowedSuits.includes(candidate));
 
-      if (!arraysEqual(currentPossibleSuits, nextPossibleSuits)) {
+      if (!areArraysEqual(currentPossibleSuits, nextPossibleSuits)) {
         wouldChange = true;
         break;
       }

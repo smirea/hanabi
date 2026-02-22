@@ -5,13 +5,11 @@ import {
   syncDebugNetworkRoomPlayers,
   toDebugNetworkPlayerHash
 } from './debugNetwork';
-import { DEFAULT_ROOM_ID } from './network';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
+import { parseRoomCode } from './roomCodes';
 import { createDebugNamespace, createSessionNamespace, getSessionIdFromHash, storageKeys } from './storage';
+import { areArraysEqual } from './utils/arrays';
 import GameClient from './ui/game/GameClient';
-
-const ROOM_QUERY_PARAM = 'room';
-const ROOM_ID_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9_-]{0,31})$/;
 
 function normalizeShellPlayers(input: string[]): string[] {
   const seen = new Set<string>();
@@ -37,68 +35,6 @@ function normalizeShellPlayers(input: string[]): string[] {
   return normalized;
 }
 
-function arraysEqual<T>(left: readonly T[], right: readonly T[]): boolean {
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  for (let index = 0; index < left.length; index += 1) {
-    if (left[index] !== right[index]) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-function normalizeRoomId(raw: string | null | undefined): string | null {
-  if (typeof raw !== 'string') {
-    return null;
-  }
-
-  const normalized = raw.trim();
-  if (!ROOM_ID_PATTERN.test(normalized)) {
-    return null;
-  }
-
-  return normalized;
-}
-
-function resolveRoomIdFromUrl(url: URL): string {
-  return normalizeRoomId(url.searchParams.get(ROOM_QUERY_PARAM)) ?? DEFAULT_ROOM_ID;
-}
-
-function writeRoomIdToHistory(roomId: string, mode: 'push' | 'replace'): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  const normalizedRoomId = normalizeRoomId(roomId);
-  if (!normalizedRoomId) {
-    throw new Error('Room id must be 1-32 chars using letters, numbers, "-" or "_"');
-  }
-
-  const url = new URL(window.location.href);
-  if (normalizedRoomId === DEFAULT_ROOM_ID) {
-    url.searchParams.delete(ROOM_QUERY_PARAM);
-  } else {
-    url.searchParams.set(ROOM_QUERY_PARAM, normalizedRoomId);
-  }
-
-  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
-  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-  if (nextUrl === currentUrl) {
-    return;
-  }
-
-  if (mode === 'push') {
-    window.history.pushState(null, '', nextUrl);
-    return;
-  }
-
-  window.history.replaceState(null, '', nextUrl);
-}
-
 function DebugNetworkShell({ onExit, storageNamespace }: { onExit: () => void; storageNamespace: string | null }) {
   const [storedPlayers, setStoredPlayers] = useLocalStorageState(
     storageKeys.debugNetworkPlayers,
@@ -113,7 +49,7 @@ function DebugNetworkShell({ onExit, storageNamespace }: { onExit: () => void; s
   );
 
   useEffect(() => {
-    if (arraysEqual(storedPlayers, normalizedPlayers)) {
+    if (areArraysEqual(storedPlayers, normalizedPlayers)) {
       return;
     }
 
@@ -238,24 +174,18 @@ function DebugNetworkShell({ onExit, storageNamespace }: { onExit: () => void; s
 }
 
 function App({
-  roomCode = DEFAULT_ROOM_ID,
+  roomCode,
   onLeaveRoom
 }: {
-  roomCode?: string;
+  roomCode: string;
   onLeaveRoom?: () => void;
 }) {
-  const allowRoomQueryRouting = roomCode === DEFAULT_ROOM_ID;
-  const [roomId, setRoomId] = useState<string>(() => {
-    if (!allowRoomQueryRouting) {
-      return roomCode;
-    }
+  const parsedRoomCode = parseRoomCode(roomCode);
+  if (!parsedRoomCode) {
+    throw new Error(`Invalid room code "${roomCode}". Room codes must be 4 letters.`);
+  }
 
-    if (typeof window === 'undefined') {
-      return DEFAULT_ROOM_ID;
-    }
-
-    return resolveRoomIdFromUrl(new URL(window.location.href));
-  });
+  const roomId = parsedRoomCode;
   const [hash, setHash] = useState(() => {
     if (typeof window === 'undefined') {
       return '';
@@ -287,48 +217,6 @@ function App({
       window.removeEventListener('hashchange', onHashChange);
     };
   }, []);
-
-  useEffect(() => {
-    if (!allowRoomQueryRouting) {
-      const normalizedRoomId = normalizeRoomId(roomCode);
-      if (!normalizedRoomId) {
-        throw new Error('Room code must be 1-32 chars using letters, numbers, "-" or "_"');
-      }
-
-      setRoomId(normalizedRoomId);
-      return;
-    }
-
-    if (typeof window === 'undefined') {
-      setRoomId(DEFAULT_ROOM_ID);
-      return;
-    }
-
-    setRoomId(resolveRoomIdFromUrl(new URL(window.location.href)));
-  }, [allowRoomQueryRouting, roomCode]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !allowRoomQueryRouting) {
-      return;
-    }
-
-    const onPopState = (): void => {
-      setRoomId(resolveRoomIdFromUrl(new URL(window.location.href)));
-    };
-
-    window.addEventListener('popstate', onPopState);
-    return () => {
-      window.removeEventListener('popstate', onPopState);
-    };
-  }, [allowRoomQueryRouting]);
-
-  useEffect(() => {
-    if (!allowRoomQueryRouting) {
-      return;
-    }
-
-    writeRoomIdToHistory(roomId, 'replace');
-  }, [allowRoomQueryRouting, roomId]);
 
   const storageNamespace = useMemo(() => {
     if (debugFramePlayerId) {

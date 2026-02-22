@@ -1,7 +1,25 @@
 import { HanabiGame } from './game';
 import type { LobbySettings, NetworkAction } from './network';
 
-const MAX_PLAYER_NAME_LENGTH = 24;
+export const MAX_PLAYER_NAME_LENGTH = 24;
+export const MIN_SEATED_PLAYER_COUNT = 2;
+export const MAX_SEATED_PLAYER_COUNT = 5;
+
+export const DEFAULT_LOBBY_SETTINGS: LobbySettings = {
+  includeMulticolor: false,
+  multicolorShortDeck: false,
+  multicolorWildHints: false,
+  endlessMode: false
+};
+
+export function cloneLobbySettings(settings: LobbySettings = DEFAULT_LOBBY_SETTINGS): LobbySettings {
+  return {
+    includeMulticolor: settings.includeMulticolor,
+    multicolorShortDeck: settings.multicolorShortDeck,
+    multicolorWildHints: settings.multicolorWildHints,
+    endlessMode: settings.endlessMode
+  };
+}
 
 export function normalizeSettings(input: Partial<LobbySettings> | undefined): LobbySettings {
   const includeMulticolor = Boolean(input?.includeMulticolor);
@@ -17,6 +35,17 @@ export function normalizeSettings(input: Partial<LobbySettings> | undefined): Lo
     multicolorWildHints,
     endlessMode
   };
+}
+
+export function areLobbySettingsEqual(left: LobbySettings, right: LobbySettings): boolean {
+  return left.includeMulticolor === right.includeMulticolor
+    && left.multicolorShortDeck === right.multicolorShortDeck
+    && left.multicolorWildHints === right.multicolorWildHints
+    && left.endlessMode === right.endlessMode;
+}
+
+export function isValidSeatedPlayerCount(count: number): boolean {
+  return count >= MIN_SEATED_PLAYER_COUNT && count <= MAX_SEATED_PLAYER_COUNT;
 }
 
 export function sanitizePlayerName(value: unknown): string | null {

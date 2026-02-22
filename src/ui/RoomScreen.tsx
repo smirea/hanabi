@@ -1,16 +1,15 @@
 import { useEffect, useMemo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import App from '../App';
-import { isValidRoomCode, normalizeRoomCode } from '../roomCodes';
+import { parseRoomCode } from '../roomCodes';
 
 export function RoomScreen({ code }: { code: string }) {
   const navigate = useNavigate();
-  const normalized = useMemo(() => normalizeRoomCode(code), [code]);
-  const isValid = isValidRoomCode(normalized);
+  const normalized = useMemo(() => parseRoomCode(code), [code]);
   const currentHash = typeof window === 'undefined' ? '' : window.location.hash.replace(/^#/, '');
 
   useEffect(() => {
-    if (!isValid) {
+    if (!normalized) {
       return;
     }
 
@@ -30,15 +29,15 @@ export function RoomScreen({ code }: { code: string }) {
       hash: currentHash,
       replace: true
     });
-  }, [currentHash, isValid, navigate, normalized]);
+  }, [currentHash, navigate, normalized]);
 
-  if (!isValid) {
+  if (!normalized) {
     return (
       <main className="app lobby-app" data-testid="room-invalid-root">
         <section className="stats lobby-shell-stats">
           <div className="stat lobby-shell-stat" data-testid="room-invalid-shell-room">
             <span className="lobby-shell-stat-label">Room</span>
-            <span className="lobby-shell-stat-value">{code.toUpperCase() || 'Unknown'}</span>
+            <span className="lobby-shell-stat-value">{code.trim().toUpperCase() || 'Unknown'}</span>
           </div>
           <div className="stat lobby-shell-stat" data-testid="room-invalid-shell-status">
             <span className="lobby-shell-stat-label">Status</span>

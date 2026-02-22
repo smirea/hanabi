@@ -184,8 +184,8 @@ describe('HanabiGame', () => {
     expect(game.state.hintTokens).toBe(7);
   });
 
-  test('discard is blocked at max hints and regains one hint when legal', () => {
-    const baseGame = new HanabiGame({
+  test('discard is always allowed and only regains a hint when not already maxed', () => {
+    const gameAtMaxHints = new HanabiGame({
       playerNames: ['A', 'B'],
       deck: twoPlayerDeck(
         [card('R', 1), card('Y', 2), card('G', 3), card('B', 4), card('W', 5)],
@@ -194,14 +194,19 @@ describe('HanabiGame', () => {
       )
     });
 
-    expect(() => baseGame.discardCard(baseGame.state.players[0].cards[0])).toThrow(
-      'Cannot discard while all hint tokens are available'
-    );
+    const maxHintCardId = gameAtMaxHints.state.players[0].cards[0];
+    gameAtMaxHints.discardCard(maxHintCardId);
+    expect(gameAtMaxHints.state.hintTokens).toBe(gameAtMaxHints.state.settings.maxHintTokens);
+    expect(gameAtMaxHints.state.logs.at(-1)).toMatchObject({
+      type: 'discard',
+      gainedHint: false
+    });
 
-    const snapshot = baseGame.getSnapshot();
+    const snapshot = gameAtMaxHints.getSnapshot();
     snapshot.hintTokens = 7;
     const game = new HanabiGame({ state: snapshot });
-    const cardId = game.state.players[0].cards[0];
+    const currentPlayer = game.state.players[game.state.currentTurnPlayerIndex];
+    const cardId = currentPlayer.cards[0];
     const deckBefore = game.state.drawDeck.length;
 
     game.discardCard(cardId);
@@ -209,8 +214,11 @@ describe('HanabiGame', () => {
     expect(game.state.hintTokens).toBe(8);
     expect(game.state.discardPile.at(-1)).toBe(cardId);
     expect(game.state.drawDeck).toHaveLength(deckBefore - 1);
-    expect(game.state.players[0].cards).toHaveLength(5);
-    expect(game.state.currentTurnPlayerIndex).toBe(1);
+    expect(game.state.players.find((player) => player.id === currentPlayer.id)?.cards).toHaveLength(5);
+    expect(game.state.logs.at(-1)).toMatchObject({
+      type: 'discard',
+      gainedHint: true
+    });
   });
 
   test('playing a valid card advances fireworks, draws, and advances turn', () => {
@@ -268,7 +276,7 @@ describe('HanabiGame', () => {
     expect(() => losingGame.beginPlaySelection()).toThrow('Game is over (lost)');
   });
 
-  test('running out of deck cards does not end the game', () => {
+  test('drawing the final card starts last round and ends after final turns', () => {
     const game = new HanabiGame({
       playerNames: ['A', 'B'],
       deck: twoPlayerDeck(
@@ -281,14 +289,23 @@ describe('HanabiGame', () => {
     const openingPlay = game.state.players[0].cards[0];
     game.playCard(openingPlay);
     expect(game.state.drawDeck).toHaveLength(0);
-    expect(game.state.status).toBe('active');
-    expect(game.state.lastRound).toBeNull();
+    expect(game.state.status).toBe('last_round');
+    expect(game.state.lastRound).toEqual({ turnsRemaining: 2 });
     expect(game.state.currentTurnPlayerIndex).toBe(1);
 
     game.giveNumberHint('p1', 2);
-    expect(game.state.status).toBe('active');
-    expect(game.state.lastRound).toBeNull();
+    expect(game.state.status).toBe('last_round');
+    expect(game.state.lastRound).toEqual({ turnsRemaining: 1 });
     expect(game.state.currentTurnPlayerIndex).toBe(0);
+
+    game.giveColorHint('p2', 'R');
+    expect(game.state.status).toBe('finished');
+    expect(game.state.lastRound).toBeNull();
+    expect(game.state.logs.at(-1)).toMatchObject({
+      type: 'status',
+      status: 'finished',
+      reason: 'final_round_complete'
+    });
   });
 
   test('playing the final needed card wins immediately', () => {

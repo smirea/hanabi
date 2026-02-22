@@ -5,6 +5,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import App from './App';
 
+const ROOM_CODE = 'ABCD';
+
 function getHintCount(): number {
   const raw = screen.getByTestId('status-hints-count').textContent;
   if (!raw) {
@@ -97,7 +99,7 @@ describe('App local debug wiring', () => {
   });
 
   test('play action resolves on card tap and swaps perspective to the next player', () => {
-    render(<App />);
+    render(<App roomCode={ROOM_CODE} />);
 
     expect(screen.getByTestId('player-turn-p1')).toBeInTheDocument();
     expect(screen.getByTestId('card-p1-0')).toHaveTextContent('?');
@@ -112,7 +114,7 @@ describe('App local debug wiring', () => {
   });
 
   test('players are ordered by next turn from each viewer perspective', () => {
-    render(<App />);
+    render(<App roomCode={ROOM_CODE} />);
 
     const tableShell = screen.getByTestId('table-shell');
     const initialOrder = [...tableShell.querySelectorAll('article.player')]
@@ -128,7 +130,7 @@ describe('App local debug wiring', () => {
   });
 
   test('number hint resolves from tapped target card and consumes one hint token', () => {
-    render(<App />);
+    render(<App roomCode={ROOM_CODE} />);
 
     const startHints = getHintCount();
 
@@ -140,7 +142,7 @@ describe('App local debug wiring', () => {
   });
 
   test('fuses start full and decrease after a misplay', () => {
-    render(<App />);
+    render(<App roomCode={ROOM_CODE} />);
 
     expect(getFuseCount()).toBe(3);
 
@@ -156,7 +158,7 @@ describe('App local debug wiring', () => {
   });
 
   test('burger menu toggles debug mode persisted in local storage', () => {
-    render(<App />);
+    render(<App roomCode={ROOM_CODE} />);
 
     fireEvent.click(screen.getByTestId('actions-menu'));
     expect(screen.getByTestId('menu-local-debug-value')).toHaveTextContent('On');
@@ -168,7 +170,7 @@ describe('App local debug wiring', () => {
   });
 
   test('negative hint toggles default to on and persist in local storage', () => {
-    render(<App />);
+    render(<App roomCode={ROOM_CODE} />);
 
     fireEvent.click(screen.getByTestId('actions-menu'));
     expect(screen.getByTestId('menu-negative-color-value')).toHaveTextContent('On');
@@ -186,7 +188,7 @@ describe('App local debug wiring', () => {
   });
 
   test('negative hint toggles hide badges when turned off', () => {
-    render(<App />);
+    render(<App roomCode={ROOM_CODE} />);
 
     const colorTargetPlayer = findHintTargetByColor(['p2', 'p3']);
     fireEvent.click(screen.getByTestId('actions-color'));
@@ -208,7 +210,7 @@ describe('App local debug wiring', () => {
   });
 
   test('turn sound toggle defaults on and persists from burger menu', () => {
-    render(<App />);
+    render(<App roomCode={ROOM_CODE} />);
 
     fireEvent.click(screen.getByTestId('actions-menu'));
     expect(screen.getByTestId('menu-turn-sound-value')).toHaveTextContent('On');
@@ -221,7 +223,7 @@ describe('App local debug wiring', () => {
   });
 
   test('dark mode toggle persists from burger menu and updates the document theme', async () => {
-    render(<App />);
+    render(<App roomCode={ROOM_CODE} />);
 
     await waitFor(() => {
       expect(document.documentElement.dataset.theme).toBe('light');
@@ -238,7 +240,7 @@ describe('App local debug wiring', () => {
 
   test('non-debug mode renders the staging lobby flow', () => {
     window.localStorage.setItem('hanabi.debug_mode', 'false');
-    render(<App />);
+    render(<App roomCode={ROOM_CODE} />);
 
     expect(screen.getByTestId('lobby-root')).toBeInTheDocument();
     expect(screen.getByTestId('lobby-name-input')).toBeInTheDocument();
@@ -248,7 +250,7 @@ describe('App local debug wiring', () => {
 
   test('dark mode toggle is available on the lobby landing screen', async () => {
     window.localStorage.setItem('hanabi.debug_mode', 'false');
-    render(<App />);
+    render(<App roomCode={ROOM_CODE} />);
 
     await waitFor(() => {
       expect(document.documentElement.dataset.theme).toBe('light');
@@ -264,23 +266,23 @@ describe('App local debug wiring', () => {
 
   test('staging lobby player name persists in local storage', () => {
     window.localStorage.setItem('hanabi.debug_mode', 'false');
-    render(<App />);
+    render(<App roomCode={ROOM_CODE} />);
 
     const input = screen.getByTestId('lobby-name-input') as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'Stefan' } });
     expect(window.localStorage.getItem('hanabi.player_name')).toBe(JSON.stringify('Stefan'));
 
     cleanup();
-    render(<App />);
+    render(<App roomCode={ROOM_CODE} />);
     expect(screen.getByTestId('lobby-name-input')).toHaveValue('Stefan');
   });
 
-  test('staging lobby room follows the room query param', () => {
+  test('staging lobby room follows the explicit room code prop', () => {
     window.localStorage.setItem('hanabi.debug_mode', 'false');
     window.history.replaceState(null, '', '/?room=alpha_7');
-    render(<App />);
+    render(<App roomCode={ROOM_CODE} />);
 
-    expect(screen.getByTestId('lobby-room-code')).toHaveTextContent('alpha_7');
+    expect(screen.getByTestId('lobby-room-code')).toHaveTextContent(ROOM_CODE);
     expect(screen.queryByTestId('lobby-room-input')).not.toBeInTheDocument();
     expect(window.location.search).toBe('?room=alpha_7');
   });
@@ -290,7 +292,7 @@ describe('App local debug wiring', () => {
     window.localStorage.setItem('hanabi.player_name', JSON.stringify('Global'));
     window.localStorage.setItem('hanabi.player_name.dbg-1', JSON.stringify('Alice'));
 
-    render(<App />);
+    render(<App roomCode={ROOM_CODE} />);
     const input = screen.getByTestId('lobby-name-input') as HTMLInputElement;
     expect(input.value).toBe('Alice');
 
@@ -304,7 +306,7 @@ describe('App local debug wiring', () => {
     window.localStorage.setItem('hanabi.player_name.dbg-1', JSON.stringify('Alice'));
     window.localStorage.setItem('hanabi.player_name.dbg-2', JSON.stringify('Blair'));
 
-    render(<App />);
+    render(<App roomCode={ROOM_CODE} />);
 
     expect(screen.getByTestId('lobby-name-input')).toHaveValue('Alice');
 
@@ -321,7 +323,7 @@ describe('App local debug wiring', () => {
     window.localStorage.setItem('hanabi.debug_network_players', JSON.stringify(['1', '2']));
     window.localStorage.setItem('hanabi.debug_network_active_player', JSON.stringify('1'));
 
-    render(<App />);
+    render(<App roomCode={ROOM_CODE} />);
 
     const frame = screen.getByTestId('debug-network-frame');
     expect(frame.getAttribute('src')).toContain('#debug-1');
@@ -344,12 +346,18 @@ describe('App session hash namespaces local storage', () => {
     window.location.hash = '#session_123';
     window.localStorage.setItem('hanabi.debug_mode.sess-session_123', 'false');
 
-    render(<App roomCode="ABCD" />);
+    render(<App roomCode={ROOM_CODE} />);
 
     const input = screen.getByTestId('lobby-name-input') as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'Alice' } });
 
     expect(window.localStorage.getItem('hanabi.player_name.sess-session_123')).toBe(JSON.stringify('Alice'));
     expect(window.localStorage.getItem('hanabi.player_name')).toBeNull();
+  });
+});
+
+describe('App room-code validation', () => {
+  test('rejects non-4-letter room codes', () => {
+    expect(() => render(<App roomCode="alpha_7" />)).toThrow('Room codes must be 4 letters.');
   });
 });

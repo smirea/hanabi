@@ -1,6 +1,7 @@
 import { GearSix, Moon, Sun } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import type { LobbySettings, OnlineState, RoomMember } from '../../../network';
+import { MAX_PLAYER_NAME_LENGTH } from '../../../networkShared';
 
 export function LobbyScreen({
   roomId,
@@ -166,7 +167,7 @@ export function LobbyScreen({
                 value={selfName}
                 onChange={(event) => onSelfNameChange(event.target.value)}
                 placeholder={defaultNamePlaceholder}
-                maxLength={24}
+                maxLength={MAX_PLAYER_NAME_LENGTH}
                 autoComplete="nickname"
                 spellCheck={false}
                 data-testid="lobby-name-input"
