@@ -1163,26 +1163,34 @@ body {
 }
 
 .token-icon {
+  display: inline-block;
+  width: 0.68rem;
+  height: 0.68rem;
+  border-radius: 999px;
+  border: 1px solid rgba(137, 152, 179, 0.42);
+  background: rgba(214, 224, 245, 0.24);
   justify-self: center;
-  color: var(--gray-400);
   opacity: 0.62;
   transform: scale(0.94);
-  transition: opacity 0.16s ease, transform 0.16s ease, color 0.16s ease;
+  transition: opacity 0.16s ease, transform 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
 }
 
 .token-icon.filled {
-  color: #f4c21b;
+  border-color: #f4c21b;
+  background: #f4c21b;
   opacity: 1;
   transform: scale(1);
 }
 
 .token-icon.hollow {
+  background: transparent;
   opacity: 0.42;
   transform: scale(1);
 }
 
 .token-icon.danger.filled {
-  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent);
 }
 
 .token-icon.token-fx-spend {
