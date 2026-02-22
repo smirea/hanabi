@@ -1339,9 +1339,18 @@ body {
   transform: scale(0.86);
 }
 
+.peg-pip.half {
+  background: linear-gradient(90deg, rgba(136, 151, 178, 0.95) 50%, transparent 50%);
+  opacity: 0.95;
+}
+
 .peg.lit .peg-pip {
   border-color: rgba(255, 255, 255, 0.75);
   background: rgba(255, 255, 255, 0.92);
+}
+
+.peg.lit .peg-pip.half {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.92) 50%, transparent 50%);
 }
 
 .peg.lit .peg-pip.hollow {
@@ -2185,11 +2194,12 @@ body {
 }
 
 .log-drawer-header {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 0.5rem;
-  padding: 0.72rem var(--screen-pad-x);
+  padding: 0.72rem calc(var(--screen-pad-x) + 2.2rem) 0.72rem var(--screen-pad-x);
   border-bottom: 1px solid rgba(211, 219, 234, 0.95);
 }
 
@@ -2202,10 +2212,16 @@ body {
 }
 
 .log-drawer-close {
+  position: absolute;
+  top: 0.5rem;
+  right: var(--screen-pad-x);
   min-height: 1.8rem;
-  width: auto;
-  padding: 0 0.7rem;
+  width: 1.8rem;
+  padding: 0;
   border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 0.62rem;
 }
 
@@ -2540,11 +2556,11 @@ body {
 }
 
 .endgame-table col.col-name {
-  width: 38%;
+  width: 32%;
 }
 
 .endgame-table col.col-num {
-  width: 15.5%;
+  width: 17%;
 }
 
 .endgame-table th,
@@ -2589,6 +2605,26 @@ body {
 .endgame-table .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.endgame-col-head {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.24rem;
+  width: 100%;
+}
+
+.endgame-num-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.26rem;
+  width: 100%;
+}
+
+.endgame-num-icon {
+  opacity: 0.8;
 }
 
 .endgame-table td.name {

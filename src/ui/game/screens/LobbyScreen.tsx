@@ -113,7 +113,9 @@ export function LobbyScreen({
         const nextIncludeMulticolor = !settings.includeMulticolor;
         onUpdateSettings({
           includeMulticolor: nextIncludeMulticolor,
-          multicolorShortDeck: nextIncludeMulticolor ? settings.multicolorShortDeck : false,
+          multicolorShortDeck: nextIncludeMulticolor
+            ? (settings.includeMulticolor ? settings.multicolorShortDeck : true)
+            : false,
           multicolorWildHints: nextIncludeMulticolor ? settings.multicolorWildHints : false
         });
       }

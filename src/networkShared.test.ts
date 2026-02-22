@@ -23,6 +23,13 @@ describe('networkShared', () => {
       multicolorWildHints: true,
       endlessMode: false
     });
+
+    expect(normalizeSettings({ includeMulticolor: true })).toEqual({
+      includeMulticolor: true,
+      multicolorShortDeck: true,
+      multicolorWildHints: false,
+      endlessMode: false
+    });
   });
 
   test('name sanitization and uniqueness helpers normalize and suffix duplicates', () => {

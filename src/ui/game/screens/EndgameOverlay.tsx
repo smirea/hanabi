@@ -1,4 +1,4 @@
-import { Fire, LightbulbFilament } from '@phosphor-icons/react';
+import { CardsThree, Fire, LightbulbFilament } from '@phosphor-icons/react';
 import { useMemo, type CSSProperties } from 'react';
 import { CARD_NUMBERS, type GameLogEntry, type HanabiPerspectiveState, type PlayerId } from '../../../game';
 import { suitColors } from '../constants';
@@ -32,6 +32,7 @@ export function EndgameOverlay({
   discardCounts,
   players,
   viewerId,
+  viewerHandCounts,
   statsByPlayerId,
   logs,
   panel,
@@ -46,6 +47,7 @@ export function EndgameOverlay({
   discardCounts: Map<string, number>;
   players: Array<{ id: PlayerId; name: string }>;
   viewerId: PlayerId;
+  viewerHandCounts: Map<string, number>;
   statsByPlayerId: Map<PlayerId, { hintsGiven: number; hintsReceived: number; plays: number; discards: number }>;
   logs: GameLogEntry[];
   panel: 'summary' | 'log';
@@ -225,10 +227,14 @@ export function EndgameOverlay({
                       const isLit = num <= height;
                       const remaining = perspective.knownRemainingCounts[suit][num];
                       const knownUnavailable = perspective.knownUnavailableCounts[suit][num];
+                      const cardKey = `${suit}-${num}`;
                       const totalCopies = remaining + knownUnavailable;
-                      const discarded = discardCounts.get(`${suit}-${num}`) ?? 0;
+                      const discarded = discardCounts.get(cardKey) ?? 0;
+                      const inHand = viewerHandCounts.get(cardKey) ?? 0;
+                      const hidden = Math.max(0, remaining - inHand);
+                      const pipTotal = remaining + discarded;
                       const blocked = num > height && discarded >= totalCopies;
-                      const pipStates = getPegPipStates(remaining, totalCopies);
+                      const pipStates = getPegPipStates(hidden, inHand, discarded, pipTotal);
 
                       return (
                         <div
@@ -237,7 +243,7 @@ export function EndgameOverlay({
                           data-testid={`endgame-peg-${suit}-${num}`}
                         >
                           <span className="peg-num">{blocked ? '✕' : num}</span>
-                          <span className="peg-pips" aria-label={`${remaining} copies not visible to you`}>
+                          <span className="peg-pips" aria-label={`${discarded} discarded, ${inHand} in your hand, ${hidden} unseen`}>
                             <PegPips pipStates={pipStates} />
                           </span>
                         </div>
@@ -276,10 +282,30 @@ export function EndgameOverlay({
                 <thead>
                   <tr>
                     <th scope="col">name</th>
-                    <th scope="col" className="num">given</th>
-                    <th scope="col" className="num">received</th>
-                    <th scope="col" className="num">played</th>
-                    <th scope="col" className="num">discard</th>
+                    <th scope="col" className="num">
+                      <span className="endgame-col-head">
+                        <LightbulbFilament size={12} weight="fill" aria-hidden />
+                        gave
+                      </span>
+                    </th>
+                    <th scope="col" className="num">
+                      <span className="endgame-col-head">
+                        <LightbulbFilament size={12} weight="regular" aria-hidden />
+                        received
+                      </span>
+                    </th>
+                    <th scope="col" className="num">
+                      <span className="endgame-col-head">
+                        <CardsThree size={12} weight="fill" aria-hidden />
+                        played
+                      </span>
+                    </th>
+                    <th scope="col" className="num">
+                      <span className="endgame-col-head">
+                        <CardsThree size={12} weight="regular" aria-hidden />
+                        discard
+                      </span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -296,10 +322,30 @@ export function EndgameOverlay({
                           {player.name}
                           {isViewer ? <span className="you-tag">you</span> : null}
                         </td>
-                        <td className="num" data-testid={`endgame-hints-given-${player.id}`}>{stats.hintsGiven}</td>
-                        <td className="num" data-testid={`endgame-hints-received-${player.id}`}>{stats.hintsReceived}</td>
-                        <td className="num" data-testid={`endgame-plays-${player.id}`}>{stats.plays}</td>
-                        <td className="num" data-testid={`endgame-discards-${player.id}`}>{stats.discards}</td>
+                        <td className="num" data-testid={`endgame-hints-given-${player.id}`}>
+                          <span className="endgame-num-value">
+                            <LightbulbFilament size={12} weight="fill" className="endgame-num-icon" aria-hidden />
+                            {stats.hintsGiven}
+                          </span>
+                        </td>
+                        <td className="num" data-testid={`endgame-hints-received-${player.id}`}>
+                          <span className="endgame-num-value">
+                            <LightbulbFilament size={12} weight="regular" className="endgame-num-icon" aria-hidden />
+                            {stats.hintsReceived}
+                          </span>
+                        </td>
+                        <td className="num" data-testid={`endgame-plays-${player.id}`}>
+                          <span className="endgame-num-value">
+                            <CardsThree size={12} weight="fill" className="endgame-num-icon" aria-hidden />
+                            {stats.plays}
+                          </span>
+                        </td>
+                        <td className="num" data-testid={`endgame-discards-${player.id}`}>
+                          <span className="endgame-num-value">
+                            <CardsThree size={12} weight="regular" className="endgame-num-icon" aria-hidden />
+                            {stats.discards}
+                          </span>
+                        </td>
                       </tr>
                     );
                   })}

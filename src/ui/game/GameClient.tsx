@@ -1,4 +1,4 @@
-import { CardsThree, Fire, LightbulbFilament } from '@phosphor-icons/react';
+import { CardsThree, Fire, LightbulbFilament, X } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   BASE_SUITS,
@@ -371,6 +371,29 @@ function GameClient({
 
     return activeGame.getPerspectiveState(perspectivePlayerId);
   }, [activeGame, activeGameState, perspectivePlayerId]);
+  const viewerHandCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    if (!activeGameState || !perspectivePlayerId) {
+      return counts;
+    }
+
+    const viewer = activeGameState.players.find((player) => player.id === perspectivePlayerId);
+    if (!viewer) {
+      return counts;
+    }
+
+    for (const cardId of viewer.cards) {
+      const card = activeGameState.cards[cardId];
+      if (!card) {
+        continue;
+      }
+
+      const key = `${card.suit}-${card.number}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+
+    return counts;
+  }, [activeGameState, perspectivePlayerId]);
 
   const {
     animationLayerRef,
@@ -1150,10 +1173,14 @@ function GameClient({
                   const isLit = num <= height;
                   const remaining = perspective.knownRemainingCounts[suit][num];
                   const knownUnavailable = perspective.knownUnavailableCounts[suit][num];
+                  const cardKey = `${suit}-${num}`;
                   const totalCopies = remaining + knownUnavailable;
-                  const discarded = discardCounts.get(`${suit}-${num}`) ?? 0;
+                  const discarded = discardCounts.get(cardKey) ?? 0;
+                  const inHand = viewerHandCounts.get(cardKey) ?? 0;
+                  const hidden = Math.max(0, remaining - inHand);
+                  const pipTotal = remaining + discarded;
                   const blocked = num > height && discarded >= totalCopies;
-                  const pipStates = getPegPipStates(remaining, totalCopies);
+                  const pipStates = getPegPipStates(hidden, inHand, discarded, pipTotal);
 
                   return (
                     <div
@@ -1162,7 +1189,7 @@ function GameClient({
                       data-testid={`peg-${suit}-${num}`}
                     >
                       <span className="peg-num">{blocked ? '✕' : num}</span>
-                      <span className="peg-pips" aria-label={`${remaining} copies not visible to you`}>
+                      <span className="peg-pips" aria-label={`${discarded} discarded, ${inHand} in your hand, ${hidden} unseen`}>
                         <PegPips pipStates={pipStates} />
                       </span>
                     </div>
@@ -1492,9 +1519,10 @@ function GameClient({
                 type="button"
                 className="log-drawer-close action-button"
                 onClick={closeLogDrawer}
+                aria-label="Close action log"
                 data-testid="log-close"
               >
-                Close
+                <X size={14} weight="bold" aria-hidden />
               </button>
             </header>
             <div ref={logListRef} className="log-list" data-testid="log-list">
@@ -1520,6 +1548,7 @@ function GameClient({
           discardCounts={discardCounts}
           players={activeGameState.players}
           viewerId={perspective.viewerId}
+          viewerHandCounts={viewerHandCounts}
           statsByPlayerId={endgameStatsByPlayerId}
           logs={orderedLogs}
           panel={endgamePanel}
