@@ -378,6 +378,29 @@ function GameClient({
 
     return activeGame.getPerspectiveState(perspectivePlayerId);
   }, [activeGame, activeGameState, perspectivePlayerId]);
+  const visibleOtherHandCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    if (!perspective) {
+      return counts;
+    }
+
+    for (const player of perspective.players) {
+      if (player.isViewer) {
+        continue;
+      }
+
+      for (const card of player.cards) {
+        if (card.suit === null || card.number === null) {
+          continue;
+        }
+
+        const key = `${card.suit}-${card.number}`;
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+    }
+
+    return counts;
+  }, [perspective]);
 
   const {
     animationLayerRef,
@@ -1160,9 +1183,10 @@ function GameClient({
                   const cardKey = `${suit}-${num}`;
                   const totalCopies = remaining + knownUnavailable;
                   const discarded = discardCounts.get(cardKey) ?? 0;
-                  const pipTotal = remaining + discarded;
+                  const visible = visibleOtherHandCounts.get(cardKey) ?? 0;
+                  const pipTotal = remaining + visible + discarded;
                   const blocked = num > height && discarded >= totalCopies;
-                  const pipStates = getPegPipStates(remaining, discarded, pipTotal);
+                  const pipStates = getPegPipStates(remaining, visible, discarded, pipTotal);
 
                   return (
                     <div
@@ -1171,7 +1195,7 @@ function GameClient({
                       data-testid={`peg-${suit}-${num}`}
                     >
                       <span className="peg-num">{blocked ? '✕' : num}</span>
-                      <span className="peg-pips" aria-label={`${remaining} copies not discarded`}>
+                      <span className="peg-pips" aria-label={`${remaining} hidden, ${visible} visible in other hands, ${discarded} discarded`}>
                         <PegPips pipStates={pipStates} />
                       </span>
                     </div>

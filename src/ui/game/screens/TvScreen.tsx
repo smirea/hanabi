@@ -194,7 +194,7 @@ export function TvScreen({
                     const discarded = discardCounts.get(cardKey) ?? 0;
                     const pipTotal = remaining + discarded;
                     const blocked = num > height && discarded >= totalCopies;
-                    const pipStates = getPegPipStates(remaining, discarded, pipTotal);
+                    const pipStates = getPegPipStates(remaining, 0, discarded, pipTotal);
 
                     return (
                       <div

@@ -1,23 +1,26 @@
 const MAX_PEG_PIPS = 4;
 
-export type PegPipState = 'filled' | 'hollow' | 'unused';
+export type PegPipState = 'filled' | 'hollow' | 'cross' | 'unused';
 
 export function getPegPipStates(
-  notDiscardedCount: number,
+  notVisibleCount: number,
+  visibleCount: number,
   discardedCount: number,
   total: number
 ): PegPipState[] {
   const clampedTotal = Math.min(Math.max(total, 0), MAX_PEG_PIPS);
-  const clampedNotDiscarded = Math.min(Math.max(notDiscardedCount, 0), clampedTotal);
+  const clampedNotVisible = Math.min(Math.max(notVisibleCount, 0), clampedTotal);
+  const clampedVisible = Math.min(Math.max(visibleCount, 0), Math.max(0, clampedTotal - clampedNotVisible));
   const clampedDiscarded = Math.min(
     Math.max(discardedCount, 0),
-    Math.max(0, clampedTotal - clampedNotDiscarded)
+    Math.max(0, clampedTotal - clampedNotVisible - clampedVisible)
   );
 
   return Array.from({ length: MAX_PEG_PIPS }, (_, index) => {
     if (index >= clampedTotal) return 'unused';
-    if (index < clampedNotDiscarded) return 'filled';
-    if (index < clampedNotDiscarded + clampedDiscarded) return 'hollow';
+    if (index < clampedNotVisible) return 'filled';
+    if (index < clampedNotVisible + clampedVisible) return 'hollow';
+    if (index < clampedNotVisible + clampedVisible + clampedDiscarded) return 'cross';
     return 'unused';
   });
 }
