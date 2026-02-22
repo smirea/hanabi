@@ -1,4 +1,4 @@
-import { CardsThree, Fire, LightbulbFilament } from '@phosphor-icons/react';
+import { Fire, LightbulbFilament } from '@phosphor-icons/react';
 import { useMemo, type CSSProperties } from 'react';
 import { CARD_NUMBERS, type GameLogEntry, type HanabiPerspectiveState, type PlayerId } from '../../../game';
 import { suitColors } from '../constants';
@@ -300,30 +300,10 @@ export function EndgameOverlay({
                 <thead>
                   <tr>
                     <th scope="col">name</th>
-                    <th scope="col" className="num">
-                      <span className="endgame-col-head">
-                        <LightbulbFilament size={12} weight="fill" aria-hidden />
-                        gave
-                      </span>
-                    </th>
-                    <th scope="col" className="num">
-                      <span className="endgame-col-head">
-                        <LightbulbFilament size={12} weight="regular" aria-hidden />
-                        received
-                      </span>
-                    </th>
-                    <th scope="col" className="num">
-                      <span className="endgame-col-head">
-                        <CardsThree size={12} weight="fill" aria-hidden />
-                        played
-                      </span>
-                    </th>
-                    <th scope="col" className="num">
-                      <span className="endgame-col-head">
-                        <CardsThree size={12} weight="regular" aria-hidden />
-                        discard
-                      </span>
-                    </th>
+                    <th scope="col" className="num">gave</th>
+                    <th scope="col" className="num">received</th>
+                    <th scope="col" className="num">played</th>
+                    <th scope="col" className="num">discard</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -341,28 +321,16 @@ export function EndgameOverlay({
                           {isViewer ? <span className="you-tag">you</span> : null}
                         </td>
                         <td className="num" data-testid={`endgame-hints-given-${player.id}`}>
-                          <span className="endgame-num-value">
-                            <LightbulbFilament size={12} weight="fill" className="endgame-num-icon" aria-hidden />
-                            {stats.hintsGiven}
-                          </span>
+                          <span className="endgame-num-value">{stats.hintsGiven}</span>
                         </td>
                         <td className="num" data-testid={`endgame-hints-received-${player.id}`}>
-                          <span className="endgame-num-value">
-                            <LightbulbFilament size={12} weight="regular" className="endgame-num-icon" aria-hidden />
-                            {stats.hintsReceived}
-                          </span>
+                          <span className="endgame-num-value">{stats.hintsReceived}</span>
                         </td>
                         <td className="num" data-testid={`endgame-plays-${player.id}`}>
-                          <span className="endgame-num-value">
-                            <CardsThree size={12} weight="fill" className="endgame-num-icon" aria-hidden />
-                            {stats.plays}
-                          </span>
+                          <span className="endgame-num-value">{stats.plays}</span>
                         </td>
                         <td className="num" data-testid={`endgame-discards-${player.id}`}>
-                          <span className="endgame-num-value">
-                            <CardsThree size={12} weight="regular" className="endgame-num-icon" aria-hidden />
-                            {stats.discards}
-                          </span>
+                          <span className="endgame-num-value">{stats.discards}</span>
                         </td>
                       </tr>
                     );

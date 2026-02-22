@@ -1,3 +1,4 @@
+import { CardsThree, Fire, LightbulbFilament } from '@phosphor-icons/react';
 import { useMemo, type CSSProperties } from 'react';
 import { CARD_NUMBERS, type HanabiState, type PerspectiveCard, type Suit } from '../../../game';
 import type { OnlineState } from '../../../network';
@@ -141,9 +142,12 @@ export function TvScreen({
           <div className="stat hints-stat" data-testid="tv-status-hints">
             <div className="token-grid hints-grid" aria-label="Hint tokens">
               {hintTokenStates.map((isFilled, index) => (
-                <span key={`tv-hint-token-${index}`} className="token-slot">
-                  <span className={isFilled ? 'token-icon filled' : 'token-icon hollow'} aria-hidden />
-                </span>
+                <LightbulbFilament
+                  key={`tv-hint-token-${index}`}
+                  size={15}
+                  weight={isFilled ? 'fill' : 'regular'}
+                  className={isFilled ? 'token-icon filled' : 'token-icon hollow'}
+                />
               ))}
             </div>
             <span className="visually-hidden" data-testid="tv-status-hints-count">{gameState.hintTokens}</span>
@@ -151,6 +155,7 @@ export function TvScreen({
 
           <div className="stat deck-stat" data-testid="tv-status-deck">
             <div className="deck-pill">
+              <CardsThree size={17} weight="fill" />
               <span className="deck-count" data-testid="tv-status-deck-count">{gameState.drawDeck.length}</span>
             </div>
           </div>
@@ -158,9 +163,12 @@ export function TvScreen({
           <div className="stat fuses-stat" data-testid="tv-status-fuses">
             <div className="token-grid fuses-grid" aria-label="Fuse tokens">
               {fuseTokenStates.map((isFilled, index) => (
-                <span key={`tv-fuse-token-${index}`} className="token-slot">
-                  <span className={isFilled ? 'token-icon filled danger' : 'token-icon hollow danger'} aria-hidden />
-                </span>
+                <Fire
+                  key={`tv-fuse-token-${index}`}
+                  size={24}
+                  weight={isFilled ? 'fill' : 'regular'}
+                  className={isFilled ? 'token-icon filled danger' : 'token-icon hollow danger'}
+                />
               ))}
             </div>
             <span className="visually-hidden" data-testid="tv-status-fuses-count">{remainingFuses}</span>

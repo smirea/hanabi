@@ -167,20 +167,20 @@ export function useGameAnimations({
     }
   }, [isLocalDebugMode, perspective, turnSoundEnabled]);
 
-  function triggerElementFx(node: HTMLElement, fxClass: string): void {
-    node.classList.remove(fxClass);
-    void node.getBoundingClientRect();
-    node.classList.add(fxClass);
-    node.addEventListener('animationend', () => node.classList.remove(fxClass), { once: true });
+  function triggerSvgFx(svg: SVGElement, fxClass: string): void {
+    svg.classList.remove(fxClass);
+    void svg.getBoundingClientRect();
+    svg.classList.add(fxClass);
+    svg.addEventListener('animationend', () => svg.classList.remove(fxClass), { once: true });
   }
 
   function triggerTokenFx(slot: HTMLSpanElement | null, fxClass: string): void {
-    const node = slot?.querySelector('.token-icon');
-    if (!(node instanceof HTMLElement)) {
+    const svg = slot?.querySelector('svg');
+    if (!(svg instanceof SVGElement)) {
       return;
     }
 
-    triggerElementFx(node, fxClass);
+    triggerSvgFx(svg, fxClass);
   }
 
   const triggerCardFx = useCallback((cardId: CardId, fxClass: string): void => {

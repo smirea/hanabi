@@ -1,4 +1,4 @@
-import { X } from '@phosphor-icons/react';
+import { CardsThree, Fire, LightbulbFilament, X } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   BASE_SUITS,
@@ -1064,7 +1064,11 @@ function GameClient({
                 }}
                 data-testid={`hint-token-${index}`}
               >
-                <span className={isFilled ? 'token-icon filled' : 'token-icon hollow'} aria-hidden />
+                <LightbulbFilament
+                  size={15}
+                  weight={isFilled ? 'fill' : 'regular'}
+                  className={isFilled ? 'token-icon filled' : 'token-icon hollow'}
+                />
               </span>
             ))}
           </div>
@@ -1073,6 +1077,7 @@ function GameClient({
 
         <div className="stat deck-stat" data-testid="status-deck">
           <div className="deck-pill" ref={deckPillRef} data-testid="deck-pill">
+            <CardsThree size={17} weight="fill" />
             <DeckCount value={perspective.drawDeckCount} />
           </div>
         </div>
@@ -1088,7 +1093,11 @@ function GameClient({
                 }}
                 data-testid={`fuse-token-${index}`}
               >
-                <span className={isFilled ? 'token-icon filled danger' : 'token-icon hollow danger'} aria-hidden />
+                <Fire
+                  size={24}
+                  weight={isFilled ? 'fill' : 'regular'}
+                  className={isFilled ? 'token-icon filled danger' : 'token-icon hollow danger'}
+                />
               </span>
             ))}
           </div>
