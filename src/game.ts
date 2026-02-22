@@ -836,19 +836,23 @@ export class HanabiGame {
     const uniquePlayerNames = new Set(playerNames.map((name) => name.trim().replace(/\s+/g, ' ').toLowerCase()));
     assert(uniquePlayerNames.size === playerNames.length, 'playerNames must be unique');
 
-    const includeMulticolor = input?.includeMulticolor ?? false;
-    const multicolorShortDeck = input?.multicolorShortDeck ?? false;
-    const multicolorWildHints = input?.multicolorWildHints ?? false;
+    const includeMulticolor = Boolean(input?.includeMulticolor);
+    const requestedMulticolorShortDeck = Boolean(input?.multicolorShortDeck);
+    const requestedMulticolorWildHints = Boolean(input?.multicolorWildHints);
+    const multicolorWildHints = includeMulticolor && requestedMulticolorWildHints;
+    const multicolorShortDeck = includeMulticolor
+      && !multicolorWildHints
+      && Boolean(input?.multicolorShortDeck ?? true);
     const endlessMode = input?.endlessMode ?? false;
-    if (multicolorShortDeck && !includeMulticolor) {
+    if (requestedMulticolorShortDeck && !includeMulticolor) {
       throw new Error('multicolorShortDeck requires includeMulticolor=true');
     }
 
-    if (multicolorWildHints && !includeMulticolor) {
+    if (requestedMulticolorWildHints && !includeMulticolor) {
       throw new Error('multicolorWildHints requires includeMulticolor=true');
     }
 
-    if (multicolorWildHints && multicolorShortDeck) {
+    if (requestedMulticolorWildHints && requestedMulticolorShortDeck) {
       throw new Error('multicolorWildHints cannot be combined with multicolorShortDeck');
     }
 
