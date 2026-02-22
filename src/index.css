@@ -235,7 +235,7 @@ body {
 
 .tv-stats,
 .tv-fireworks {
-  border-radius: 14px;
+  border-radius: 6px;
   overflow: hidden;
   box-shadow: 0 10px 28px rgba(25, 35, 56, 0.08);
   border: 1px solid rgba(178, 190, 214, 0.9);
@@ -245,19 +245,20 @@ body {
   min-height: 0;
   overflow: auto;
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
   gap: 0.5rem;
-  align-content: start;
+  align-content: stretch;
   padding: 0.1rem 0.12rem 0.2rem;
 }
 
 .tv-player {
   border: 1px solid rgba(214, 221, 235, 0.92);
-  border-radius: 14px;
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.75);
   box-shadow: 0 10px 24px rgba(25, 35, 56, 0.07);
   padding: 0.48rem 0.58rem 0.56rem;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
   gap: 0.32rem;
 }
 
@@ -281,6 +282,15 @@ body {
 .tv-cards {
   gap: clamp(0.14rem, 0.78vw, 0.26rem);
   grid-template-columns: repeat(var(--hand-size, 5), minmax(0, 1fr));
+  grid-auto-rows: auto;
+  align-items: stretch;
+}
+
+.tv .card {
+  height: auto;
+  min-height: clamp(4.6rem, 12vh, 7.2rem);
+  aspect-ratio: 0.72;
+  border-radius: 4px;
 }
 
 .tv .card-face {
@@ -296,7 +306,7 @@ body {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   border: 1px solid rgba(178, 190, 214, 0.9);
-  border-radius: 14px;
+  border-radius: 6px;
   background: rgba(253, 254, 255, 0.92);
   box-shadow: 0 10px 28px rgba(25, 35, 56, 0.1);
   overflow: hidden;
@@ -1339,18 +1349,9 @@ body {
   transform: scale(0.86);
 }
 
-.peg-pip.half {
-  background: linear-gradient(90deg, rgba(136, 151, 178, 0.95) 50%, transparent 50%);
-  opacity: 0.95;
-}
-
 .peg.lit .peg-pip {
   border-color: rgba(255, 255, 255, 0.75);
   background: rgba(255, 255, 255, 0.92);
-}
-
-.peg.lit .peg-pip.half {
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.92) 50%, transparent 50%);
 }
 
 .peg.lit .peg-pip.hollow {
@@ -1898,6 +1899,9 @@ body {
   left: 0;
   right: 0;
   top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
 }
 
 .last-action-ticker.ticking .last-action-message.leaving {

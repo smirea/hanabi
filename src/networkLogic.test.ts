@@ -154,4 +154,22 @@ describe('shouldAcceptSnapshot', () => {
 
     expect(shouldAcceptSnapshot(incoming, current, new Set(['a', 'b', 'c']))).toBeTrue();
   });
+
+  test('rejects lower-id newcomer snapshots that are not elected by the current membership', () => {
+    const current = snapshot({
+      hostId: 'b',
+      version: 7,
+      members: [
+        { peerId: 'b', name: 'B', isTv: false },
+        { peerId: 'c', name: 'C', isTv: false }
+      ]
+    });
+    const incoming = snapshot({
+      hostId: 'a',
+      version: 1,
+      members: [{ peerId: 'a', name: 'A', isTv: false }]
+    });
+
+    expect(shouldAcceptSnapshot(incoming, current, new Set(['a', 'b', 'c']))).toBeFalse();
+  });
 });

@@ -125,7 +125,7 @@ export function shouldAcceptSnapshot(
     return incoming.version >= current.version;
   }
 
-  const electedHost = electHostId(connectedPeerIds, incoming.members.map((member) => member.peerId));
+  const electedHost = electHostId(connectedPeerIds, current.members.map((member) => member.peerId));
   if (electedHost !== incoming.hostId) {
     return false;
   }

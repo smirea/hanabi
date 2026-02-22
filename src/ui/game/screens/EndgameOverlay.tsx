@@ -32,7 +32,6 @@ export function EndgameOverlay({
   discardCounts,
   players,
   viewerId,
-  viewerHandCounts,
   statsByPlayerId,
   logs,
   panel,
@@ -47,7 +46,6 @@ export function EndgameOverlay({
   discardCounts: Map<string, number>;
   players: Array<{ id: PlayerId; name: string }>;
   viewerId: PlayerId;
-  viewerHandCounts: Map<string, number>;
   statsByPlayerId: Map<PlayerId, { hintsGiven: number; hintsReceived: number; plays: number; discards: number }>;
   logs: GameLogEntry[];
   panel: 'summary' | 'log';
@@ -230,11 +228,9 @@ export function EndgameOverlay({
                       const cardKey = `${suit}-${num}`;
                       const totalCopies = remaining + knownUnavailable;
                       const discarded = discardCounts.get(cardKey) ?? 0;
-                      const inHand = viewerHandCounts.get(cardKey) ?? 0;
-                      const hidden = Math.max(0, remaining - inHand);
                       const pipTotal = remaining + discarded;
                       const blocked = num > height && discarded >= totalCopies;
-                      const pipStates = getPegPipStates(hidden, inHand, discarded, pipTotal);
+                      const pipStates = getPegPipStates(remaining, discarded, pipTotal);
 
                       return (
                         <div
@@ -243,7 +239,7 @@ export function EndgameOverlay({
                           data-testid={`endgame-peg-${suit}-${num}`}
                         >
                           <span className="peg-num">{blocked ? '✕' : num}</span>
-                          <span className="peg-pips" aria-label={`${discarded} discarded, ${inHand} in your hand, ${hidden} unseen`}>
+                          <span className="peg-pips" aria-label={`${remaining} copies not discarded`}>
                             <PegPips pipStates={pipStates} />
                           </span>
                         </div>

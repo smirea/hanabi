@@ -18,6 +18,7 @@ const HELLO_NAMESPACE = 'hello';
 const PLAYER_ACTION_NAMESPACE = 'ply-act';
 const SNAPSHOT_HEARTBEAT_MS = 4_000;
 const SNAPSHOT_SYNC_MS = 2_000;
+const INITIAL_SNAPSHOT_WAIT_MS = 1_500;
 
 const TRYSTERO_ACTION_NAME_MAX_BYTES = 12;
 
@@ -231,6 +232,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
     let sendSnapshot: ((message: SnapshotMessage, target?: string | string[] | null) => Promise<void[]>) | null = null;
     let sendSnapshotRequest: ((message: SnapshotRequestMessage, target?: string | string[] | null) => Promise<void[]>) | null = null;
     let sendPlayerAction: ((message: PlayerActionMessage, target?: string | string[] | null) => Promise<void[]>) | null = null;
+    const effectStartedAt = Date.now();
 
     const pushState = (nextStatus: OnlineState['status'], error: string | null = null): void => {
       if (!active) {
@@ -315,15 +317,20 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
         return;
       }
 
+      const request: SnapshotRequestMessage = {
+        knownVersion: currentSnapshot?.version ?? 0
+      };
+      if (!currentSnapshot) {
+        void sendSnapshotRequest(request, null);
+        return;
+      }
+
       const connected = getConnectedPeerIds(selfId, room);
       const electedHost = electHostId(connected, currentSnapshot?.members.map((member) => member.peerId));
       if (!electedHost || electedHost === selfId) {
         return;
       }
 
-      const request: SnapshotRequestMessage = {
-        knownVersion: currentSnapshot?.version ?? 0
-      };
       void sendSnapshotRequest(request, electedHost);
     };
 
@@ -333,6 +340,35 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
       }
 
       const connected = getConnectedPeerIds(selfId, room);
+      if (!currentSnapshot) {
+        const lowestConnected = electHostId(connected);
+        if (!lowestConnected) {
+          return;
+        }
+
+        if (lowestConnected !== selfId) {
+          stepDownHost();
+          pushState('connected');
+          requestSnapshotFromHost();
+          return;
+        }
+
+        if (Date.now() - effectStartedAt < INITIAL_SNAPSHOT_WAIT_MS) {
+          stepDownHost();
+          pushState('connecting');
+          requestSnapshotFromHost();
+          return;
+        }
+
+        if (!isHost) {
+          becomeHost();
+          return;
+        }
+
+        refreshHostedMembers();
+        return;
+      }
+
       const electedHost = electHostId(connected, currentSnapshot?.members.map((member) => member.peerId));
       if (!electedHost) {
         return;
@@ -628,6 +664,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
           return;
         }
 
+        reconcileRole();
         requestSnapshotFromHost();
       }, SNAPSHOT_SYNC_MS);
     };
