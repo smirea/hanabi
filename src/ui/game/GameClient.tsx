@@ -1183,10 +1183,12 @@ function GameClient({
                   const cardKey = `${suit}-${num}`;
                   const totalCopies = remaining + knownUnavailable;
                   const discarded = discardCounts.get(cardKey) ?? 0;
-                  const visible = visibleOtherHandCounts.get(cardKey) ?? 0;
-                  const pipTotal = remaining + visible + discarded;
+                  const visibleInHands = visibleOtherHandCounts.get(cardKey) ?? 0;
+                  const played = num <= height ? 1 : 0;
+                  const hollow = visibleInHands + played;
+                  const pipTotal = remaining + hollow + discarded;
                   const blocked = num > height && discarded >= totalCopies;
-                  const pipStates = getPegPipStates(remaining, visible, discarded, pipTotal);
+                  const pipStates = getPegPipStates(remaining, hollow, discarded, pipTotal);
 
                   return (
                     <div
@@ -1195,7 +1197,7 @@ function GameClient({
                       data-testid={`peg-${suit}-${num}`}
                     >
                       <span className="peg-num">{blocked ? '✕' : num}</span>
-                      <span className="peg-pips" aria-label={`${remaining} hidden, ${visible} visible in other hands, ${discarded} discarded`}>
+                      <span className="peg-pips" aria-label={`${remaining} hidden, ${hollow} visible or played, ${discarded} discarded`}>
                         <PegPips pipStates={pipStates} />
                       </span>
                     </div>
