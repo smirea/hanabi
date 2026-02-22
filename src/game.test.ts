@@ -437,13 +437,14 @@ describe('HanabiGame', () => {
     });
     expect(Object.values(baseGame.state.cards).some((entry) => entry.suit === 'M')).toBeFalse();
 
-    const shortMulticolorByDefault = new HanabiGame({
+    const wildHintMulticolorByDefault = new HanabiGame({
       playerNames: ['A', 'B'],
       includeMulticolor: true,
       shuffleSeed: 10
     });
-    const defaultMCards = Object.values(shortMulticolorByDefault.state.cards).filter((entry) => entry.suit === 'M');
-    expect(defaultMCards).toHaveLength(5);
+    const defaultMCards = Object.values(wildHintMulticolorByDefault.state.cards).filter((entry) => entry.suit === 'M');
+    expect(defaultMCards).toHaveLength(10);
+    expect(wildHintMulticolorByDefault.state.settings.multicolorWildHints).toBeTrue();
 
     const fullMulticolor = new HanabiGame({
       playerNames: ['A', 'B'],

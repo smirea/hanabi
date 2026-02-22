@@ -103,55 +103,56 @@ export function LobbyScreen({
     setIsConfigMenuOpen(false);
     action();
   }
-  const configRows = [
-    {
-      id: 'extra-suit',
-      label: 'Extra suit (M)',
-      subtitle: 'Adds the multicolor suit (M) to the deck and fireworks.',
-      value: settings.includeMulticolor ? 'On' : 'Off',
-      disabled: false,
-      onClick: () => {
-        const nextIncludeMulticolor = !settings.includeMulticolor;
-        onUpdateSettings({
-          includeMulticolor: nextIncludeMulticolor,
-          multicolorShortDeck: nextIncludeMulticolor
-            ? (settings.includeMulticolor ? settings.multicolorShortDeck : true)
-            : false,
-          multicolorWildHints: nextIncludeMulticolor ? settings.multicolorWildHints : false
-        });
-      }
-    },
-    {
-      id: 'short-deck',
-      label: 'Multicolor short deck',
-      subtitle: 'Uses 5 multicolor cards instead of the full 10.',
-      value: settings.multicolorShortDeck ? 'On' : 'Off',
-      disabled: !settings.includeMulticolor,
-      onClick: () => onUpdateSettings({
-        multicolorShortDeck: !settings.multicolorShortDeck,
-        multicolorWildHints: false
-      })
-    },
-    {
-      id: 'wild-multicolor',
-      label: 'Wild multicolor hints',
-      subtitle: 'Color hints can point at any multicolor card (M).',
-      value: settings.multicolorWildHints ? 'On' : 'Off',
-      disabled: !settings.includeMulticolor,
-      onClick: () => onUpdateSettings({
-        multicolorWildHints: !settings.multicolorWildHints,
-        multicolorShortDeck: false
-      })
-    },
-    {
-      id: 'endless',
-      label: 'Endless mode',
-      subtitle: 'Keep playing after the deck runs out.',
-      value: settings.endlessMode ? 'On' : 'Off',
-      disabled: false,
-      onClick: () => onUpdateSettings({ endlessMode: !settings.endlessMode })
+  const extraSuitRow = {
+    id: 'extra-suit',
+    label: 'Extra suit (M)',
+    subtitle: 'Adds the multicolor suit (M) to the deck and fireworks.',
+    value: settings.includeMulticolor ? 'On' : 'Off',
+    disabled: false,
+    onClick: () => {
+      const nextIncludeMulticolor = !settings.includeMulticolor;
+      onUpdateSettings({
+        includeMulticolor: nextIncludeMulticolor,
+        multicolorShortDeck: false,
+        multicolorWildHints: nextIncludeMulticolor
+      });
     }
-  ] as const;
+  } as const;
+  const multicolorRows = settings.includeMulticolor
+    ? [
+      {
+        id: 'short-deck',
+        label: 'Multicolor short deck',
+        subtitle: 'Uses 5 multicolor cards instead of the full 10.',
+        value: settings.multicolorShortDeck ? 'On' : 'Off',
+        disabled: false,
+        onClick: () => onUpdateSettings({
+          multicolorShortDeck: !settings.multicolorShortDeck,
+          multicolorWildHints: false
+        })
+      },
+      {
+        id: 'wild-multicolor',
+        label: 'Wild multicolor hints',
+        subtitle: 'Color hints can point at any multicolor card (M).',
+        value: settings.multicolorWildHints ? 'On' : 'Off',
+        disabled: false,
+        onClick: () => onUpdateSettings({
+          multicolorWildHints: !settings.multicolorWildHints,
+          multicolorShortDeck: false
+        })
+      }
+    ] as const
+    : [];
+  const endlessRow = {
+    id: 'endless',
+    label: 'Endless mode',
+    subtitle: 'Keep playing after the deck runs out.',
+    value: settings.endlessMode ? 'On' : 'Off',
+    disabled: false,
+    onClick: () => onUpdateSettings({ endlessMode: !settings.endlessMode })
+  } as const;
+  const configRows = [extraSuitRow, ...multicolorRows, endlessRow];
 
   return (
     <main className="app lobby-app" data-testid="lobby-root">

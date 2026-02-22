@@ -31,8 +31,8 @@ describe('networkShared', () => {
 
     expect(normalizeSettings({ includeMulticolor: true })).toEqual({
       includeMulticolor: true,
-      multicolorShortDeck: true,
-      multicolorWildHints: false,
+      multicolorShortDeck: false,
+      multicolorWildHints: true,
       endlessMode: false
     });
   });
