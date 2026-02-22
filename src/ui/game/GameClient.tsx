@@ -1181,7 +1181,7 @@ function GameClient({
                   </span>
                 )}
               </header>
-	            <div className="cards" style={{ '--hand-size': String(player.cards.length) } as CSSProperties}>
+	            <div className="cards" style={{ '--hand-size': String(Math.max(player.cards.length, 4)) } as CSSProperties}>
 	              {player.cards.map((card, cardIndex) => (
 	                <CardView
 	                  key={card.id}

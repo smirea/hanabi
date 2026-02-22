@@ -1178,7 +1178,7 @@ body {
 
 .token-icon.hollow {
   opacity: 0.42;
-  transform: scale(0.9);
+  transform: scale(1);
 }
 
 .token-icon.danger.filled {
@@ -1346,11 +1346,13 @@ body {
 .peg-pip.hollow {
   background: transparent;
   opacity: 0.9;
-  transform: scale(0.86);
+  transform: scale(1);
 }
 
 .peg-pip.cross {
   background: transparent;
+  border: 0;
+  border-radius: 0;
   opacity: 0.92;
   transform: scale(0.9);
   position: relative;
@@ -1385,6 +1387,11 @@ body {
 .peg.lit .peg-pip.hollow {
   background: transparent;
   opacity: 0.75;
+}
+
+.peg.lit .peg-pip.cross {
+  background: transparent;
+  border: 0;
 }
 
 .peg.lit .peg-pip.cross::before,
