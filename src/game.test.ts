@@ -430,7 +430,7 @@ describe('HanabiGame', () => {
     expect(gameA.getSnapshot()).not.toEqual(gameC.getSnapshot());
   });
 
-  test('multicolor deck settings change card composition', () => {
+  test('multicolor deck is always short-mode when enabled', () => {
     const baseGame = new HanabiGame({
       playerNames: ['A', 'B'],
       shuffleSeed: 10
@@ -443,16 +443,18 @@ describe('HanabiGame', () => {
       shuffleSeed: 10
     });
     const defaultMCards = Object.values(wildHintMulticolorByDefault.state.cards).filter((entry) => entry.suit === 'M');
-    expect(defaultMCards).toHaveLength(10);
+    expect(defaultMCards).toHaveLength(5);
     expect(wildHintMulticolorByDefault.state.settings.multicolorWildHints).toBeTrue();
+    expect(wildHintMulticolorByDefault.state.settings.multicolorShortDeck).toBeTrue();
 
-    const fullMulticolor = new HanabiGame({
+    const requestedLongMulticolor = new HanabiGame({
       playerNames: ['A', 'B'],
       includeMulticolor: true,
       multicolorShortDeck: false,
       shuffleSeed: 10
     });
-    expect(Object.values(fullMulticolor.state.cards).filter((entry) => entry.suit === 'M')).toHaveLength(10);
+    expect(requestedLongMulticolor.state.settings.multicolorShortDeck).toBeTrue();
+    expect(Object.values(requestedLongMulticolor.state.cards).filter((entry) => entry.suit === 'M')).toHaveLength(5);
 
     const shortMulticolor = new HanabiGame({
       playerNames: ['A', 'B'],

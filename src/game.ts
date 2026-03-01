@@ -840,7 +840,7 @@ export class HanabiGame {
     const requestedMulticolorShortDeck = Boolean(input?.multicolorShortDeck);
     const requestedMulticolorWildHints = Boolean(input?.multicolorWildHints);
     const multicolorWildHints = includeMulticolor;
-    const multicolorShortDeck = includeMulticolor && requestedMulticolorShortDeck;
+    const multicolorShortDeck = includeMulticolor;
     const endlessMode = input?.endlessMode ?? false;
     if (requestedMulticolorShortDeck && !includeMulticolor) {
       throw new Error('multicolorShortDeck requires includeMulticolor=true');

@@ -60,7 +60,7 @@ export function LobbyScreen({
   const showReconnect = status !== 'connected' || error !== null;
   const playerCountError = seatedCount > 5 ? 'Max 5 players' : (seatedCount < 2 ? 'Need at least 2 players' : null);
   const handSize = seatedCount <= 3 ? 5 : 4;
-  const deckSize = 50 + (settings.includeMulticolor ? (settings.multicolorShortDeck ? 5 : 10) : 0);
+  const deckSize = 50 + (settings.includeMulticolor ? 5 : 0);
   const maxScore = (settings.includeMulticolor ? 6 : 5) * 5;
   const defaultNamePlaceholder = selfId ? `Player ${selfId.slice(-4).toUpperCase()}` : 'Player';
   const [isConfigMenuOpen, setIsConfigMenuOpen] = useState(false);
@@ -106,32 +106,18 @@ export function LobbyScreen({
   const extraSuitRow = {
     id: 'extra-suit',
     label: 'Extra suit (M)',
-    subtitle: 'Adds the multicolor suit (M); color hints use base suits only.',
+    subtitle: 'Adds a 5-card multicolor suit (M); color hints use base suits only.',
     value: settings.includeMulticolor ? 'On' : 'Off',
     disabled: false,
     onClick: () => {
       const nextIncludeMulticolor = !settings.includeMulticolor;
       onUpdateSettings({
         includeMulticolor: nextIncludeMulticolor,
-        multicolorShortDeck: false,
+        multicolorShortDeck: nextIncludeMulticolor,
         multicolorWildHints: nextIncludeMulticolor
       });
     }
   } as const;
-  const multicolorRows = settings.includeMulticolor
-    ? [
-      {
-        id: 'short-deck',
-        label: 'Multicolor short deck',
-        subtitle: 'Uses 5 multicolor cards instead of the full 10.',
-        value: settings.multicolorShortDeck ? 'On' : 'Off',
-        disabled: false,
-        onClick: () => onUpdateSettings({
-          multicolorShortDeck: !settings.multicolorShortDeck
-        })
-      }
-    ] as const
-    : [];
   const endlessRow = {
     id: 'endless',
     label: 'Endless mode',
@@ -140,7 +126,7 @@ export function LobbyScreen({
     disabled: false,
     onClick: () => onUpdateSettings({ endlessMode: !settings.endlessMode })
   } as const;
-  const configRows = [extraSuitRow, ...multicolorRows, endlessRow];
+  const configRows = [extraSuitRow, endlessRow];
 
   return (
     <main className="app lobby-app" data-testid="lobby-root">

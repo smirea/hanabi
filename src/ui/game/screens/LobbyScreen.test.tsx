@@ -51,7 +51,7 @@ describe('LobbyScreen', () => {
     expect(screen.queryByTestId('lobby-setting-wild-multicolor')).not.toBeInTheDocument();
   });
 
-  test('shows multicolor-specific options when extra suit is enabled', () => {
+  test('does not show additional multicolor sub-options when extra suit is enabled', () => {
     render(<LobbyScreen {...createProps({
       includeMulticolor: true,
       multicolorShortDeck: false,
@@ -59,11 +59,11 @@ describe('LobbyScreen', () => {
       endlessMode: false
     })} />);
 
-    expect(screen.getByTestId('lobby-setting-short-deck')).toBeInTheDocument();
+    expect(screen.queryByTestId('lobby-setting-short-deck')).not.toBeInTheDocument();
     expect(screen.queryByTestId('lobby-setting-wild-multicolor')).not.toBeInTheDocument();
   });
 
-  test('enabling extra suit defaults to wild multicolor hints', () => {
+  test('enabling extra suit defaults to short multicolor with base-color clues', () => {
     const onUpdateSettings = vi.fn();
     render(<LobbyScreen {...createProps({
       includeMulticolor: false,
@@ -76,24 +76,8 @@ describe('LobbyScreen', () => {
 
     expect(onUpdateSettings).toHaveBeenCalledWith({
       includeMulticolor: true,
-      multicolorShortDeck: false,
+      multicolorShortDeck: true,
       multicolorWildHints: true
-    });
-  });
-
-  test('multicolor short-deck toggle updates only short-deck setting', () => {
-    const onUpdateSettings = vi.fn();
-    render(<LobbyScreen {...createProps({
-      includeMulticolor: true,
-      multicolorShortDeck: false,
-      multicolorWildHints: true,
-      endlessMode: false
-    }, onUpdateSettings)} />);
-
-    fireEvent.click(screen.getByTestId('lobby-setting-short-deck'));
-
-    expect(onUpdateSettings).toHaveBeenCalledWith({
-      multicolorShortDeck: true
     });
   });
 });

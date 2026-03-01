@@ -78,15 +78,13 @@ Add the highest value card in each completed firework. The maximum score is 25 f
 ## Multicolor Suit Options (Toggle)
 Use these options to enable or customize the multicolor suit.
 
-### Variant 1: Sixth Suit
+### Variant 1: Sixth Suit (Short Deck)
 - Add the multicolor suit and build it like any other firework.
+- Use only one multicolor card of each value (1-5).
 - You cannot call "multicolor" for color clues.
 - To clue a multicolor card, call a base color (white/red/blue/yellow/green); multicolor cards count as matching that color for clues.
 
-### Variant 2: Sixth Suit (Short Deck)
-- Same as Variant 1, but use only one card of each value (1-5) for the multicolor suit.
-
-### Variant 3: Endless Mode
+### Variant 2: Endless Mode
 - The game does not end after the last card is drawn. It continues until the team is defeated (3 fuse tokens used, or an indispensable card is discarded) or victorious (all fireworks completed).
 - Score scale is not used; the goal is perfection.
 - This variant can be combined with one other variant.
