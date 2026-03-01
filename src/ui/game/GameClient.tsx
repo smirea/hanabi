@@ -46,6 +46,7 @@ const LOCAL_DEBUG_SETUP = {
   playerIds: ['p1', 'p2', 'p3'],
   shuffleSeed: 17
 };
+const SELF_NAME_SYNC_DEBOUNCE_MS = 220;
 
 type ClientRuntime = 'standard' | 'debug-network-frame';
 
@@ -172,7 +173,13 @@ function GameClient({
       return;
     }
 
-    setActiveSelfName(playerName);
+    const timeoutId = window.setTimeout(() => {
+      setActiveSelfName(playerName);
+    }, SELF_NAME_SYNC_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [isLocalDebugMode, playerName, setActiveSelfName]);
 
   useEffect(() => {
@@ -307,13 +314,30 @@ function GameClient({
     return HanabiGame.fromState(onlineState.gameState);
   }, [debugGame, isLocalDebugMode, onlineState.gameState]);
 
-  const isOnlineParticipant = useMemo(() => {
+  const onlineSelfPlayerId = useMemo(() => {
     if (isLocalDebugMode || !onlineState.selfId || !onlineState.gameState) {
-      return false;
+      return null;
     }
 
-    return onlineState.gameState.players.some((player) => player.id === onlineState.selfId);
-  }, [isLocalDebugMode, onlineState.gameState, onlineState.selfId]);
+    const directPlayer = onlineState.gameState.players.find((player) => player.id === onlineState.selfId);
+    if (directPlayer) {
+      return directPlayer.id;
+    }
+
+    const selfMember = onlineState.members.find((member) => member.peerId === onlineState.selfId);
+    const mappedPlayerId = selfMember?.playerId ?? null;
+    if (!mappedPlayerId) {
+      return null;
+    }
+
+    return onlineState.gameState.players.some((player) => player.id === mappedPlayerId)
+      ? mappedPlayerId
+      : null;
+  }, [isLocalDebugMode, onlineState.gameState, onlineState.members, onlineState.selfId]);
+
+  const isOnlineParticipant = useMemo(() => {
+    return onlineSelfPlayerId !== null;
+  }, [onlineSelfPlayerId]);
 
   const isOnlineTvMember = useMemo(() => {
     if (isLocalDebugMode || !onlineState.selfId) {
@@ -364,9 +388,8 @@ function GameClient({
       return null;
     }
 
-    const localPlayer = activeGameState.players.find((player) => player.id === onlineState.selfId);
-    return localPlayer?.id ?? null;
-  }, [activeGameState, isLocalDebugMode, onlineState.selfId]);
+    return onlineSelfPlayerId;
+  }, [activeGameState, isLocalDebugMode, onlineSelfPlayerId, onlineState.selfId]);
 
   const perspective = useMemo(() => {
     if (!activeGame || !perspectivePlayerId) {
@@ -470,11 +493,11 @@ function GameClient({
   }
 
   function selectOnlineAction(nextAction: Exclude<PendingCardAction, null>): void {
-    if (isLocalDebugMode || !perspective || !onlineState.selfId) {
+    if (isLocalDebugMode || !perspective || !onlineSelfPlayerId) {
       return;
     }
 
-    const isTurn = perspective.currentTurnPlayerId === onlineState.selfId;
+    const isTurn = perspective.currentTurnPlayerId === onlineSelfPlayerId;
     if (!isTurn || onlineState.status !== 'connected' || isTerminalStatus(perspective.status)) {
       return;
     }
@@ -607,11 +630,11 @@ function GameClient({
       return;
     }
 
-    if (!activeGameState || !onlineState.selfId || !pendingAction) {
+    if (!activeGameState || !onlineSelfPlayerId || !pendingAction) {
       return;
     }
 
-    const actorId = onlineState.selfId;
+    const actorId = onlineSelfPlayerId;
     const resolved = resolveCardSelectionAction({
       state: activeGameState,
       actorId,
@@ -675,13 +698,13 @@ function GameClient({
       return;
     }
 
-    if (!activeGameState || !onlineState.selfId) {
+    if (!activeGameState || !onlineSelfPlayerId) {
       return;
     }
 
     const resolved = resolveDirectColorHintAction({
       state: activeGameState,
-      actorId: onlineState.selfId,
+      actorId: onlineSelfPlayerId,
       targetPlayerId,
       suit
     });
@@ -1012,7 +1035,9 @@ function GameClient({
   const reduceMotion = typeof window !== 'undefined'
     && typeof window.matchMedia === 'function'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const isOnlineTurn = !isLocalDebugMode && onlineState.selfId !== null && perspective.currentTurnPlayerId === onlineState.selfId;
+  const isOnlineTurn = !isLocalDebugMode
+    && onlineSelfPlayerId !== null
+    && perspective.currentTurnPlayerId === onlineSelfPlayerId;
   const canAct = (isLocalDebugMode || (onlineState.status === 'connected' && isOnlineTurn)) && !isActionAnimationRunning;
   const selectedAction: PendingCardAction = isLocalDebugMode ? debugGame.state.ui.pendingAction : pendingAction;
   const redundantPlayArmed = selectedAction === 'play' && redundantPlayConfirmCardId !== null;

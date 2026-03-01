@@ -23,7 +23,7 @@ export function CardView({
   testId: string;
   onNode?: (node: HTMLButtonElement | null) => void;
 }) {
-  const knownColor = card.hints.color;
+  const knownColor = card.hints.color === 'M' ? null : card.hints.color;
   const knownNumber = card.hints.number;
 
   let faceSuit: Suit | null = null;
@@ -44,7 +44,9 @@ export function CardView({
     bgColor = suitColors[card.suit];
   }
 
-  const notColors = knownColor || !showNegativeColorHints ? [] : card.hints.notColors;
+  const notColors = knownColor || !showNegativeColorHints
+    ? []
+    : card.hints.notColors.filter((color) => color !== 'M');
   const notNumbers = knownNumber || !showNegativeNumberHints ? [] : card.hints.notNumbers;
   const hasPositiveBadges = Boolean(knownColor || knownNumber);
   const hasNegativeBadges = notColors.length > 0 || notNumbers.length > 0;

@@ -861,14 +861,16 @@ describe('HanabiGame', () => {
       const touched = hintedCard.suit === 'R' || hintedCard.suit === 'M';
       if (touched) {
         expect(hintedCard.hints.recentlyHinted).toBeTrue();
-        expect(hintedCard.hints.color).toBeNull();
-        expect(hintedCard.hints.notColors).toEqual(['Y', 'G', 'B', 'W']);
+        expect(hintedCard.hints.color).toBe('R');
+        expect(hintedCard.hints.notColors).toEqual([]);
       } else {
         expect(hintedCard.hints.recentlyHinted).toBeFalse();
         expect(hintedCard.hints.color).toBeNull();
-        expect(hintedCard.hints.notColors).toEqual(['R', 'M']);
+        expect(hintedCard.hints.notColors).toEqual(['R']);
       }
     }
+
+    expect(targetCards.every((cardId) => !game.state.cards[cardId].hints.notColors.includes('M'))).toBeTrue();
 
     expect(() => game.giveColorHint('p2', 'M')).toThrow('Cannot call multicolor color hints');
   });

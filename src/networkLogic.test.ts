@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { assignMembers, isRoomSnapshot, shouldAcceptSnapshot } from './networkLogic';
+import { HanabiGame } from './game';
+import { assignMemberPlayerIds, assignMembers, isRoomSnapshot, shouldAcceptSnapshot } from './networkLogic';
 import type { LobbySettings, RoomSnapshot } from './network';
 
 const DEFAULT_SETTINGS: LobbySettings = {
@@ -74,6 +75,39 @@ describe('assignMembers', () => {
     expect(assignMembers(connected, previous, names, tv)).toEqual([
       { peerId: 'a', name: 'Alex', isTv: false },
       { peerId: 'b', name: 'Alex 2', isTv: false }
+    ]);
+  });
+});
+
+describe('assignMemberPlayerIds', () => {
+  test('keeps prior seat ownership for still-connected peers and reclaims by matching name', () => {
+    const game = new HanabiGame({
+      playerIds: ['seat-a', 'seat-b'],
+      playerNames: ['Alex', 'Blair'],
+      shuffleSeed: 2
+    });
+
+    const previous = [
+      { peerId: 'old-a', name: 'Alex', isTv: false, playerId: 'seat-a' },
+      { peerId: 'peer-b', name: 'Blair', isTv: false, playerId: 'seat-b' }
+    ];
+    const connected = [
+      { peerId: 'peer-b', name: 'Blair', isTv: false },
+      { peerId: 'new-a', name: 'Alex', isTv: false }
+    ];
+
+    expect(assignMemberPlayerIds(connected, previous, game.getSnapshot())).toEqual([
+      { peerId: 'peer-b', name: 'Blair', isTv: false, playerId: 'seat-b' },
+      { peerId: 'new-a', name: 'Alex', isTv: false, playerId: 'seat-a' }
+    ]);
+  });
+
+  test('clears seat assignments when no game state is active', () => {
+    const connected = [{ peerId: 'peer-a', name: 'Alex', isTv: false }];
+    const previous = [{ peerId: 'peer-a', name: 'Alex', isTv: false, playerId: 'seat-a' }];
+
+    expect(assignMemberPlayerIds(connected, previous, null)).toEqual([
+      { peerId: 'peer-a', name: 'Alex', isTv: false, playerId: null }
     ]);
   });
 });

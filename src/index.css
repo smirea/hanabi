@@ -582,7 +582,7 @@ body {
 
 .lobby-config-dropdown {
   position: absolute;
-  top: calc(100% + 0.26rem);
+  bottom: calc(100% + 0.26rem);
   left: 0;
   min-width: 8.6rem;
   z-index: 5;

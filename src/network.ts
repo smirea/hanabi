@@ -10,6 +10,7 @@ import {
   sanitizePlayerName
 } from './networkShared';
 import {
+  assignMemberPlayerIds,
   assignMembers,
   areMembersEqual,
   electSnapshotHostId,
@@ -53,6 +54,7 @@ export type RoomMember = {
   peerId: string;
   name: string;
   isTv: boolean;
+  playerId?: string | null;
 };
 
 export type RoomPhase = 'lobby' | 'playing';
@@ -125,7 +127,7 @@ function createInitialSnapshot(selfId: string, selfName: string): RoomSnapshot {
     version: 1,
     hostId: selfId,
     phase: 'lobby',
-    members: [{ peerId: selfId, name: selfName, isTv: false }],
+    members: [{ peerId: selfId, name: selfName, isTv: false, playerId: null }],
     settings: cloneLobbySettings(),
     gameState: null
   };
@@ -243,6 +245,22 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
       setState(toOnlineState(roomId, selfId, currentSnapshot, nextStatus, error));
     };
 
+    const withResolvedMemberSeats = (
+      phase: RoomPhase,
+      members: RoomMember[],
+      previousMembers: RoomMember[],
+      gameState: HanabiState | null
+    ): RoomMember[] => {
+      if (phase !== 'playing') {
+        return members.map((member) => ({
+          ...member,
+          playerId: null
+        }));
+      }
+
+      return assignMemberPlayerIds(members, previousMembers, gameState);
+    };
+
     const publishSnapshot = (target?: string): void => {
       if (!isHost || !hostedSnapshot || !sendSnapshot) {
         return;
@@ -258,10 +276,12 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
       }
 
       const base = hostedSnapshot ?? currentSnapshot ?? createInitialSnapshot(selfId, peerNames.get(selfId) ?? formatPeerName(selfId));
+      const previousMembers = base.members;
       const draft = cloneSnapshot(base);
       mutate(draft);
       draft.hostId = selfId;
       draft.settings = normalizeSettings(draft.settings);
+      draft.members = withResolvedMemberSeats(draft.phase, draft.members, previousMembers, draft.gameState);
       draft.version = (base.version ?? 0) + 1;
       hostedSnapshot = draft;
       currentSnapshot = draft;
@@ -276,7 +296,13 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
 
       const connected = getConnectedPeerIds(selfId, room);
       const baseline = hostedSnapshot ?? currentSnapshot ?? createInitialSnapshot(selfId, peerNames.get(selfId) ?? formatPeerName(selfId));
-      const members = assignMembers(connected, baseline.members, peerNames, peerIsTv);
+      const connectedMembers = assignMembers(connected, baseline.members, peerNames, peerIsTv);
+      const members = withResolvedMemberSeats(
+        baseline.phase,
+        connectedMembers,
+        baseline.members,
+        baseline.gameState
+      );
       if (areMembersEqual(members, baseline.members)) {
         return;
       }
@@ -294,7 +320,9 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
       isHost = true;
       const base = cloneSnapshot(currentSnapshot ?? createInitialSnapshot(selfId, peerNames.get(selfId) ?? formatPeerName(selfId)));
       const connected = getConnectedPeerIds(selfId, room);
-      base.members = assignMembers(connected, base.members, peerNames, peerIsTv);
+      const previousMembers = base.members;
+      const connectedMembers = assignMembers(connected, base.members, peerNames, peerIsTv);
+      base.members = withResolvedMemberSeats(base.phase, connectedMembers, previousMembers, base.gameState);
       base.hostId = selfId;
       base.version += 1;
       base.settings = normalizeSettings(base.settings);
@@ -400,7 +428,14 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
         return;
       }
 
-      currentSnapshot = cloneSnapshot(snapshot);
+      const normalizedSnapshot = cloneSnapshot(snapshot);
+      normalizedSnapshot.members = withResolvedMemberSeats(
+        normalizedSnapshot.phase,
+        normalizedSnapshot.members,
+        currentSnapshot?.members ?? [],
+        normalizedSnapshot.gameState
+      );
+      currentSnapshot = normalizedSnapshot;
       for (const member of currentSnapshot.members) {
         peerNames.set(member.peerId, member.name);
         peerIsTv.set(member.peerId, member.isTv);
@@ -515,7 +550,9 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
         }
 
         const action = message.action as NetworkAction;
-        if (action.actorId !== peerId) {
+        const actorMember = hostedSnapshot.members.find((member) => member.peerId === peerId);
+        const actorPlayerId = actorMember?.playerId ?? null;
+        if (!actorMember || actorMember.isTv || !actorPlayerId || action.actorId !== actorPlayerId) {
           return;
         }
 

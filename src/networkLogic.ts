@@ -1,4 +1,5 @@
 import { comparePeerId, electHostId } from './hostElection';
+import type { HanabiState } from './game';
 import type { RoomMember, RoomSnapshot } from './network';
 import {
   normalizeUniquePlayerNameKey,
@@ -50,6 +51,106 @@ export function assignMembers(
   });
 }
 
+function clearMemberPlayerIds(members: RoomMember[]): RoomMember[] {
+  return members.map((member) => ({
+    ...member,
+    playerId: null
+  }));
+}
+
+function normalizeValidPlayerId(value: unknown, validPlayerIds: Set<string>): string | null {
+  if (typeof value !== 'string' || value.length === 0) {
+    return null;
+  }
+
+  return validPlayerIds.has(value) ? value : null;
+}
+
+export function assignMemberPlayerIds(
+  members: RoomMember[],
+  previousMembers: RoomMember[],
+  gameState: HanabiState | null
+): RoomMember[] {
+  if (!gameState) {
+    return clearMemberPlayerIds(members);
+  }
+
+  const validPlayerIds = new Set(gameState.players.map((player) => player.id));
+  const previousByPeerId = new Map(previousMembers.map((member) => [member.peerId, member]));
+  const claimedPlayerIds = new Set<string>();
+
+  const nextMembers = members.map((member) => {
+    if (member.isTv) {
+      return {
+        ...member,
+        playerId: null
+      };
+    }
+
+    const preservedPlayerId = normalizeValidPlayerId(previousByPeerId.get(member.peerId)?.playerId, validPlayerIds);
+    if (preservedPlayerId && !claimedPlayerIds.has(preservedPlayerId)) {
+      claimedPlayerIds.add(preservedPlayerId);
+      return {
+        ...member,
+        playerId: preservedPlayerId
+      };
+    }
+
+    const directPlayerId = normalizeValidPlayerId(member.peerId, validPlayerIds);
+    if (directPlayerId && !claimedPlayerIds.has(directPlayerId)) {
+      claimedPlayerIds.add(directPlayerId);
+      return {
+        ...member,
+        playerId: directPlayerId
+      };
+    }
+
+    return {
+      ...member,
+      playerId: null
+    };
+  });
+
+  const playerIdsByName = new Map<string, string[]>();
+  for (const player of gameState.players) {
+    if (claimedPlayerIds.has(player.id)) {
+      continue;
+    }
+
+    const key = normalizeUniquePlayerNameKey(player.name);
+    const existing = playerIdsByName.get(key);
+    if (existing) {
+      existing.push(player.id);
+      continue;
+    }
+
+    playerIdsByName.set(key, [player.id]);
+  }
+
+  return nextMembers.map((member) => {
+    if (member.isTv || member.playerId !== null) {
+      return member;
+    }
+
+    const key = normalizeUniquePlayerNameKey(member.name);
+    const candidates = playerIdsByName.get(key);
+    const reclaimedPlayerId = candidates?.shift() ?? null;
+    if (!reclaimedPlayerId) {
+      return member;
+    }
+
+    if (!candidates || candidates.length === 0) {
+      playerIdsByName.delete(key);
+    }
+
+    claimedPlayerIds.add(reclaimedPlayerId);
+    return {
+      ...member,
+      playerId: reclaimedPlayerId
+    };
+  });
+}
+
 export function areMembersEqual(a: RoomMember[], b: RoomMember[]): boolean {
   if (a.length !== b.length) {
     return false;
@@ -58,7 +159,12 @@ export function areMembersEqual(a: RoomMember[], b: RoomMember[]): boolean {
   for (let index = 0; index < a.length; index += 1) {
     const left = a[index];
     const right = b[index];
-    if (left.peerId !== right.peerId || left.name !== right.name || left.isTv !== right.isTv) {
+    if (
+      left.peerId !== right.peerId
+      || left.name !== right.name
+      || left.isTv !== right.isTv
+      || (left.playerId ?? null) !== (right.playerId ?? null)
+    ) {
       return false;
     }
   }
@@ -76,7 +182,12 @@ export function isRoomMember(value: unknown): value is RoomMember {
     && candidate.peerId.length > 0
     && typeof candidate.name === 'string'
     && candidate.name.trim().length > 0
-    && typeof candidate.isTv === 'boolean';
+    && typeof candidate.isTv === 'boolean'
+    && (
+      candidate.playerId === undefined
+      || candidate.playerId === null
+      || (typeof candidate.playerId === 'string' && candidate.playerId.length > 0)
+    );
 }
 
 export function isRoomSnapshot(value: unknown): value is RoomSnapshot {

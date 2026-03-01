@@ -1,5 +1,4 @@
 import type { CardId, CardNumber, HanabiState, PlayerId, Suit } from '../../../game';
-import { areArraysEqual } from '../../../utils/arrays';
 
 function doesCardMatchColorHint(settings: HanabiState['settings'], cardSuit: Suit, hintSuit: Suit): boolean {
   if (cardSuit === hintSuit) {
@@ -56,31 +55,6 @@ export function isRedundantHint(state: HanabiState, targetPlayerId: PlayerId, hi
           break;
         }
       } else if (!card.hints.notNumbers.includes(hint.number)) {
-        wouldChange = true;
-        break;
-      }
-    }
-
-    return { redundant: !wouldChange, touchedCardIds };
-  }
-
-  if (state.settings.includeMulticolor && hint.suit !== 'M') {
-    const allowedSuits: Suit[] = [hint.suit, 'M'];
-    for (const cardId of target.cards) {
-      const card = state.cards[cardId];
-      if (!card) {
-        continue;
-      }
-
-      const touched = touchedSet.has(cardId);
-      const currentPossibleSuits = card.hints.color !== null
-        ? [card.hints.color]
-        : state.settings.activeSuits.filter((suit) => !card.hints.notColors.includes(suit));
-      const nextPossibleSuits = touched
-        ? currentPossibleSuits.filter((candidate) => allowedSuits.includes(candidate))
-        : currentPossibleSuits.filter((candidate) => !allowedSuits.includes(candidate));
-
-      if (!areArraysEqual(currentPossibleSuits, nextPossibleSuits)) {
         wouldChange = true;
         break;
       }

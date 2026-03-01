@@ -694,56 +694,14 @@ export class HanabiGame {
 
     const touchedSet = new Set(touchedCardIds);
 
-    const redundant = (() => {
-      if (this.state.settings.multicolorWildHints) {
-        const allowedSuits: Suit[] = [suit, 'M'];
-        for (const cardId of targetPlayer.cards) {
-          const card = this.getCardOrThrow(cardId);
-          const touched = touchedSet.has(cardId);
-          const currentPossibleSuits = this.getPossibleSuits(card);
-          const nextPossibleSuits = touched
-            ? currentPossibleSuits.filter((candidate) => allowedSuits.includes(candidate))
-            : currentPossibleSuits.filter((candidate) => !allowedSuits.includes(candidate));
-
-          if (nextPossibleSuits.length === 0) {
-            return false;
-          }
-
-          if (currentPossibleSuits.length !== nextPossibleSuits.length) {
-            return false;
-          }
-
-          for (let index = 0; index < currentPossibleSuits.length; index += 1) {
-            if (currentPossibleSuits[index] !== nextPossibleSuits[index]) {
-              return false;
-            }
-          }
-        }
-
-        return true;
+    const redundant = targetPlayer.cards.every((cardId) => {
+      const card = this.getCardOrThrow(cardId);
+      if (touchedSet.has(cardId)) {
+        return card.hints.color === suit && !card.hints.notColors.includes(suit);
       }
 
-      for (const cardId of targetPlayer.cards) {
-        const card = this.getCardOrThrow(cardId);
-        if (touchedSet.has(cardId)) {
-          if (card.hints.color !== suit) {
-            return false;
-          }
-
-          if (card.hints.notColors.includes(suit)) {
-            return false;
-          }
-
-          continue;
-        }
-
-        if (!card.hints.notColors.includes(suit)) {
-          return false;
-        }
-      }
-
-      return true;
-    })();
+      return card.hints.notColors.includes(suit);
+    });
 
     if (redundant) {
       throw new Error('Hint would provide no new information');
@@ -752,18 +710,14 @@ export class HanabiGame {
     this.clearRecentHints();
     this.state.hintTokens -= 1;
 
-    if (this.state.settings.multicolorWildHints) {
-      this.applyWildColorHint(targetPlayer, suit, touchedSet);
-    } else {
-      for (const cardId of targetPlayer.cards) {
-        const card = this.getCardOrThrow(cardId);
-        if (touchedSet.has(cardId)) {
-          card.hints.color = suit;
-          card.hints.notColors = card.hints.notColors.filter((value) => value !== suit);
-          card.hints.recentlyHinted = true;
-        } else {
-          addUnique(card.hints.notColors, suit);
-        }
+    for (const cardId of targetPlayer.cards) {
+      const card = this.getCardOrThrow(cardId);
+      if (touchedSet.has(cardId)) {
+        card.hints.color = suit;
+        card.hints.notColors = card.hints.notColors.filter((value) => value !== suit);
+        card.hints.recentlyHinted = true;
+      } else {
+        addUnique(card.hints.notColors, suit);
       }
     }
 
@@ -1079,56 +1033,6 @@ export class HanabiGame {
     }
 
     return this.state.settings.includeMulticolor && cardSuit === 'M' && hintSuit !== 'M';
-  }
-
-  private getPossibleSuits(card: Card): Suit[] {
-    if (card.hints.color !== null) {
-      return [card.hints.color];
-    }
-
-    return this.state.settings.activeSuits.filter((suit) => !card.hints.notColors.includes(suit));
-  }
-
-  private setPossibleSuits(card: Card, possibleSuits: Suit[]): void {
-    const uniquePossibleSuits = [...new Set(possibleSuits)];
-    assert(uniquePossibleSuits.length > 0, 'Card cannot have zero possible suits');
-    for (const suit of uniquePossibleSuits) {
-      assert(this.state.settings.activeSuits.includes(suit), `Invalid possible suit: ${String(suit)}`);
-    }
-
-    card.hints.notColors = this.state.settings.activeSuits.filter((suit) => !uniquePossibleSuits.includes(suit));
-    card.hints.color = uniquePossibleSuits.length === 1 ? uniquePossibleSuits[0] : null;
-  }
-
-  private applyWildColorHint(targetPlayer: Player, suit: Suit, touchedSet: Set<CardId>): void {
-    if (!this.state.settings.includeMulticolor) {
-      throw new Error('multicolorWildHints requires includeMulticolor=true');
-    }
-
-    if (!this.state.settings.activeSuits.includes('M')) {
-      throw new Error('multicolorWildHints requires multicolor suit to be active');
-    }
-
-    if (suit === 'M') {
-      throw new Error('Cannot call multicolor color hints');
-    }
-
-    const allowedSuits: Suit[] = [suit, 'M'];
-    for (const cardId of targetPlayer.cards) {
-      const card = this.getCardOrThrow(cardId);
-      const touched = touchedSet.has(cardId);
-      const currentPossibleSuits = this.getPossibleSuits(card);
-      const nextPossibleSuits = touched
-        ? currentPossibleSuits.filter((candidate) => allowedSuits.includes(candidate))
-        : currentPossibleSuits.filter((candidate) => !allowedSuits.includes(candidate));
-
-      if (nextPossibleSuits.length === 0) {
-        throw new Error(`Color hint would make card ${cardId} have no possible suits`);
-      }
-
-      this.setPossibleSuits(card, nextPossibleSuits);
-      card.hints.recentlyHinted = touched;
-    }
   }
 
   private isPerfectionStillPossible(): boolean {
