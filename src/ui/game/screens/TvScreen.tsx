@@ -195,7 +195,7 @@ export function TvScreen({
                     const played = num <= height ? 1 : 0;
                     const pipTotal = remaining + played + discarded;
                     const blocked = num > height && discarded >= totalCopies;
-                    const pipStates = getPegPipStates(remaining, played, discarded, pipTotal);
+                    const pipStates = getPegPipStates('default', remaining, 0, discarded, played, pipTotal);
 
                     return (
                       <div
@@ -204,7 +204,7 @@ export function TvScreen({
                         data-testid={`tv-peg-${suit}-${num}`}
                       >
                         <span className="peg-num">{blocked ? '✕' : num}</span>
-                        <span className="peg-pips" aria-label={`${remaining} hidden from TV, ${played} played, ${discarded} discarded`}>
+                        <span className="peg-pips" aria-label={`${remaining} available, ${discarded + played} unavailable`}>
                           <PegPips pipStates={pipStates} />
                         </span>
                       </div>

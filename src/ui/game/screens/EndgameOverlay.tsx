@@ -249,10 +249,10 @@ export function EndgameOverlay({
                       const discarded = discardCounts.get(cardKey) ?? 0;
                       const visibleInHands = visibleOtherHandCounts.get(cardKey) ?? 0;
                       const played = num <= height ? 1 : 0;
-                      const hollow = visibleInHands + played;
-                      const pipTotal = remaining + hollow + discarded;
+                      const pipTotal = remaining + visibleInHands + discarded + played;
                       const blocked = num > height && discarded >= totalCopies;
-                      const pipStates = getPegPipStates(remaining, hollow, discarded, pipTotal);
+                      const pipStates = getPegPipStates('default', remaining, visibleInHands, discarded, played, pipTotal);
+                      const pipAriaLabel = `${remaining + visibleInHands} available, ${discarded + played} unavailable`;
 
                       return (
                         <div
@@ -261,7 +261,7 @@ export function EndgameOverlay({
                           data-testid={`endgame-peg-${suit}-${num}`}
                         >
                           <span className="peg-num">{blocked ? '✕' : num}</span>
-                          <span className="peg-pips" aria-label={`${remaining} hidden, ${hollow} visible or played, ${discarded} discarded`}>
+                          <span className="peg-pips" aria-label={pipAriaLabel}>
                             <PegPips pipStates={pipStates} />
                           </span>
                         </div>

@@ -222,6 +222,19 @@ describe('App local debug wiring', () => {
     expect(screen.getByTestId('menu-turn-sound-value')).toHaveTextContent('Off');
   });
 
+  test('tibi mode toggle defaults off and persists from burger menu', () => {
+    render(<App roomCode={ROOM_CODE} />);
+
+    fireEvent.click(screen.getByTestId('actions-menu'));
+    expect(screen.getByTestId('menu-tibi-mode-value')).toHaveTextContent('Off');
+
+    fireEvent.click(screen.getByTestId('menu-tibi-mode-toggle'));
+    expect(window.localStorage.getItem('hanabi.tibi_mode')).toBe('true');
+
+    fireEvent.click(screen.getByTestId('actions-menu'));
+    expect(screen.getByTestId('menu-tibi-mode-value')).toHaveTextContent('On');
+  });
+
   test('dark mode toggle persists from burger menu and updates the document theme', async () => {
     render(<App roomCode={ROOM_CODE} />);
 

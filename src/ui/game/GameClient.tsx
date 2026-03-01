@@ -156,6 +156,11 @@ function GameClient({
     true,
     storageNamespace
   );
+  const [isTibiMode, setIsTibiMode] = useLocalStorageState(
+    storageKeys.tibiMode,
+    false,
+    storageNamespace
+  );
   const logListRef = useRef<HTMLDivElement | null>(null);
   const logDrawerTokenRef = useRef(0);
   const logDrawerCloseTimeoutRef = useRef<number | null>(null);
@@ -878,6 +883,12 @@ function GameClient({
     setIsMenuOpen(false);
   }
 
+  function handleTibiModeToggle(): void {
+    setIsLeaveGameArmed(false);
+    setIsTibiMode((current) => !current);
+    setIsMenuOpen(false);
+  }
+
   function handleDarkModeToggle(): void {
     setIsLeaveGameArmed(false);
     onToggleDarkMode();
@@ -1148,10 +1159,22 @@ function GameClient({
                   const totalCopies = remaining + knownUnavailable;
                   const discarded = discardCounts.get(cardKey) ?? 0;
                   const visibleInHands = visibleOtherHandCounts.get(cardKey) ?? 0;
-                  const hollow = visibleInHands;
-                  const pipTotal = remaining + hollow + discarded;
+                  const played = num <= height ? 1 : 0;
+                  const pipTotal = isTibiMode
+                    ? remaining + visibleInHands + discarded
+                    : remaining + visibleInHands + discarded + played;
                   const blocked = num > height && discarded >= totalCopies;
-                  const pipStates = getPegPipStates(remaining, hollow, discarded, pipTotal);
+                  const pipStates = getPegPipStates(
+                    isTibiMode ? 'tibi' : 'default',
+                    remaining,
+                    visibleInHands,
+                    discarded,
+                    played,
+                    pipTotal
+                  );
+                  const pipAriaLabel = isTibiMode
+                    ? `${remaining} in deck, ${visibleInHands} in visible hands, ${discarded} discarded`
+                    : `${remaining + visibleInHands} available, ${discarded + played} unavailable`;
 
                   return (
                     <div
@@ -1160,7 +1183,7 @@ function GameClient({
                       data-testid={`peg-${suit}-${num}`}
                     >
                       <span className="peg-num">{blocked ? '✕' : num}</span>
-                      <span className="peg-pips" aria-label={`${remaining} hidden, ${hollow} visible, ${discarded} discarded`}>
+                      <span className="peg-pips" aria-label={pipAriaLabel}>
                         <PegPips pipStates={pipStates} />
                       </span>
                     </div>
@@ -1391,6 +1414,15 @@ function GameClient({
             >
               <span>Turn Sound</span>
               <span data-testid="menu-turn-sound-value">{turnSoundEnabled ? 'On' : 'Off'}</span>
+            </button>
+            <button
+              type="button"
+              className="menu-item menu-toggle-item"
+              data-testid="menu-tibi-mode-toggle"
+              onClick={handleTibiModeToggle}
+            >
+              <span>Tibi Mode</span>
+              <span data-testid="menu-tibi-mode-value">{isTibiMode ? 'On' : 'Off'}</span>
             </button>
             {!isLocalDebugMode && showReconnectAction && (
               <button

@@ -1332,6 +1332,8 @@ body {
 .peg-pip {
   width: 0.4rem;
   height: 0.4rem;
+  display: grid;
+  place-items: center;
   border-radius: 999px;
   border: 1.35px solid rgba(141, 154, 177, 0.92);
   background: rgba(136, 151, 178, 0.95);
@@ -1347,6 +1349,20 @@ body {
   background: transparent;
   opacity: 0.9;
   transform: scale(1);
+}
+
+.peg-pip.deck,
+.peg-pip.hand {
+  width: 0.48rem;
+  height: 0.48rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  opacity: 0.94;
+}
+
+.peg-pip-icon {
+  color: rgba(141, 154, 177, 0.96);
 }
 
 .peg-pip.cross {
@@ -1387,6 +1403,16 @@ body {
 .peg.lit .peg-pip.hollow {
   background: transparent;
   opacity: 0.75;
+}
+
+.peg.lit .peg-pip.deck,
+.peg.lit .peg-pip.hand {
+  background: transparent;
+  border: 0;
+}
+
+.peg.lit .peg-pip-icon {
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .peg.lit .peg-pip.cross {
