@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import { HanabiGame } from './game';
-import { assignMemberPlayerIds, assignMembers, isRoomSnapshot, resolveMemberPlayerId, shouldAcceptSnapshot } from './networkLogic';
+import {
+  assignMemberPlayerIds,
+  assignMembers,
+  isRoomSnapshot,
+  resolveMemberPlayerId,
+  shouldAcceptSnapshot,
+  shouldBootstrapWithoutSnapshot
+} from './networkLogic';
 import type { LobbySettings, RoomSnapshot } from './network';
 
 const DEFAULT_SETTINGS: LobbySettings = {
@@ -102,6 +109,28 @@ describe('assignMemberPlayerIds', () => {
     ]);
   });
 
+  test('reclaims seat from disconnected membership history when active-game member names diverge from game names', () => {
+    const game = new HanabiGame({
+      playerIds: ['seat-a', 'seat-b'],
+      playerNames: ['Alex', 'Blair'],
+      shuffleSeed: 2
+    });
+
+    const previous = [
+      { peerId: 'old-a', name: 'Ace', isTv: false, playerId: 'seat-a' },
+      { peerId: 'peer-b', name: 'Blair', isTv: false, playerId: 'seat-b' }
+    ];
+    const connected = [
+      { peerId: 'peer-b', name: 'Blair', isTv: false },
+      { peerId: 'new-a', name: 'Ace', isTv: false }
+    ];
+
+    expect(assignMemberPlayerIds(connected, previous, game.getSnapshot())).toEqual([
+      { peerId: 'peer-b', name: 'Blair', isTv: false, playerId: 'seat-b' },
+      { peerId: 'new-a', name: 'Ace', isTv: false, playerId: 'seat-a' }
+    ]);
+  });
+
   test('clears seat assignments when no game state is active', () => {
     const connected = [{ peerId: 'peer-a', name: 'Alex', isTv: false }];
     const previous = [{ peerId: 'peer-a', name: 'Alex', isTv: false, playerId: 'seat-a' }];
@@ -109,6 +138,15 @@ describe('assignMemberPlayerIds', () => {
     expect(assignMemberPlayerIds(connected, previous, null)).toEqual([
       { peerId: 'peer-a', name: 'Alex', isTv: false, playerId: null }
     ]);
+  });
+});
+
+describe('shouldBootstrapWithoutSnapshot', () => {
+  test('elects only the lowest connected peer to bootstrap', () => {
+    expect(shouldBootstrapWithoutSnapshot('self', new Set(['self']))).toBeTrue();
+    expect(shouldBootstrapWithoutSnapshot('a', new Set(['a', 'b']))).toBeTrue();
+    expect(shouldBootstrapWithoutSnapshot('b', new Set(['a', 'b']))).toBeFalse();
+    expect(shouldBootstrapWithoutSnapshot('self', new Set(['peer']))).toBeFalse();
   });
 });
 

@@ -1,5 +1,9 @@
 export function comparePeerId(a: string, b: string): number {
-  return a.localeCompare(b);
+  if (a === b) {
+    return 0;
+  }
+
+  return a < b ? -1 : 1;
 }
 
 function normalizePeerIds(ids: Iterable<string>): string[] {
@@ -39,4 +43,3 @@ export function electHostId(
 
   return connected[0] ?? null;
 }
-

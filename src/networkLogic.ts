@@ -77,6 +77,7 @@ export function assignMemberPlayerIds(
 
   const validPlayerIds = new Set(gameState.players.map((player) => player.id));
   const previousByPeerId = new Map(previousMembers.map((member) => [member.peerId, member]));
+  const connectedPeerIds = new Set(members.map((member) => member.peerId));
   const claimedPlayerIds = new Set<string>();
 
   const nextMembers = members.map((member) => {
@@ -111,6 +112,27 @@ export function assignMemberPlayerIds(
     };
   });
 
+  const disconnectedPlayerIdsByName = new Map<string, string[]>();
+  for (const previousMember of previousMembers) {
+    if (previousMember.isTv || connectedPeerIds.has(previousMember.peerId)) {
+      continue;
+    }
+
+    const previousPlayerId = normalizeValidPlayerId(previousMember.playerId, validPlayerIds);
+    if (!previousPlayerId || claimedPlayerIds.has(previousPlayerId)) {
+      continue;
+    }
+
+    const key = normalizeUniquePlayerNameKey(previousMember.name);
+    const existing = disconnectedPlayerIdsByName.get(key);
+    if (existing) {
+      existing.push(previousPlayerId);
+      continue;
+    }
+
+    disconnectedPlayerIdsByName.set(key, [previousPlayerId]);
+  }
+
   const playerIdsByName = new Map<string, string[]>();
   for (const player of gameState.players) {
     if (claimedPlayerIds.has(player.id)) {
@@ -133,6 +155,20 @@ export function assignMemberPlayerIds(
     }
 
     const key = normalizeUniquePlayerNameKey(member.name);
+    const disconnectedCandidates = disconnectedPlayerIdsByName.get(key);
+    const reclaimedDisconnectedPlayerId = disconnectedCandidates?.shift() ?? null;
+    if (reclaimedDisconnectedPlayerId) {
+      if (!disconnectedCandidates || disconnectedCandidates.length === 0) {
+        disconnectedPlayerIdsByName.delete(key);
+      }
+
+      claimedPlayerIds.add(reclaimedDisconnectedPlayerId);
+      return {
+        ...member,
+        playerId: reclaimedDisconnectedPlayerId
+      };
+    }
+
     const candidates = playerIdsByName.get(key);
     const reclaimedPlayerId = candidates?.shift() ?? null;
     if (!reclaimedPlayerId) {
@@ -274,6 +310,10 @@ export function electSnapshotHostId(
   }
 
   return electHostId(connectedPeerIds, current?.members.map((member) => member.peerId));
+}
+
+export function shouldBootstrapWithoutSnapshot(selfId: string, connectedPeerIds: Set<string>): boolean {
+  return electHostId(connectedPeerIds) === selfId;
 }
 
 export function shouldAcceptSnapshot(

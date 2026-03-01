@@ -6,6 +6,10 @@ describe('electHostId', () => {
     expect(electHostId(['b', 'a'], ['b', 'a'])).toBe('a');
   });
 
+  test('uses deterministic codepoint ordering for mixed-case peer ids', () => {
+    expect(electHostId(['a', 'B'], ['a', 'B'])).toBe('B');
+  });
+
   test('does not preempt the current membership set when a lower-id peer is connected but not in members yet', () => {
     expect(electHostId(['b', 'a'], ['b'])).toBe('b');
   });
@@ -18,4 +22,3 @@ describe('electHostId', () => {
     expect(electHostId([])).toBeNull();
   });
 });
-

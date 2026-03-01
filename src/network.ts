@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HanabiGame, type CardNumber, type HanabiState, type Suit } from './game';
-import { electHostId } from './hostElection';
 import { getScopedNetworkAppId } from './networkConstants';
 import {
   applyNetworkAction,
@@ -17,6 +16,7 @@ import {
   formatPeerName,
   isRoomSnapshot,
   resolveMemberPlayerId,
+  shouldBootstrapWithoutSnapshot,
   shouldAcceptSnapshot
 } from './networkLogic';
 
@@ -28,6 +28,7 @@ const PLAYER_ACTION_NAMESPACE = 'ply-act';
 const SNAPSHOT_HEARTBEAT_MS = 4_000;
 const SNAPSHOT_SYNC_MS = 2_000;
 const INITIAL_SNAPSHOT_WAIT_MS = 1_500;
+const ACTION_REJECT_RESYNC_COOLDOWN_MS = 400;
 
 const TRYSTERO_ACTION_NAME_MAX_BYTES = 12;
 
@@ -236,6 +237,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
     let sendSnapshot: ((message: SnapshotMessage, target?: string | string[] | null) => Promise<void[]>) | null = null;
     let sendSnapshotRequest: ((message: SnapshotRequestMessage, target?: string | string[] | null) => Promise<void[]>) | null = null;
     let sendPlayerAction: ((message: PlayerActionMessage, target?: string | string[] | null) => Promise<void[]>) | null = null;
+    const actionRejectResyncAtByPeer = new Map<string, number>();
     const effectStartedAt = Date.now();
 
     const pushState = (nextStatus: OnlineState['status'], error: string | null = null): void => {
@@ -262,6 +264,15 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
       return assignMemberPlayerIds(members, previousMembers, gameState);
     };
 
+    const canEditSelfName = (): boolean => {
+      const snapshot = hostedSnapshot ?? currentSnapshot;
+      if (!snapshot || snapshot.phase !== 'playing') {
+        return true;
+      }
+
+      return resolveMemberPlayerId(snapshot.members, snapshot.gameState, selfId) === null;
+    };
+
     const publishSnapshot = (target?: string): void => {
       if (!isHost || !hostedSnapshot || !sendSnapshot) {
         return;
@@ -269,6 +280,17 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
 
       const message: SnapshotMessage = { snapshot: cloneSnapshot(hostedSnapshot) };
       void sendSnapshot(message, target ?? null);
+    };
+
+    const publishSnapshotForRejectedAction = (peerId: string): void => {
+      const now = Date.now();
+      const lastSentAt = actionRejectResyncAtByPeer.get(peerId) ?? 0;
+      if (now - lastSentAt < ACTION_REJECT_RESYNC_COOLDOWN_MS) {
+        return;
+      }
+
+      actionRejectResyncAtByPeer.set(peerId, now);
+      publishSnapshot(peerId);
     };
 
     const updateHostedSnapshot = (mutate: (draft: RoomSnapshot) => void): void => {
@@ -371,14 +393,10 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
 
       const connected = getConnectedPeerIds(selfId, room);
       if (!currentSnapshot) {
-        const lowestConnected = electHostId(connected);
-        if (!lowestConnected) {
-          return;
-        }
-
-        if (lowestConnected !== selfId) {
+        const canBootstrap = shouldBootstrapWithoutSnapshot(selfId, connected);
+        if (!canBootstrap) {
           stepDownHost();
-          pushState('connected');
+          pushState('connecting');
           requestSnapshotFromHost();
           return;
         }
@@ -542,7 +560,12 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
       });
 
       getPlayerActionImpl((message, peerId) => {
-        if (!isHost || !hostedSnapshot || hostedSnapshot.phase !== 'playing' || hostedSnapshot.gameState === null) {
+        if (!isHost || !hostedSnapshot) {
+          return;
+        }
+
+        if (hostedSnapshot.phase !== 'playing' || hostedSnapshot.gameState === null) {
+          publishSnapshotForRejectedAction(peerId);
           return;
         }
 
@@ -553,6 +576,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
         const action = message.action as NetworkAction;
         const actorPlayerId = resolveMemberPlayerId(hostedSnapshot.members, hostedSnapshot.gameState, peerId);
         if (!actorPlayerId || action.actorId !== actorPlayerId) {
+          publishSnapshotForRejectedAction(peerId);
           return;
         }
 
@@ -560,6 +584,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
         try {
           applyNetworkAction(game, action);
         } catch {
+          publishSnapshotForRejectedAction(peerId);
           return;
         }
 
@@ -656,6 +681,10 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
           });
         },
         setSelfName: (name) => {
+          if (!canEditSelfName()) {
+            return;
+          }
+
           const resolvedName = sanitizePlayerName(name) ?? defaultSelfName;
           const currentName = peerNames.get(selfId) ?? defaultSelfName;
           if (resolvedName === currentName) {
@@ -754,9 +783,17 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
   }, []);
 
   const setSelfName = useCallback((name: string) => {
+    const selfId = state.selfId;
+    const isSeatedDuringGame = state.phase === 'playing'
+      && selfId !== null
+      && resolveMemberPlayerId(state.members, state.gameState, selfId) !== null;
+    if (isSeatedDuringGame) {
+      return;
+    }
+
     desiredSelfNameRef.current = name;
     controllerRef.current?.setSelfName(name);
-  }, []);
+  }, [state.gameState, state.members, state.phase, state.selfId]);
 
   const setSelfIsTv = useCallback((isTv: boolean) => {
     desiredSelfIsTvRef.current = Boolean(isTv);
