@@ -106,7 +106,7 @@ export function LobbyScreen({
   const extraSuitRow = {
     id: 'extra-suit',
     label: 'Extra suit (M)',
-    subtitle: 'Adds the multicolor suit (M) to the deck and fireworks.',
+    subtitle: 'Adds the multicolor suit (M); color hints use base suits only.',
     value: settings.includeMulticolor ? 'On' : 'Off',
     disabled: false,
     onClick: () => {
@@ -127,19 +127,7 @@ export function LobbyScreen({
         value: settings.multicolorShortDeck ? 'On' : 'Off',
         disabled: false,
         onClick: () => onUpdateSettings({
-          multicolorShortDeck: !settings.multicolorShortDeck,
-          multicolorWildHints: false
-        })
-      },
-      {
-        id: 'wild-multicolor',
-        label: 'Wild multicolor hints',
-        subtitle: 'Color hints can point at any multicolor card (M).',
-        value: settings.multicolorWildHints ? 'On' : 'Off',
-        disabled: false,
-        onClick: () => onUpdateSettings({
-          multicolorWildHints: !settings.multicolorWildHints,
-          multicolorShortDeck: false
+          multicolorShortDeck: !settings.multicolorShortDeck
         })
       }
     ] as const

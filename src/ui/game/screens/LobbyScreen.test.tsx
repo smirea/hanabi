@@ -60,7 +60,7 @@ describe('LobbyScreen', () => {
     })} />);
 
     expect(screen.getByTestId('lobby-setting-short-deck')).toBeInTheDocument();
-    expect(screen.getByTestId('lobby-setting-wild-multicolor')).toBeInTheDocument();
+    expect(screen.queryByTestId('lobby-setting-wild-multicolor')).not.toBeInTheDocument();
   });
 
   test('enabling extra suit defaults to wild multicolor hints', () => {
@@ -78,6 +78,22 @@ describe('LobbyScreen', () => {
       includeMulticolor: true,
       multicolorShortDeck: false,
       multicolorWildHints: true
+    });
+  });
+
+  test('multicolor short-deck toggle updates only short-deck setting', () => {
+    const onUpdateSettings = vi.fn();
+    render(<LobbyScreen {...createProps({
+      includeMulticolor: true,
+      multicolorShortDeck: false,
+      multicolorWildHints: true,
+      endlessMode: false
+    }, onUpdateSettings)} />);
+
+    fireEvent.click(screen.getByTestId('lobby-setting-short-deck'));
+
+    expect(onUpdateSettings).toHaveBeenCalledWith({
+      multicolorShortDeck: true
     });
   });
 });

@@ -79,7 +79,7 @@ export function resolveCardSelectionAction({
       return { kind: 'noop' };
     }
 
-    if (state.settings.multicolorWildHints && selectedCard.suit === 'M') {
+    if (selectedCard.suit === 'M') {
       return { kind: 'wild-color-picker', targetPlayerId: playerId };
     }
 
@@ -135,6 +135,10 @@ export function resolveDirectColorHintAction({
   targetPlayerId: PlayerId;
   suit: Suit;
 }): ResolvedDirectColorHint {
+  if (suit === 'M') {
+    return { kind: 'noop' };
+  }
+
   const currentPlayer = state.players[state.currentTurnPlayerIndex];
   if (!currentPlayer || currentPlayer.id !== actorId || targetPlayerId === actorId) {
     return { kind: 'noop' };

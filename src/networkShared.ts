@@ -23,20 +23,9 @@ export function cloneLobbySettings(settings: LobbySettings = DEFAULT_LOBBY_SETTI
 
 export function normalizeSettings(input: Partial<LobbySettings> | undefined): LobbySettings {
   const includeMulticolor = Boolean(input?.includeMulticolor);
-  const hasMulticolorShortDeck = typeof input?.multicolorShortDeck === 'boolean';
-  const hasMulticolorWildHints = typeof input?.multicolorWildHints === 'boolean';
+  const multicolorShortDeck = includeMulticolor && Boolean(input?.multicolorShortDeck);
+  const multicolorWildHints = includeMulticolor;
 
-  let multicolorWildHints = includeMulticolor && Boolean(input?.multicolorWildHints);
-  let multicolorShortDeck = includeMulticolor && Boolean(input?.multicolorShortDeck);
-
-  if (includeMulticolor && !hasMulticolorShortDeck && !hasMulticolorWildHints) {
-    multicolorWildHints = true;
-    multicolorShortDeck = false;
-  }
-
-  if (multicolorWildHints) {
-    multicolorShortDeck = false;
-  }
   const endlessMode = Boolean(input?.endlessMode);
 
   return {

@@ -112,6 +112,17 @@ export function isRoomSnapshot(value: unknown): value is RoomSnapshot {
   return true;
 }
 
+export function electSnapshotHostId(
+  connectedPeerIds: Set<string>,
+  current: Pick<RoomSnapshot, 'hostId' | 'members'> | null
+): string | null {
+  if (current && connectedPeerIds.has(current.hostId)) {
+    return current.hostId;
+  }
+
+  return electHostId(connectedPeerIds, current?.members.map((member) => member.peerId));
+}
+
 export function shouldAcceptSnapshot(
   incoming: RoomSnapshot,
   current: RoomSnapshot | null,
@@ -125,7 +136,7 @@ export function shouldAcceptSnapshot(
     return incoming.version >= current.version;
   }
 
-  const electedHost = electHostId(connectedPeerIds, current.members.map((member) => member.peerId));
+  const electedHost = electSnapshotHostId(connectedPeerIds, current);
   if (electedHost !== incoming.hostId) {
     return false;
   }

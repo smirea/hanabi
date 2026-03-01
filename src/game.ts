@@ -517,8 +517,8 @@ export class HanabiGame {
       throw new Error(`Color ${suit} is not active in this game`);
     }
 
-    if (this.state.settings.multicolorWildHints && suit === 'M') {
-      throw new Error('Cannot call multicolor when multicolorWildHints=true');
+    if (suit === 'M') {
+      throw new Error('Cannot call multicolor color hints');
     }
 
     this.state.ui.selectedHintSuit = suit;
@@ -674,8 +674,8 @@ export class HanabiGame {
       throw new Error(`Color ${suit} is not active in this game`);
     }
 
-    if (this.state.settings.multicolorWildHints && suit === 'M') {
-      throw new Error('Cannot call multicolor when multicolorWildHints=true');
+    if (suit === 'M') {
+      throw new Error('Cannot call multicolor color hints');
     }
 
     const currentPlayer = this.state.players[this.state.currentTurnPlayerIndex];
@@ -695,7 +695,7 @@ export class HanabiGame {
     const touchedSet = new Set(touchedCardIds);
 
     const redundant = (() => {
-      if (this.state.settings.multicolorWildHints && suit !== 'M') {
+      if (this.state.settings.multicolorWildHints) {
         const allowedSuits: Suit[] = [suit, 'M'];
         for (const cardId of targetPlayer.cards) {
           const card = this.getCardOrThrow(cardId);
@@ -839,19 +839,8 @@ export class HanabiGame {
     const includeMulticolor = Boolean(input?.includeMulticolor);
     const requestedMulticolorShortDeck = Boolean(input?.multicolorShortDeck);
     const requestedMulticolorWildHints = Boolean(input?.multicolorWildHints);
-    const hasRequestedMulticolorShortDeck = typeof input?.multicolorShortDeck === 'boolean';
-    const hasRequestedMulticolorWildHints = typeof input?.multicolorWildHints === 'boolean';
-    let multicolorWildHints = includeMulticolor && requestedMulticolorWildHints;
-    let multicolorShortDeck = includeMulticolor && requestedMulticolorShortDeck;
-
-    if (includeMulticolor && !hasRequestedMulticolorShortDeck && !hasRequestedMulticolorWildHints) {
-      multicolorWildHints = true;
-      multicolorShortDeck = false;
-    }
-
-    if (multicolorWildHints) {
-      multicolorShortDeck = false;
-    }
+    const multicolorWildHints = includeMulticolor;
+    const multicolorShortDeck = includeMulticolor && requestedMulticolorShortDeck;
     const endlessMode = input?.endlessMode ?? false;
     if (requestedMulticolorShortDeck && !includeMulticolor) {
       throw new Error('multicolorShortDeck requires includeMulticolor=true');
@@ -859,10 +848,6 @@ export class HanabiGame {
 
     if (requestedMulticolorWildHints && !includeMulticolor) {
       throw new Error('multicolorWildHints requires includeMulticolor=true');
-    }
-
-    if (requestedMulticolorWildHints && requestedMulticolorShortDeck) {
-      throw new Error('multicolorWildHints cannot be combined with multicolorShortDeck');
     }
 
     const maxHintTokens = input?.maxHintTokens ?? 8;
@@ -1093,7 +1078,7 @@ export class HanabiGame {
       return true;
     }
 
-    return this.state.settings.multicolorWildHints && cardSuit === 'M' && hintSuit !== 'M';
+    return this.state.settings.includeMulticolor && cardSuit === 'M' && hintSuit !== 'M';
   }
 
   private getPossibleSuits(card: Card): Suit[] {
@@ -1125,7 +1110,7 @@ export class HanabiGame {
     }
 
     if (suit === 'M') {
-      throw new Error('Cannot call multicolor when multicolorWildHints=true');
+      throw new Error('Cannot call multicolor color hints');
     }
 
     const allowedSuits: Suit[] = [suit, 'M'];
@@ -1374,9 +1359,7 @@ export class HanabiGame {
       return cloned;
     }
 
-    if (typeof (cloned.settings as any).multicolorWildHints !== 'boolean') {
-      (cloned.settings as any).multicolorWildHints = false;
-    }
+    (cloned.settings as any).multicolorWildHints = Boolean((cloned.settings as any).includeMulticolor);
 
     if (cloned.status === 'last_round') {
       cloned.status = 'active';
@@ -1418,13 +1401,17 @@ export class HanabiGame {
       assert(activeSuitSet.has('M'), 'Multicolor suit must be active when includeMulticolor=true');
     }
 
+    assert(
+      state.settings.multicolorWildHints === state.settings.includeMulticolor,
+      'multicolorWildHints must match includeMulticolor'
+    );
+
     if (state.settings.multicolorShortDeck) {
       assert(state.settings.includeMulticolor, 'multicolorShortDeck requires includeMulticolor=true');
     }
 
     if (state.settings.multicolorWildHints) {
       assert(state.settings.includeMulticolor, 'multicolorWildHints requires includeMulticolor=true');
-      assert(!state.settings.multicolorShortDeck, 'multicolorWildHints cannot be combined with multicolorShortDeck');
     }
 
     assert(isInteger(state.hintTokens), 'hintTokens must be an integer');

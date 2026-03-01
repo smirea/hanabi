@@ -120,7 +120,29 @@ describe('shouldAcceptSnapshot', () => {
     expect(shouldAcceptSnapshot(incoming, current, new Set(['b', 'c']))).toBeFalse();
   });
 
-  test('accepts an elected host taking over even if the version resets, using peer id as a tie-break', () => {
+  test('keeps the current host authoritative while that host is still connected', () => {
+    const current = snapshot({
+      hostId: 'b',
+      version: 10,
+      members: [
+        { peerId: 'b', name: 'B', isTv: false },
+        { peerId: 'c', name: 'C', isTv: false }
+      ]
+    });
+    const incoming = snapshot({
+      hostId: 'a',
+      version: 99,
+      members: [
+        { peerId: 'a', name: 'A', isTv: false },
+        { peerId: 'b', name: 'B', isTv: false },
+        { peerId: 'c', name: 'C', isTv: false }
+      ]
+    });
+
+    expect(shouldAcceptSnapshot(incoming, current, new Set(['a', 'b', 'c']))).toBeFalse();
+  });
+
+  test('accepts an elected host taking over when the prior host disconnects, even if the version resets', () => {
     const current = snapshot({
       hostId: 'b',
       version: 10,
@@ -138,10 +160,10 @@ describe('shouldAcceptSnapshot', () => {
       ]
     });
 
-    expect(shouldAcceptSnapshot(incoming, current, new Set(['a', 'b']))).toBeTrue();
+    expect(shouldAcceptSnapshot(incoming, current, new Set(['a']))).toBeTrue();
   });
 
-  test('uses the member list as eligibility for election to avoid host flips before membership updates', () => {
+  test('uses the member list as eligibility for election during host failover', () => {
     const current = snapshot({ hostId: 'c', version: 10 });
     const incoming = snapshot({
       hostId: 'b',
@@ -152,7 +174,7 @@ describe('shouldAcceptSnapshot', () => {
       ]
     });
 
-    expect(shouldAcceptSnapshot(incoming, current, new Set(['a', 'b', 'c']))).toBeTrue();
+    expect(shouldAcceptSnapshot(incoming, current, new Set(['a', 'b']))).toBeTrue();
   });
 
   test('rejects lower-id newcomer snapshots that are not elected by the current membership', () => {

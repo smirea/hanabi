@@ -6,7 +6,7 @@ function doesCardMatchColorHint(settings: HanabiState['settings'], cardSuit: Sui
     return true;
   }
 
-  return settings.multicolorWildHints && cardSuit === 'M' && hintSuit !== 'M';
+  return settings.includeMulticolor && cardSuit === 'M' && hintSuit !== 'M';
 }
 
 export type HintRedundancy =
@@ -64,7 +64,7 @@ export function isRedundantHint(state: HanabiState, targetPlayerId: PlayerId, hi
     return { redundant: !wouldChange, touchedCardIds };
   }
 
-  if (state.settings.multicolorWildHints && hint.suit !== 'M') {
+  if (state.settings.includeMulticolor && hint.suit !== 'M') {
     const allowedSuits: Suit[] = [hint.suit, 'M'];
     for (const cardId of target.cards) {
       const card = state.cards[cardId];

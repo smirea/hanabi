@@ -465,6 +465,17 @@ describe('HanabiGame', () => {
     for (const number of [1, 2, 3, 4, 5] as const) {
       expect(mCards.filter((entry) => entry.number === number)).toHaveLength(1);
     }
+
+    const shortWildMulticolor = new HanabiGame({
+      playerNames: ['A', 'B'],
+      includeMulticolor: true,
+      multicolorShortDeck: true,
+      multicolorWildHints: false,
+      shuffleSeed: 10
+    });
+    expect(shortWildMulticolor.state.settings.multicolorShortDeck).toBeTrue();
+    expect(shortWildMulticolor.state.settings.multicolorWildHints).toBeTrue();
+    expect(Object.values(shortWildMulticolor.state.cards).filter((entry) => entry.suit === 'M')).toHaveLength(5);
   });
 
   test('rejects invalid custom deck cards', () => {
@@ -822,11 +833,11 @@ describe('HanabiGame', () => {
     expect(() => game.getPerspectiveState('missing')).toThrow('Unknown perspective player: missing');
   });
 
-  test('wild multicolor hints treat multicolor cards as matching any color clue', () => {
+  test('multicolor color hints treat multicolor cards as matching any called base color', () => {
     const game = new HanabiGame({
       playerNames: ['A', 'B'],
       includeMulticolor: true,
-      multicolorWildHints: true,
+      multicolorWildHints: false,
       deck: twoPlayerDeck(
         [card('W', 1), card('W', 2), card('W', 3), card('W', 4), card('W', 5)],
         [card('M', 1), card('R', 2), card('Y', 3), card('G', 4), card('B', 5)]
@@ -857,7 +868,7 @@ describe('HanabiGame', () => {
       }
     }
 
-    expect(() => game.giveColorHint('p2', 'M')).toThrow('Cannot call multicolor when multicolorWildHints=true');
+    expect(() => game.giveColorHint('p2', 'M')).toThrow('Cannot call multicolor color hints');
   });
 
   test('endless mode loses immediately when discarding an indispensable card', () => {

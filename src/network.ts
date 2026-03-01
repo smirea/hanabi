@@ -12,6 +12,7 @@ import {
 import {
   assignMembers,
   areMembersEqual,
+  electSnapshotHostId,
   formatPeerName,
   isRoomSnapshot,
   shouldAcceptSnapshot
@@ -326,7 +327,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
       }
 
       const connected = getConnectedPeerIds(selfId, room);
-      const electedHost = electHostId(connected, currentSnapshot?.members.map((member) => member.peerId));
+      const electedHost = electSnapshotHostId(connected, currentSnapshot);
       if (!electedHost || electedHost === selfId) {
         return;
       }
@@ -369,7 +370,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
         return;
       }
 
-      const electedHost = electHostId(connected, currentSnapshot?.members.map((member) => member.peerId));
+      const electedHost = electSnapshotHostId(connected, currentSnapshot);
       if (!electedHost) {
         return;
       }
@@ -550,7 +551,7 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
           }
 
           const connected = getConnectedPeerIds(selfId, room);
-          const electedHost = electHostId(connected, currentSnapshot?.members.map((member) => member.peerId));
+          const electedHost = electSnapshotHostId(connected, currentSnapshot);
           if (!electedHost) {
             return;
           }
