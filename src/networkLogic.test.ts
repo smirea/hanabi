@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { HanabiGame } from './game';
-import { assignMemberPlayerIds, assignMembers, isRoomSnapshot, shouldAcceptSnapshot } from './networkLogic';
+import { assignMemberPlayerIds, assignMembers, isRoomSnapshot, resolveMemberPlayerId, shouldAcceptSnapshot } from './networkLogic';
 import type { LobbySettings, RoomSnapshot } from './network';
 
 const DEFAULT_SETTINGS: LobbySettings = {
@@ -109,6 +109,56 @@ describe('assignMemberPlayerIds', () => {
     expect(assignMemberPlayerIds(connected, previous, null)).toEqual([
       { peerId: 'peer-a', name: 'Alex', isTv: false, playerId: null }
     ]);
+  });
+});
+
+describe('resolveMemberPlayerId', () => {
+  const game = new HanabiGame({
+    playerIds: ['seat-a', 'seat-b'],
+    playerNames: ['Alex', 'Blair'],
+    shuffleSeed: 2
+  });
+
+  test('uses explicit member seat mapping when available', () => {
+    const members = [
+      { peerId: 'peer-a', name: 'Alex', isTv: false, playerId: 'seat-a' },
+      { peerId: 'peer-b', name: 'Blair', isTv: false, playerId: 'seat-b' }
+    ];
+
+    expect(resolveMemberPlayerId(members, game.getSnapshot(), 'peer-a')).toBe('seat-a');
+  });
+
+  test('falls back to direct peer id when player ids match peer ids', () => {
+    const directIdGame = new HanabiGame({
+      playerIds: ['peer-a', 'peer-b'],
+      playerNames: ['Alex', 'Blair'],
+      shuffleSeed: 2
+    });
+    const members = [
+      { peerId: 'peer-a', name: 'Alex', isTv: false },
+      { peerId: 'peer-b', name: 'Blair', isTv: false }
+    ];
+
+    expect(resolveMemberPlayerId(members, directIdGame.getSnapshot(), 'peer-a')).toBe('peer-a');
+  });
+
+  test('falls back to unique name match for rejoined peers', () => {
+    const members = [
+      { peerId: 'peer-new', name: 'Alex', isTv: false },
+      { peerId: 'peer-b', name: 'Blair', isTv: false, playerId: 'seat-b' }
+    ];
+
+    expect(resolveMemberPlayerId(members, game.getSnapshot(), 'peer-new')).toBe('seat-a');
+  });
+
+  test('returns null for tv or unknown peers', () => {
+    const members = [
+      { peerId: 'peer-tv', name: 'TV', isTv: true },
+      { peerId: 'peer-a', name: 'Alex', isTv: false, playerId: 'seat-a' }
+    ];
+
+    expect(resolveMemberPlayerId(members, game.getSnapshot(), 'peer-tv')).toBeNull();
+    expect(resolveMemberPlayerId(members, game.getSnapshot(), 'missing')).toBeNull();
   });
 });
 

@@ -17,6 +17,7 @@ import {
   type OnlineSession,
   useOnlineSession
 } from '../../network';
+import { resolveMemberPlayerId } from '../../networkLogic';
 import { sanitizePlayerName } from '../../networkShared';
 import { isValidRoomCode } from '../../roomCodes';
 import { useRoomDirectoryAdvertiser } from '../../roomDirectory';
@@ -324,20 +325,7 @@ function GameClient({
       return null;
     }
 
-    const directPlayer = onlineState.gameState.players.find((player) => player.id === onlineState.selfId);
-    if (directPlayer) {
-      return directPlayer.id;
-    }
-
-    const selfMember = onlineState.members.find((member) => member.peerId === onlineState.selfId);
-    const mappedPlayerId = selfMember?.playerId ?? null;
-    if (!mappedPlayerId) {
-      return null;
-    }
-
-    return onlineState.gameState.players.some((player) => player.id === mappedPlayerId)
-      ? mappedPlayerId
-      : null;
+    return resolveMemberPlayerId(onlineState.members, onlineState.gameState, onlineState.selfId);
   }, [isLocalDebugMode, onlineState.gameState, onlineState.members, onlineState.selfId]);
 
   const isOnlineParticipant = useMemo(() => {

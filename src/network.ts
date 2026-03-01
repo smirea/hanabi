@@ -16,6 +16,7 @@ import {
   electSnapshotHostId,
   formatPeerName,
   isRoomSnapshot,
+  resolveMemberPlayerId,
   shouldAcceptSnapshot
 } from './networkLogic';
 
@@ -550,9 +551,8 @@ export function useOnlineSession(enabled: boolean, roomId = DEFAULT_ROOM_ID): On
         }
 
         const action = message.action as NetworkAction;
-        const actorMember = hostedSnapshot.members.find((member) => member.peerId === peerId);
-        const actorPlayerId = actorMember?.playerId ?? null;
-        if (!actorMember || actorMember.isTv || !actorPlayerId || action.actorId !== actorPlayerId) {
+        const actorPlayerId = resolveMemberPlayerId(hostedSnapshot.members, hostedSnapshot.gameState, peerId);
+        if (!actorPlayerId || action.actorId !== actorPlayerId) {
           return;
         }
 

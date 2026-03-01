@@ -151,6 +151,48 @@ export function assignMemberPlayerIds(
   });
 }
 
+export function resolveMemberPlayerId(
+  members: RoomMember[],
+  gameState: Pick<HanabiState, 'players'> | null,
+  peerId: string
+): string | null {
+  if (!gameState) {
+    return null;
+  }
+
+  const member = members.find((entry) => entry.peerId === peerId);
+  if (!member || member.isTv) {
+    return null;
+  }
+
+  const validPlayerIds = new Set(gameState.players.map((player) => player.id));
+  const explicitPlayerId = normalizeValidPlayerId(member.playerId, validPlayerIds);
+  if (explicitPlayerId) {
+    return explicitPlayerId;
+  }
+
+  const directPlayerId = normalizeValidPlayerId(peerId, validPlayerIds);
+  if (directPlayerId) {
+    return directPlayerId;
+  }
+
+  const normalizedName = normalizeUniquePlayerNameKey(member.name);
+  let matchedPlayerId: string | null = null;
+  for (const player of gameState.players) {
+    if (normalizeUniquePlayerNameKey(player.name) !== normalizedName) {
+      continue;
+    }
+
+    if (matchedPlayerId !== null) {
+      return null;
+    }
+
+    matchedPlayerId = player.id;
+  }
+
+  return matchedPlayerId;
+}
+
 export function areMembersEqual(a: RoomMember[], b: RoomMember[]): boolean {
   if (a.length !== b.length) {
     return false;
