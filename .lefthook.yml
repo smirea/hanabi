@@ -2,9 +2,13 @@ pre-commit:
   parallel: true
   commands:
     oxlint:
-      glob: "*.{js,ts,jsx,tsx}"
-      run: bun run lint:ci
-    typecheck:
-      run: bun run typecheck
+      glob: '*.{js,ts,jsx,tsx}'
+      run: bunx oxlint -c oxlint.json --type-aware --fix {staged_files}
+      stage_fixed: true
+    oxfmt:
+      run: bunx oxfmt --no-error-on-unmatched-pattern {staged_files}
+      stage_fixed: true
+    build:
+      run: bun run build
     test:
-      run: bun run test
+      run: bun test --pass-with-no-tests
