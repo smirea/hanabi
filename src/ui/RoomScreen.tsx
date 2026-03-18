@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import App from '../App';
+import { withPersistentSearch } from '../navigation';
 import { parseRoomCode } from '../roomCodes';
 
 interface RoomScreenProps {
@@ -29,7 +30,7 @@ export function RoomScreen({ code }: RoomScreenProps) {
 
 		void navigate({
 			to: '/',
-			search: { room: normalized },
+			search: withPersistentSearch(normalized),
 			hash: currentHash,
 			replace: true,
 		});
@@ -63,7 +64,7 @@ export function RoomScreen({ code }: RoomScreenProps) {
 						<button
 							type='button'
 							className='lobby-button'
-							onClick={() => void navigate({ to: '/', search: { room: undefined }, hash: currentHash })}
+							onClick={() => void navigate({ to: '/', search: withPersistentSearch(), hash: currentHash })}
 							data-testid='room-invalid-back'
 						>
 							Back
@@ -78,7 +79,7 @@ export function RoomScreen({ code }: RoomScreenProps) {
 		<App
 			roomCode={normalized}
 			onLeaveRoom={() => {
-				void navigate({ to: '/', search: { room: undefined }, hash: currentHash });
+				void navigate({ to: '/', search: withPersistentSearch(), hash: currentHash });
 			}}
 		/>
 	);

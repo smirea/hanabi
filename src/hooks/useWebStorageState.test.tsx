@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { useWebStorageState } from './useWebStorageState';
 
 function LocalHarness() {
@@ -20,6 +20,10 @@ function SessionHarness() {
 		</button>
 	);
 }
+
+beforeEach(() => {
+	window.history.replaceState(null, '', '/');
+});
 
 afterEach(() => {
 	cleanup();

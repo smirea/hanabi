@@ -56,6 +56,21 @@ describe('RoomScreen', () => {
 		});
 	});
 
+	test('preserves debug_id when canonicalizing URL search', async () => {
+		window.history.replaceState(null, '', '/room/abCd?debug_id=tab-2');
+
+		render(<RoomScreen code='abCd' />);
+
+		await waitFor(() => {
+			expect(navigateMock).toHaveBeenCalledWith({
+				to: '/',
+				search: { room: 'ABCD', debug_id: 'tab-2' },
+				hash: '',
+				replace: true,
+			});
+		});
+	});
+
 	test('does not navigate when already on canonical room URL', async () => {
 		window.history.replaceState(null, '', '/?room=ABCD');
 

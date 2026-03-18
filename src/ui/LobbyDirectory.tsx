@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useSnapshot } from 'valtio/react';
+import { withPersistentSearch } from '../navigation';
 import { getOnlineNetworking, selectRoomDirectoryListings } from '../onlineGame';
 import { createRoomCode, parseRoomCode } from '../roomCodes';
 
@@ -49,7 +50,7 @@ export function LobbyDirectory() {
 								const code = createRoomCode();
 								void navigate({
 									to: '/',
-									search: { room: code },
+									search: withPersistentSearch(code),
 									hash: currentHash,
 								});
 							}}
@@ -86,7 +87,7 @@ export function LobbyDirectory() {
 
 									void navigate({
 										to: '/',
-										search: { room: joinCode },
+										search: withPersistentSearch(joinCode),
 										hash: currentHash,
 									});
 								}}
@@ -135,7 +136,7 @@ export function LobbyDirectory() {
 											onClick={() => {
 												void navigate({
 													to: '/',
-													search: { room: room.code },
+													search: withPersistentSearch(room.code),
 													hash: currentHash,
 												});
 											}}
