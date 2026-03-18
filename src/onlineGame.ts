@@ -1,17 +1,21 @@
 import { HanabiGame, type PlayerId } from './game';
+import { getScopedNetworkAppId } from './networkConstants';
 import {
 	DEFAULT_LOBBY_SETTINGS,
 	MAX_PLAYER_NAME_LENGTH,
 	MAX_SEATED_PLAYER_COUNT,
 	MIN_SEATED_PLAYER_COUNT,
 } from './utils/constants';
+import Networking, { type RoomId } from './utils/networking';
 import type {
 	GameAction,
 	LobbySettings,
 	OnlineRoomAction,
 	OnlineRoomState,
+	RoomDirectoryListing,
 	RoomMemberView,
 	RoomPresencePlayer,
+	RoomViewState,
 } from './utils/types';
 
 export function cloneLobbySettings(settings: LobbySettings = DEFAULT_LOBBY_SETTINGS): LobbySettings {
@@ -130,6 +134,110 @@ function getActiveSpectatorIds(
 	}
 
 	return activeSpectators;
+}
+
+type PresencePlayerRecord = Record<
+	string,
+	{
+		id: PlayerId;
+		peerId: string;
+		name: string;
+		room: RoomId | null;
+	}
+>;
+
+export function selectRoomPlayers(players: PresencePlayerRecord, roomId: RoomId | null): RoomPresencePlayer[] {
+	if (!roomId) {
+		return [];
+	}
+
+	return Object.values(players)
+		.filter(player => player.room === roomId)
+		.sort((left, right) => left.id.localeCompare(right.id))
+		.map(player => ({
+			id: player.id,
+			peerId: player.peerId,
+			name: player.name,
+		}));
+}
+
+export function selectRoomMembers(
+	players: PresencePlayerRecord,
+	roomId: RoomId | null,
+	roomState: OnlineRoomState | null,
+): RoomMemberView[] {
+	return buildRoomMembers(selectRoomPlayers(players, roomId), roomState?.spectatorIds ?? []);
+}
+
+export function selectRoomDirectoryListings(
+	lobbies: ReadonlyArray<{
+		id: RoomId;
+		players: ReadonlyArray<Pick<RoomPresencePlayer, 'id' | 'peerId' | 'name'>>;
+	}>,
+): RoomDirectoryListing[] {
+	return lobbies
+		.map(room => ({
+			code: room.id.slice('room:'.length),
+			players: buildRoomMembers(
+				room.players.map(player => ({
+					id: player.id,
+					peerId: player.peerId,
+					name: player.name,
+				})),
+				[],
+			).map(player => player.name),
+		}))
+		.sort((left, right) => left.code.localeCompare(right.code));
+}
+
+export type OnlineNetworking = Networking<OnlineRoomState, OnlineRoomAction>;
+
+let onlineNetworkingSingleton: OnlineNetworking | null = null;
+
+export function getOnlineNetworking(): OnlineNetworking {
+	if (onlineNetworkingSingleton) {
+		return onlineNetworkingSingleton;
+	}
+
+	let networking!: OnlineNetworking;
+	networking = new Networking<OnlineRoomState, OnlineRoomAction>({
+		appId: getScopedNetworkAppId(),
+		getNewGameState: createInitialOnlineRoomState,
+		applyAction: (state, action) => {
+			const roomId = networking.gameRoom?.roomId ?? null;
+			const players = selectRoomPlayers(networking.playerRoom.state.players as PresencePlayerRecord, roomId);
+			const hostPeerId = networking.state.gameRoom.host;
+
+			return applyOnlineRoomAction(state, action, {
+				actorPlayerId: action.actorId,
+				hostPlayerId: hostPeerId ? (networking.playerRoom.get(hostPeerId)?.id ?? null) : null,
+				players,
+			});
+		},
+	});
+	onlineNetworkingSingleton = networking;
+	return networking;
+}
+
+export function selectRoomViewState(networking: OnlineNetworking): RoomViewState {
+	const self = networking.playerRoom.state.self;
+	const roomId = self.room;
+	const gameRoomState = networking.state.gameRoom;
+	const hasRoomState = Boolean(roomId && (gameRoomState.ready || gameRoomState.host === self.peerId));
+	const roomState = hasRoomState ? gameRoomState.game : null;
+
+	return {
+		status: roomId ? (hasRoomState ? 'connected' : 'connecting') : 'idle',
+		selfId: self.peerId ?? null,
+		selfPlayerId: self.id ?? null,
+		hostId: roomId ? (gameRoomState.host ?? null) : null,
+		isHost: roomId ? gameRoomState.host === self.peerId : false,
+		snapshotVersion: roomId && hasRoomState ? gameRoomState.v : 0,
+		phase: roomState?.phase ?? 'lobby',
+		members: selectRoomMembers(networking.playerRoom.state.players as PresencePlayerRecord, roomId, roomState),
+		settings: roomState?.settings ?? cloneLobbySettings(),
+		gameState: roomState?.gameState ?? null,
+	};
 }
 
 export function applyGameAction(game: HanabiGame, action: GameAction): void {
@@ -263,3 +371,5 @@ export function applyOnlineRoomAction(
 function assertNever(value: never): never {
 	throw new Error(`Unhandled action: ${JSON.stringify(value)}`);
 }
+
+export type { LobbySettings, OnlineRoomAction, OnlineRoomState, RoomDirectoryListing, RoomMemberView, RoomViewState };

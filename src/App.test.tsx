@@ -1,6 +1,18 @@
 import '@testing-library/jest-dom';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+
+void mock.module('trystero/mqtt', () => ({
+	selfId: 'peer-test',
+	joinRoom: () => ({
+		onPeerJoin: () => {},
+		onPeerLeave: () => {},
+		makeAction: () => [async () => {}, () => {}, () => {}] as const,
+		ping: async () => 1,
+		leave: async () => {},
+	}),
+}));
+
 import App from './App';
 
 const ROOM_CODE = 'ABCD';

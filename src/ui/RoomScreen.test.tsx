@@ -8,6 +8,17 @@ void mock.module('@tanstack/react-router', () => ({
 	useNavigate: () => navigateMock,
 }));
 
+void mock.module('trystero/mqtt', () => ({
+	selfId: 'peer-test',
+	joinRoom: () => ({
+		onPeerJoin: () => {},
+		onPeerLeave: () => {},
+		makeAction: () => [async () => {}, () => {}, () => {}] as const,
+		ping: async () => 1,
+		leave: async () => {},
+	}),
+}));
+
 import { RoomScreen } from './RoomScreen';
 
 describe('RoomScreen', () => {

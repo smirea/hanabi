@@ -1,28 +1,32 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useSnapshot } from 'valtio/react';
-import { getOnlineRoom } from '../onlineRoom';
+import { getOnlineNetworking, selectRoomDirectoryListings } from '../onlineGame';
 import { createRoomCode, parseRoomCode } from '../roomCodes';
 
 export function LobbyDirectory() {
 	const navigate = useNavigate();
-	const onlineRoom = getOnlineRoom();
-	const directory = useSnapshot(onlineRoom.directoryState);
+	const onlineNetworking = getOnlineNetworking();
+	const presenceSnapshot = useSnapshot(onlineNetworking.playerRoom.state);
+	const directory = useMemo(
+		() => selectRoomDirectoryListings(onlineNetworking.lobbies),
+		[onlineNetworking, presenceSnapshot],
+	);
 	const [joinInput, setJoinInput] = useState('');
 	const currentHash = typeof window === 'undefined' ? '' : window.location.hash.replace(/^#/, '');
 	const joinCode = parseRoomCode(joinInput);
-	const visiblePlayers = directory.rooms.reduce((count, room) => count + (room.players?.length ?? 0), 0);
+	const visiblePlayers = directory.reduce((count, room) => count + (room.players?.length ?? 0), 0);
 
 	useEffect(() => {
-		onlineRoom.syncRouteRoom(null);
-	}, [onlineRoom]);
+		onlineNetworking.leaveRoom();
+	}, [onlineNetworking]);
 
 	return (
 		<main className='app lobby-app' data-testid='room-directory-root'>
 			<section className='stats lobby-shell-stats'>
 				<div className='stat lobby-shell-stat' data-testid='room-directory-shell-rooms'>
 					<span className='lobby-shell-stat-label'>Rooms</span>
-					<span className='lobby-shell-stat-value'>{directory.rooms.length}</span>
+					<span className='lobby-shell-stat-value'>{directory.length}</span>
 				</div>
 				<div className='stat lobby-shell-stat' data-testid='room-directory-shell-players'>
 					<span className='lobby-shell-stat-label'>Players</span>
@@ -103,17 +107,17 @@ export function LobbyDirectory() {
 						<div className='room-directory-list-header'>
 							<h2 className='lobby-section-title'>Open Rooms</h2>
 							<span className='room-directory-status' data-testid='room-directory-status'>
-								{directory.rooms.length} found
+								{directory.length} found
 							</span>
 						</div>
 
 						<div className='room-directory-room-list'>
-							{directory.rooms.length === 0 ? (
+							{directory.length === 0 ? (
 								<p className='lobby-note' data-testid='room-directory-empty'>
 									No open rooms yet.
 								</p>
 							) : (
-								directory.rooms.map(room => (
+								directory.map(room => (
 									<article
 										key={room.code}
 										className='room-directory-room'

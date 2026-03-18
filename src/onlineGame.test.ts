@@ -1,19 +1,32 @@
 import { describe, expect, test } from 'bun:test';
 
 import type { PlayerId } from './game';
+import type { RoomId } from './utils/networking';
 import type { OnlineRoomState, RoomPresencePlayer } from './utils/types';
 import {
 	applyOnlineRoomAction,
 	buildRoomMembers,
 	cloneLobbySettings,
 	createInitialOnlineRoomState,
-} from './onlineRoomShared';
+	selectRoomDirectoryListings,
+	selectRoomMembers,
+	selectRoomPlayers,
+} from './onlineGame';
 
 const PLAYERS: RoomPresencePlayer[] = [
 	{ id: 'player:1' as PlayerId, peerId: 'peer-1', name: 'Alex' },
 	{ id: 'player:2' as PlayerId, peerId: 'peer-2', name: 'Alex' },
 	{ id: 'player:3' as PlayerId, peerId: 'peer-3', name: 'Casey' },
 ];
+
+const ALPHA = 'room:ALPHA' as RoomId;
+const BRAVO = 'room:BRAVO' as RoomId;
+
+const PRESENCE = {
+	'peer-1': { ...PLAYERS[0], room: ALPHA },
+	'peer-2': { ...PLAYERS[1], room: ALPHA },
+	'peer-3': { ...PLAYERS[2], room: BRAVO },
+};
 
 function createState(overrides: Partial<OnlineRoomState> = {}): OnlineRoomState {
 	return {
@@ -22,12 +35,34 @@ function createState(overrides: Partial<OnlineRoomState> = {}): OnlineRoomState 
 	};
 }
 
-describe('onlineRoomShared', () => {
+describe('onlineGame', () => {
 	test('buildRoomMembers deduplicates names and marks spectators', () => {
 		expect(buildRoomMembers(PLAYERS, ['player:2' as PlayerId])).toEqual([
 			{ id: 'player:1', peerId: 'peer-1', name: 'Alex', isTv: false },
 			{ id: 'player:2', peerId: 'peer-2', name: 'Alex 2', isTv: true },
 			{ id: 'player:3', peerId: 'peer-3', name: 'Casey', isTv: false },
+		]);
+	});
+
+	test('room selectors derive current room members and directory rows from presence', () => {
+		expect(selectRoomPlayers(PRESENCE, ALPHA)).toEqual(PLAYERS.slice(0, 2));
+		expect(
+			selectRoomMembers(PRESENCE, ALPHA, {
+				...createInitialOnlineRoomState(),
+				spectatorIds: ['player:2' as PlayerId],
+			}),
+		).toEqual([
+			{ id: 'player:1', peerId: 'peer-1', name: 'Alex', isTv: false },
+			{ id: 'player:2', peerId: 'peer-2', name: 'Alex 2', isTv: true },
+		]);
+		expect(
+			selectRoomDirectoryListings([
+				{ id: BRAVO, players: [PLAYERS[2]] },
+				{ id: ALPHA, players: PLAYERS.slice(0, 2) },
+			]),
+		).toEqual([
+			{ code: 'ALPHA', players: ['Alex', 'Alex 2'] },
+			{ code: 'BRAVO', players: ['Casey'] },
 		]);
 	});
 

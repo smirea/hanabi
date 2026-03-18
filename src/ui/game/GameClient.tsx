@@ -1,6 +1,5 @@
 import { CardsThree, Fire, LightbulbFilament, X } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { proxy } from 'valtio';
 import { useSnapshot } from 'valtio/react';
 import {
 	BASE_SUITS,
@@ -13,11 +12,11 @@ import {
 	type Suit,
 } from '../../game';
 import { useDebugScreensController } from '../../debugScreens';
-import { getOnlineRoom, type LobbySettings } from '../../onlineRoom';
-import { sanitizePlayerName } from '../../onlineRoomShared';
+import { cloneLobbySettings, getOnlineNetworking, sanitizePlayerName, selectRoomViewState } from '../../onlineGame';
 import { useWebStorageState } from '../../hooks/useWebStorageState';
 import { storageKeys, suitColors, suitNames } from '../../utils/constants';
-import type { GameAction, RoomViewState } from '../../utils/types';
+import type { GameAction, LobbySettings, RoomViewState } from '../../utils/types';
+import type { RoomId } from '../../utils/networking';
 import { CardView } from './components/CardView';
 import { DeckCount } from './components/DeckCount';
 import { LastActionTicker } from './components/LastActionTicker';
@@ -39,6 +38,19 @@ const LOCAL_DEBUG_SETUP = {
 	playerNames: ['Ari', 'Blair', 'Casey'],
 	playerIds: ['p1', 'p2', 'p3'],
 	shuffleSeed: 17,
+};
+
+const DISCONNECTED_ROOM_VIEW_STATE: RoomViewState = {
+	status: 'idle',
+	selfId: null,
+	selfPlayerId: null,
+	hostId: null,
+	isHost: false,
+	snapshotVersion: 0,
+	phase: 'lobby',
+	members: [],
+	settings: cloneLobbySettings(),
+	gameState: null,
 };
 
 function isTerminalStatus(status: HanabiPerspectiveState['status']): boolean {
@@ -143,37 +155,33 @@ function GameClient({
 	const logDrawerCloseTimeoutRef = useRef<number | null>(null);
 
 	const isLocalDebugMode = isDebugMode;
-	const disabledOnlineState = useMemo(
-		() =>
-			proxy<RoomViewState>({
-				status: 'idle',
-				selfId: null,
-				selfPlayerId: null,
-				hostId: null,
-				isHost: false,
-				snapshotVersion: 0,
-				phase: 'lobby',
-				members: [],
-				settings: {
-					includeMulticolor: false,
-					multicolorShortDeck: false,
-					multicolorWildHints: false,
-					endlessMode: false,
-				},
-				gameState: null,
-			}),
-		[],
+	const onlineNetworking = getOnlineNetworking();
+	const onlinePlayerSnapshot = useSnapshot(onlineNetworking.playerRoom.state);
+	const onlineNetworkingSnapshot = useSnapshot(onlineNetworking.state);
+	const connectionState = useMemo(
+		() => (isLocalDebugMode ? DISCONNECTED_ROOM_VIEW_STATE : selectRoomViewState(onlineNetworking)),
+		[isLocalDebugMode, onlineNetworking, onlineNetworkingSnapshot, onlinePlayerSnapshot],
 	);
-	const onlineRoom = useMemo(() => (isLocalDebugMode ? null : getOnlineRoom()), [isLocalDebugMode]);
-	const connectionState = useSnapshot(onlineRoom?.state ?? disabledOnlineState);
+	const leaveOnlineRoom = useCallback(() => {
+		onlineNetworking.leaveRoom();
+		onLeaveRoom?.();
+	}, [onLeaveRoom, onlineNetworking]);
 
 	useEffect(() => {
-		if (!onlineRoom) {
+		if (isLocalDebugMode) {
 			return;
 		}
 
-		onlineRoom.syncRouteRoom(roomId);
-	}, [onlineRoom, roomId]);
+		const targetRoomId = `room:${roomId}` as RoomId;
+		if (onlineNetworking.gameRoom?.roomId === targetRoomId) {
+			return;
+		}
+
+		onlineNetworking.joinRoom({
+			roomId: targetRoomId,
+			isHost: false,
+		});
+	}, [isLocalDebugMode, onlineNetworking, roomId]);
 
 	useEffect(() => {
 		if (isLocalDebugMode) {
@@ -181,13 +189,35 @@ function GameClient({
 		}
 
 		const timeoutId = window.setTimeout(() => {
-			onlineRoom?.setSelfName(playerName);
+			if (
+				connectionState.selfPlayerId &&
+				connectionState.phase === 'playing' &&
+				connectionState.gameState?.players.some(player => player.id === connectionState.selfPlayerId)
+			) {
+				return;
+			}
+
+			const self = onlineNetworking.playerRoom.state.self;
+			const fallbackName = `Player ${self.id.slice(-4).toUpperCase()}`;
+			const nextName = sanitizePlayerName(playerName) ?? fallbackName;
+			if (self.name === nextName) {
+				return;
+			}
+
+			onlineNetworking.playerRoom.updateSelf({ name: nextName });
 		}, 220);
 
 		return () => {
 			window.clearTimeout(timeoutId);
 		};
-	}, [isLocalDebugMode, onlineRoom, playerName]);
+	}, [
+		connectionState.gameState,
+		connectionState.phase,
+		connectionState.selfPlayerId,
+		isLocalDebugMode,
+		onlineNetworking,
+		playerName,
+	]);
 
 	useEffect(() => {
 		if (isLocalDebugMode || !connectionState.selfId) {
@@ -630,7 +660,7 @@ function GameClient({
 		});
 
 		applyResolvedCardSelection(resolved, action => {
-			onlineRoom?.sendGameAction(action);
+			sendOnlineGameAction(action);
 			clearActionDraft();
 		});
 	}
@@ -703,7 +733,7 @@ function GameClient({
 			return;
 		}
 
-		onlineRoom?.sendGameAction(resolved.action);
+		sendOnlineGameAction(resolved.action);
 		clearActionDraft();
 	}
 
@@ -819,7 +849,56 @@ function GameClient({
 			return;
 		}
 
-		onLeaveRoom?.();
+		leaveOnlineRoom();
+	}
+
+	function toggleOnlineSpectator(next?: boolean): void {
+		if (!connectionState.selfPlayerId || !onlineNetworking.gameRoom) {
+			return;
+		}
+
+		const current = connectionState.members.find(member => member.id === connectionState.selfPlayerId)?.isTv ?? false;
+		const spectator = next ?? !current;
+		onlineNetworking.gameRoom.act({
+			type: 'set-spectator',
+			actorId: connectionState.selfPlayerId,
+			spectator,
+		});
+	}
+
+	function updateOnlineSettings(next: Partial<LobbySettings>): void {
+		if (!connectionState.selfPlayerId || !onlineNetworking.gameRoom) {
+			return;
+		}
+
+		onlineNetworking.gameRoom.act({
+			type: 'set-settings',
+			actorId: connectionState.selfPlayerId,
+			next,
+		});
+	}
+
+	function startOnlineGame(): void {
+		if (!connectionState.selfPlayerId || !onlineNetworking.gameRoom) {
+			return;
+		}
+
+		onlineNetworking.gameRoom.act({
+			type: 'start-game',
+			actorId: connectionState.selfPlayerId,
+		});
+	}
+
+	function sendOnlineGameAction(action: GameAction): void {
+		if (!onlineNetworking.gameRoom) {
+			return;
+		}
+
+		onlineNetworking.gameRoom.act({
+			type: 'game-action',
+			actorId: action.actorId,
+			action,
+		});
 	}
 
 	function handleEnableDebugMode(): void {
@@ -926,16 +1005,16 @@ function GameClient({
 				selfName={playerName}
 				onSelfNameChange={setPlayerName}
 				selfIsTv={isOnlineTvMember}
-				onSelfIsTvChange={next => onlineRoom?.toggleSelfSpectator(next)}
+				onSelfIsTvChange={toggleOnlineSpectator}
 				phase={connectionState.phase}
 				settings={connectionState.settings}
 				isGameInProgress={connectionState.phase === 'playing' && !isOnlineParticipant}
-				onStart={() => onlineRoom?.startGame()}
-				onLeaveRoom={onLeaveRoom}
+				onStart={startOnlineGame}
+				onLeaveRoom={onLeaveRoom ? leaveOnlineRoom : null}
 				isDarkMode={isDarkMode}
 				onToggleDarkMode={onToggleDarkMode}
 				onEnableDebugMode={handleEnableDebugMode}
-				onUpdateSettings={(next: Partial<LobbySettings>) => onlineRoom?.updateSettings(next)}
+				onUpdateSettings={updateOnlineSettings}
 			/>
 		);
 	}
@@ -952,7 +1031,7 @@ function GameClient({
 	}
 
 	if (!activeGameState || !perspective) {
-		return <LobbyWaitingForSnapshot roomId={roomId} onLeaveRoom={onLeaveRoom} />;
+		return <LobbyWaitingForSnapshot roomId={roomId} onLeaveRoom={onLeaveRoom ? leaveOnlineRoom : null} />;
 	}
 
 	const effectiveTurnPlayerId =
@@ -1014,7 +1093,7 @@ function GameClient({
 		}
 
 		if (connectionState.isHost) {
-			onlineRoom?.updateSettings({});
+			updateOnlineSettings({});
 			return;
 		}
 
@@ -1379,7 +1458,7 @@ function GameClient({
 								data-testid='menu-leave-room'
 								onClick={() => {
 									setIsMenuOpen(false);
-									onLeaveRoom();
+									leaveOnlineRoom();
 								}}
 							>
 								Leave Room
