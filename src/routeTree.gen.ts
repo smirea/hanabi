@@ -8,86 +8,70 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root';
-import { Route as TestRouteImport } from './routes/test';
-import { Route as IndexRouteImport } from './routes/index';
-import { Route as RoomCodeRouteImport } from './routes/room/$code';
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as RoomCodeRouteImport } from './routes/room/$code'
 
-const TestRoute = TestRouteImport.update({
-	id: '/test',
-	path: '/test',
-	getParentRoute: () => rootRouteImport,
-} as any);
 const IndexRoute = IndexRouteImport.update({
-	id: '/',
-	path: '/',
-	getParentRoute: () => rootRouteImport,
-} as any);
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RoomCodeRoute = RoomCodeRouteImport.update({
-	id: '/room/$code',
-	path: '/room/$code',
-	getParentRoute: () => rootRouteImport,
-} as any);
+  id: '/room/$code',
+  path: '/room/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
-	'/': typeof IndexRoute;
-	'/test': typeof TestRoute;
-	'/room/$code': typeof RoomCodeRoute;
+  '/': typeof IndexRoute
+  '/room/$code': typeof RoomCodeRoute
 }
 export interface FileRoutesByTo {
-	'/': typeof IndexRoute;
-	'/test': typeof TestRoute;
-	'/room/$code': typeof RoomCodeRoute;
+  '/': typeof IndexRoute
+  '/room/$code': typeof RoomCodeRoute
 }
 export interface FileRoutesById {
-	__root__: typeof rootRouteImport;
-	'/': typeof IndexRoute;
-	'/test': typeof TestRoute;
-	'/room/$code': typeof RoomCodeRoute;
+  __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
+  '/room/$code': typeof RoomCodeRoute
 }
 export interface FileRouteTypes {
-	fileRoutesByFullPath: FileRoutesByFullPath;
-	fullPaths: '/' | '/test' | '/room/$code';
-	fileRoutesByTo: FileRoutesByTo;
-	to: '/' | '/test' | '/room/$code';
-	id: '__root__' | '/' | '/test' | '/room/$code';
-	fileRoutesById: FileRoutesById;
+  fileRoutesByFullPath: FileRoutesByFullPath
+  fullPaths: '/' | '/room/$code'
+  fileRoutesByTo: FileRoutesByTo
+  to: '/' | '/room/$code'
+  id: '__root__' | '/' | '/room/$code'
+  fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-	IndexRoute: typeof IndexRoute;
-	TestRoute: typeof TestRoute;
-	RoomCodeRoute: typeof RoomCodeRoute;
+  IndexRoute: typeof IndexRoute
+  RoomCodeRoute: typeof RoomCodeRoute
 }
 
 declare module '@tanstack/react-router' {
-	interface FileRoutesByPath {
-		'/test': {
-			id: '/test';
-			path: '/test';
-			fullPath: '/test';
-			preLoaderRoute: typeof TestRouteImport;
-			parentRoute: typeof rootRouteImport;
-		};
-		'/': {
-			id: '/';
-			path: '/';
-			fullPath: '/';
-			preLoaderRoute: typeof IndexRouteImport;
-			parentRoute: typeof rootRouteImport;
-		};
-		'/room/$code': {
-			id: '/room/$code';
-			path: '/room/$code';
-			fullPath: '/room/$code';
-			preLoaderRoute: typeof RoomCodeRouteImport;
-			parentRoute: typeof rootRouteImport;
-		};
-	}
+  interface FileRoutesByPath {
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/room/$code': {
+      id: '/room/$code'
+      path: '/room/$code'
+      fullPath: '/room/$code'
+      preLoaderRoute: typeof RoomCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+  }
 }
 
 const rootRouteChildren: RootRouteChildren = {
-	IndexRoute: IndexRoute,
-	TestRoute: TestRoute,
-	RoomCodeRoute: RoomCodeRoute,
-};
-export const routeTree = rootRouteImport._addFileChildren(rootRouteChildren)._addFileTypes<FileRouteTypes>();
+  IndexRoute: IndexRoute,
+  RoomCodeRoute: RoomCodeRoute,
+}
+export const routeTree = rootRouteImport
+  ._addFileChildren(rootRouteChildren)
+  ._addFileTypes<FileRouteTypes>()

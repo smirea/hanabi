@@ -1,5 +1,7 @@
 # AGENTS
 
+IMPORTANT: this is a hobby project to be used between friendly friends. It is not a high throughput production critical system. Treat it as a hobby project, always error on the side of simplicity
+
 See `project.md` for overall infrastructure
 See `project_animation.md` for what the various animations are and how they are used
 
