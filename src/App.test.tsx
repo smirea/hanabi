@@ -1,8 +1,6 @@
-// @vitest-environment jsdom
-
-import '@testing-library/jest-dom/vitest';
+import '@testing-library/jest-dom';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import App from './App';
 
 const ROOM_CODE = 'ABCD';

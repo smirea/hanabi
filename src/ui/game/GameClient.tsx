@@ -781,7 +781,7 @@ function GameClient({
 			const snapshot = connectionState.gameState;
 			if (snapshot) {
 				try {
-					debugGame.replaceState(snapshot);
+					debugGame.replaceState(JSON.parse(JSON.stringify(snapshot)) as HanabiState);
 					setDebugGameState(debugGame.getSnapshot());
 				} catch (error) {
 					const message = error instanceof Error ? error.message : 'Unknown debug state error';

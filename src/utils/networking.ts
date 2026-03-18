@@ -15,12 +15,22 @@ interface NetworkPlayer {
 	room: RoomId | null;
 }
 
-const DEBUG_ID = (new URL(location as any).searchParams.get('debug_id') as any) || '';
-const lsNs = 'networking:player' + DEBUG_ID;
-export const ownPeerId = selfId as PeerId;
-
 interface ActionReceiver<T> {
 	(receiver: (data: T, peerId: PeerId, metadata?: JsonValue) => void): void;
+}
+
+type JoinedRoom = ReturnType<typeof joinRoom>;
+type TimerHandle = ReturnType<typeof setTimeout>;
+
+export interface NetworkingRuntime {
+	selfId: PeerId;
+	joinRoom: typeof joinRoom;
+	storage: Pick<Storage, 'getItem' | 'setItem'>;
+	locationSearch: string;
+	now: () => number;
+	random: () => number;
+	setTimeout: (handler: () => void, ms: number) => TimerHandle;
+	clearTimeout: (timeout: TimerHandle) => void;
 }
 
 /** alias on top of `trystero.joinRoom()` with better types */
@@ -38,6 +48,33 @@ export const joinRoom = (...args: Parameters<typeof baseJoinRoom>) => {
 	};
 };
 
+const defaultRuntime: NetworkingRuntime = {
+	selfId: selfId as PeerId,
+	joinRoom,
+	storage: {
+		getItem(key) {
+			return localStorage.getItem(key);
+		},
+		setItem(key, value) {
+			localStorage.setItem(key, value);
+		},
+	},
+	locationSearch: globalThis.location?.search ?? '',
+	now: () => Date.now(),
+	random: () => Math.random(),
+	setTimeout: (handler, ms) => setTimeout(handler, ms),
+	clearTimeout: timeout => clearTimeout(timeout),
+};
+
+export const ownPeerId = defaultRuntime.selfId;
+
+export function createNetworkingRuntime(overrides: Partial<NetworkingRuntime> = {}): NetworkingRuntime {
+	return {
+		...defaultRuntime,
+		...overrides,
+	};
+}
+
 export default class Networking<
 	const GameState extends Record<string, any>,
 	const GameAction extends { type: string },
@@ -50,6 +87,7 @@ export default class Networking<
 	});
 	readonly playerRoom;
 	gameRoom: null | NetworkingGameRoom<GameState, GameAction> = null;
+	private readonly runtime: NetworkingRuntime;
 
 	constructor(
 		readonly config: {
@@ -57,8 +95,10 @@ export default class Networking<
 			getNewGameState: () => GameState;
 			applyAction: (state: GameState, action: GameAction) => void;
 		},
+		runtimeOverrides: Partial<NetworkingRuntime> = {},
 	) {
-		this.playerRoom = new NetworkingPlayerRoom({ appId: this.config.appId });
+		this.runtime = createNetworkingRuntime(runtimeOverrides);
+		this.playerRoom = new NetworkingPlayerRoom({ appId: this.config.appId, runtime: this.runtime });
 		if (this.playerRoom.state.self.room) {
 			this.joinRoom({
 				roomId: this.playerRoom.state.self.room,
@@ -82,7 +122,7 @@ export default class Networking<
 		this.state.gameRoom = {
 			v: 0,
 			ready: false,
-			host: isHost ? ownPeerId : null,
+			host: isHost ? this.runtime.selfId : null,
 			game: this.config.getNewGameState(),
 		};
 		this.gameRoom = new NetworkingGameRoom<GameState, GameAction>({
@@ -91,6 +131,7 @@ export default class Networking<
 			applyAction: this.config.applyAction,
 			players: this.playerRoom,
 			roomId,
+			runtime: this.runtime,
 		});
 	}
 
@@ -110,11 +151,16 @@ class NetworkingPlayerRoom {
 		self: NetworkPlayer;
 		players: Record<PeerId, NetworkPlayer>;
 	};
-	private room;
+	private readonly room: JoinedRoom;
+	private readonly runtime: NetworkingRuntime;
+	private readonly storageKey: string;
 	private sendPlayerUpdate;
 
-	constructor({ appId }: { appId: string }) {
-		this.room = joinRoom({ appId }, 'players');
+	constructor({ appId, runtime }: { appId: string; runtime: NetworkingRuntime }) {
+		this.runtime = runtime;
+		const debugId = new URLSearchParams(this.runtime.locationSearch).get('debug_id') || '';
+		this.storageKey = 'networking:player' + debugId;
+		this.room = this.runtime.joinRoom({ appId }, 'players');
 		const [sendPlayerUpdate, onPlayerUpdate] = this.room.makeAction<NetworkPlayer>('playerUpdate');
 		this.sendPlayerUpdate = sendPlayerUpdate;
 		this.state = proxy({
@@ -122,11 +168,11 @@ class NetworkingPlayerRoom {
 			players: {},
 		});
 		this.updateSelf(
-			localStorage.getItem(lsNs)
-				? { ...JSON.parse(localStorage.getItem(lsNs)!), peerId: ownPeerId }
+			this.runtime.storage.getItem(this.storageKey)
+				? { ...JSON.parse(this.runtime.storage.getItem(this.storageKey)!), peerId: this.runtime.selfId }
 				: {
-						id: `player:${Date.now() % 1e6}${Math.random().toString().slice(-3)}` as PlayerId,
-						peerId: ownPeerId,
+						id: `player:${this.runtime.now() % 1e6}${this.runtime.random().toString().slice(-3)}` as PlayerId,
+						peerId: this.runtime.selfId,
 						name: 'unnamed',
 						room: null,
 					},
@@ -142,8 +188,8 @@ class NetworkingPlayerRoom {
 
 	updateSelf(diff: Partial<NetworkPlayer>) {
 		Object.assign(this.state.self, diff);
-		localStorage.setItem(lsNs, JSON.stringify(this.state.self));
-		this.state.players[ownPeerId] = this.state.self;
+		this.runtime.storage.setItem(this.storageKey, JSON.stringify(this.state.self));
+		this.state.players[this.runtime.selfId] = this.state.self;
 		void this.sendPlayerUpdate(this.state.self);
 	}
 
@@ -167,7 +213,8 @@ class NetworkingGameRoom<const GameState extends Record<string, any>, const Game
 	private sendAction;
 	private applyAction;
 	private players;
-	private electionTimeout: NodeJS.Timeout;
+	private electionTimeout: TimerHandle;
+	private readonly runtime: NetworkingRuntime;
 
 	constructor({
 		appId,
@@ -175,6 +222,7 @@ class NetworkingGameRoom<const GameState extends Record<string, any>, const Game
 		applyAction,
 		players,
 		state,
+		runtime,
 	}: {
 		appId: string;
 		roomId: RoomId;
@@ -186,12 +234,14 @@ class NetworkingGameRoom<const GameState extends Record<string, any>, const Game
 			host: PeerId | null;
 			game: GameState;
 		};
+		runtime: NetworkingRuntime;
 	}) {
 		this.state = state;
 		this.roomId = roomId;
 		this.players = players;
 		this.applyAction = applyAction;
-		this.room = joinRoom({ appId }, roomId);
+		this.runtime = runtime;
+		this.room = this.runtime.joinRoom({ appId }, roomId);
 		const [sendUpdate, onUpdate] = this.room.makeAction<Omit<typeof this.state, 'ready'>>('gameState');
 		this.sendUpdate = sendUpdate;
 		const [sendAction, onAction] = this.room.makeAction<GameAction>('gameAction');
@@ -214,16 +264,16 @@ class NetworkingGameRoom<const GameState extends Record<string, any>, const Game
 			this.state.host = null;
 			void this.runHostElection();
 		});
-		this.electionTimeout = setTimeout(
+		this.electionTimeout = this.runtime.setTimeout(
 			() => {
 				if (!this.state.host) void this.runHostElection();
 			},
-			500 + Math.round(Math.random() * 100),
+			500 + Math.round(this.runtime.random() * 100),
 		);
 	}
 
 	get isHost() {
-		return ownPeerId === this.state.host;
+		return this.runtime.selfId === this.state.host;
 	}
 
 	act(action: GameAction) {
@@ -250,17 +300,17 @@ class NetworkingGameRoom<const GameState extends Record<string, any>, const Game
 			.map(x => x.peerId);
 		if (this.state.host) candidates.unshift(this.state.host);
 		if (!candidates.length) throw new Error('no candidates for host election, this should not happen');
-		if (!candidates.find(p => p === ownPeerId))
+		if (!candidates.find(p => p === this.runtime.selfId))
 			throw new Error('you are not in the list of candidates, this should not happen');
 		// keep going in order until you find someone alive or you're the host chief
 		for (const peerId of candidates) {
-			if (ownPeerId === peerId) {
-				this.state.host = ownPeerId;
+			if (this.runtime.selfId === peerId) {
+				this.state.host = this.runtime.selfId;
 				this.sendHostUpdate();
 				break;
 			}
 			try {
-				await promiseTimeout(1000, this.room.ping(peerId));
+				await promiseTimeout(1000, this.room.ping(peerId), this.runtime);
 				break;
 			} catch {}
 		}
@@ -268,10 +318,20 @@ class NetworkingGameRoom<const GameState extends Record<string, any>, const Game
 
 	leave() {
 		void this.room.leave();
-		clearTimeout(this.electionTimeout);
+		this.runtime.clearTimeout(this.electionTimeout);
 	}
 }
 
-function promiseTimeout<T>(ms: number, p: Promise<T>): Promise<T> {
-	return Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject('timed out'), ms))]);
+function promiseTimeout<T>(
+	ms: number,
+	p: Promise<T>,
+	runtime: Pick<NetworkingRuntime, 'setTimeout' | 'clearTimeout'>,
+): Promise<T> {
+	return Promise.race([
+		p,
+		new Promise<T>((_, reject) => {
+			const timeout = runtime.setTimeout(() => reject('timed out'), ms);
+			void p.finally(() => runtime.clearTimeout(timeout));
+		}),
+	]);
 }

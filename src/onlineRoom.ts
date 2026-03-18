@@ -17,7 +17,7 @@ import type {
 	RoomPresencePlayer,
 	RoomViewState,
 } from './utils/types';
-import Networking, { type RoomId, ownPeerId } from './utils/networking';
+import Networking, { type PeerId, type RoomId, ownPeerId } from './utils/networking';
 
 interface DirectoryState {
 	status: 'connected';
@@ -26,7 +26,7 @@ interface DirectoryState {
 
 interface CachedRoomState {
 	v: number;
-	hostPeerId: string | null;
+	hostPeerId: PeerId | null;
 	hostPlayerId: string | null;
 	game: OnlineRoomState;
 }
@@ -210,18 +210,19 @@ class OnlineRoomStore implements OnlineRoomStoreLike {
 		const selfPlayerId = this.networking.playerRoom.state.self.id;
 		const currentRoomPlayers = currentRoomId ? this.getPresencePlayers(currentRoomId) : [];
 		const cachedRoom = currentRoomId ? this.readCachedRoom(currentRoomId) : null;
-		const cachedHostPeerId =
+		const cachedHostPeerId: PeerId | null =
 			cachedRoom && cachedRoom.game.phase === 'playing' && !gameRoomState.ready
-				? (currentRoomPlayers.find(player => player.id === cachedRoom.hostPlayerId)?.peerId ?? cachedRoom.hostPeerId)
+				? ((currentRoomPlayers.find(player => player.id === cachedRoom.hostPlayerId)?.peerId as PeerId | undefined) ??
+					cachedRoom.hostPeerId)
 				: null;
-		const projectedHostPeerId =
+		const projectedHostPeerId: PeerId | null =
 			cachedHostPeerId && cachedRoom!.hostPlayerId !== selfPlayerId
 				? cachedHostPeerId
 				: cachedRoom && cachedRoom.game.phase === 'playing' && !gameRoomState.ready && currentRoomPlayers.length <= 1
 					? cachedRoom.hostPlayerId === selfPlayerId
 						? ownPeerId
 						: cachedRoom.hostPeerId
-					: (currentRoomPlayers[0]?.peerId ?? gameRoomState.host ?? null);
+					: ((currentRoomPlayers[0]?.peerId as PeerId | undefined) ?? gameRoomState.host ?? null);
 		if (projectedHostPeerId !== gameRoomState.host) {
 			gameRoomState.host = projectedHostPeerId;
 		}

@@ -1,12 +1,10 @@
-// @vitest-environment jsdom
-
-import '@testing-library/jest-dom/vitest';
+import '@testing-library/jest-dom';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, mock, test } from 'bun:test';
 import type { LobbySettings } from '../../../utils/types';
 import { LobbyScreen } from './LobbyScreen';
 
-function createProps(settings: LobbySettings, onUpdateSettings = vi.fn()) {
+function createProps(settings: LobbySettings, onUpdateSettings = mock(() => {})) {
 	return {
 		roomId: 'ABCD',
 		status: 'connected' as const,
@@ -16,16 +14,16 @@ function createProps(settings: LobbySettings, onUpdateSettings = vi.fn()) {
 		isHost: true,
 		selfId: 'p1',
 		selfName: 'Alex',
-		onSelfNameChange: vi.fn(),
+		onSelfNameChange: mock(() => {}),
 		selfIsTv: false,
-		onSelfIsTvChange: vi.fn(),
+		onSelfIsTvChange: mock(() => {}),
 		phase: 'lobby' as const,
 		settings,
 		isGameInProgress: false,
-		onStart: vi.fn(),
+		onStart: mock(() => {}),
 		onLeaveRoom: null,
 		isDarkMode: false,
-		onToggleDarkMode: vi.fn(),
+		onToggleDarkMode: mock(() => {}),
 		onEnableDebugMode: null,
 		onUpdateSettings,
 	};
@@ -70,7 +68,7 @@ describe('LobbyScreen', () => {
 	});
 
 	test('enabling extra suit defaults to short multicolor with base-color clues', () => {
-		const onUpdateSettings = vi.fn();
+		const onUpdateSettings = mock(() => {});
 		render(
 			<LobbyScreen
 				{...createProps(

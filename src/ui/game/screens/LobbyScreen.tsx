@@ -24,7 +24,7 @@ export function LobbyScreen({
 	onUpdateSettings,
 }: {
 	roomId: string;
-	members: RoomMemberView[];
+	members: readonly RoomMemberView[];
 	hostId: string | null;
 	isHost: boolean;
 	selfId: string | null;

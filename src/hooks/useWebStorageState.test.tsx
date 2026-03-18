@@ -1,8 +1,6 @@
-// @vitest-environment jsdom
-
-import '@testing-library/jest-dom/vitest';
+import '@testing-library/jest-dom';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test } from 'bun:test';
 import { useWebStorageState } from './useWebStorageState';
 
 function LocalHarness({ namespace = null }: { namespace?: string | null }) {

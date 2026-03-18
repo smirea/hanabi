@@ -6,7 +6,7 @@ pre-commit:
       run: bunx oxlint -c oxlint.json --type-aware --fix {staged_files}
       stage_fixed: true
     oxfmt:
-      run: bunx oxfmt --no-error-on-unmatched-pattern {staged_files}
+      run: bunx oxfmt --ignore-path .oxfmtignore --no-error-on-unmatched-pattern {staged_files}
       stage_fixed: true
     build:
       run: bun run build

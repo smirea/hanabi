@@ -1,19 +1,18 @@
-// @vitest-environment jsdom
-
-import '@testing-library/jest-dom/vitest';
+import '@testing-library/jest-dom';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { RoomScreen } from './RoomScreen';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
-const navigateMock = vi.fn();
+const navigateMock = mock(() => {});
 
-vi.mock('@tanstack/react-router', () => ({
+void mock.module('@tanstack/react-router', () => ({
 	useNavigate: () => navigateMock,
 }));
 
+import { RoomScreen } from './RoomScreen';
+
 describe('RoomScreen', () => {
 	beforeEach(() => {
-		navigateMock.mockReset();
+		navigateMock.mockClear();
 		window.history.replaceState(null, '', '/');
 		window.location.hash = '';
 	});
