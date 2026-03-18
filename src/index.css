@@ -346,29 +346,6 @@ body {
 	color: var(--gray-600);
 }
 
-.tv-log-reconnect {
-	min-height: 1.8rem;
-	padding: 0 0.7rem;
-	border-radius: 999px;
-	border: 1px solid rgba(47, 108, 202, 0.34);
-	background: rgba(79, 142, 255, 0.12);
-	color: #2f6cca;
-	font-family: inherit;
-	font-size: 0.62rem;
-	font-weight: 800;
-	cursor: pointer;
-}
-
-.tv-log-error {
-	margin: 0;
-	padding: 0.5rem 0.72rem;
-	border-bottom: 1px solid rgba(211, 219, 234, 0.95);
-	background: rgba(255, 86, 73, 0.08);
-	color: #bb3b34;
-	font-size: 0.62rem;
-	font-weight: 750;
-}
-
 .tv-log-list {
 	min-height: 0;
 	overflow-y: auto;
@@ -389,77 +366,6 @@ body {
 
 .tv .log-item-message {
 	font-size: 0.78rem;
-}
-
-.debug-network-shell {
-	width: 100vw;
-	height: 100dvh;
-	display: grid;
-	grid-template-rows: minmax(0, 1fr) auto;
-	background: #0a0f1f;
-}
-
-.debug-network-frame {
-	width: 100%;
-	height: 100%;
-	border: 0;
-	background: #101114;
-}
-
-.debug-network-bar {
-	min-height: calc(2.55rem + env(safe-area-inset-bottom));
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 0.34rem;
-	padding: 0.32rem var(--screen-pad-x) calc(0.34rem + env(safe-area-inset-bottom));
-	background: linear-gradient(180deg, #1868ee 0%, #0f56ca 100%);
-	border-top: 1px solid rgba(255, 255, 255, 0.25);
-}
-
-.debug-network-player-list {
-	min-width: 0;
-	flex: 1 1 auto;
-	display: flex;
-	gap: 0.22rem;
-	overflow-x: auto;
-}
-
-.debug-network-player {
-	flex: 0 0 auto;
-	min-width: 1.7rem;
-	height: 1.62rem;
-	border-radius: 999px;
-	border: 1px solid rgba(255, 255, 255, 0.46);
-	background: rgba(255, 255, 255, 0.14);
-	color: #f7fbff;
-	font-family: inherit;
-	font-size: 0.58rem;
-	font-weight: 800;
-}
-
-.debug-network-player.active {
-	background: #f7fbff;
-	color: #0f56ca;
-	border-color: #f7fbff;
-}
-
-.debug-network-controls {
-	flex: 0 0 auto;
-	display: flex;
-	gap: 0.2rem;
-}
-
-.debug-network-control {
-	min-width: 2.08rem;
-	height: 1.62rem;
-	border-radius: 999px;
-	border: 1px solid rgba(255, 255, 255, 0.45);
-	background: rgba(255, 255, 255, 0.12);
-	color: #f7fbff;
-	font-family: inherit;
-	font-size: 0.55rem;
-	font-weight: 700;
 }
 
 .lobby-app {
@@ -1067,10 +973,6 @@ body {
 .lobby-action-main {
 	grid-column: 2 / 3;
 	min-width: 0;
-}
-
-.lobby-reconnect {
-	grid-column: 1 / -1;
 }
 
 .lobby-button.subtle.lobby-theme-toggle-action {
@@ -3457,18 +3359,6 @@ body {
 
 :root[data-theme='dark'] .tv-log-header {
 	border-bottom-color: rgba(90, 112, 168, 0.22);
-}
-
-:root[data-theme='dark'] .tv-log-error {
-	border-bottom-color: rgba(90, 112, 168, 0.22);
-	background: rgba(255, 86, 73, 0.12);
-	color: rgba(255, 180, 170, 0.95);
-}
-
-:root[data-theme='dark'] .tv-log-reconnect {
-	border-color: rgba(120, 165, 255, 0.42);
-	background: rgba(79, 142, 255, 0.18);
-	color: rgba(210, 228, 255, 0.95);
 }
 
 :root[data-theme='dark'] .tv-status {

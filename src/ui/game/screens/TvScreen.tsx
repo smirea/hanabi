@@ -1,8 +1,7 @@
 import { CardsThree, Fire, LightbulbFilament } from '@phosphor-icons/react';
 import { useMemo, type CSSProperties } from 'react';
 import { CARD_NUMBERS, type HanabiState, type PerspectiveCard, type Suit } from '../../../game';
-import type { OnlineState } from '../../../network';
-import { suitColors } from '../constants';
+import { suitColors } from '../../../utils/constants';
 import { CardView } from '../components/CardView';
 import { PegPips, getPegPipStates } from '../components/PegPips';
 import { getLogBadge, renderLogMessage } from '../utils/logFormatting';
@@ -10,17 +9,11 @@ import { getLogBadge, renderLogMessage } from '../utils/logFormatting';
 export function TvScreen({
 	gameState,
 	discardCounts,
-	status,
-	error,
-	onReconnect,
 	showNegativeColorHints,
 	showNegativeNumberHints,
 }: {
 	gameState: HanabiState;
 	discardCounts: Map<string, number>;
-	status: OnlineState['status'];
-	error: string | null;
-	onReconnect: () => void;
 	showNegativeColorHints: boolean;
 	showNegativeNumberHints: boolean;
 }) {
@@ -37,7 +30,6 @@ export function TvScreen({
 	);
 	const score = activeSuits.reduce((sum, suit) => sum + gameState.fireworks[suit].length, 0);
 	const orderedLogs = [...gameState.logs].reverse();
-	const showReconnect = status !== 'connected' || error !== null;
 
 	const { knownUnavailableCounts, knownRemainingCounts } = useMemo(() => {
 		const copiesByNumber: Record<number, number> = {
@@ -287,17 +279,7 @@ export function TvScreen({
 			<aside className='tv-log' data-testid='tv-log'>
 				<header className='tv-log-header'>
 					<span className='tv-log-title'>Action Log</span>
-					{showReconnect && (
-						<button type='button' className='tv-log-reconnect' onClick={onReconnect} data-testid='tv-reconnect'>
-							Reconnect
-						</button>
-					)}
 				</header>
-				{error && (
-					<p className='tv-log-error' data-testid='tv-error'>
-						{error}
-					</p>
-				)}
 				<div className='tv-log-list' data-testid='tv-log-list'>
 					{orderedLogs.map(logEntry => (
 						<article key={logEntry.id} className='log-item' data-testid={`tv-log-item-${logEntry.id}`}>

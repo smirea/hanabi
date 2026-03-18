@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-export function LastActionTicker({ id, message }: { id: string; message: ReactNode }) {
+interface LastActionTickerProps {
+	id: string;
+	message: ReactNode;
+}
+
+export function LastActionTicker({ id, message }: LastActionTickerProps) {
 	const [previous, setPrevious] = useState<ReactNode | null>(null);
 	const [current, setCurrent] = useState<ReactNode>(message);
 	const [currentId, setCurrentId] = useState(id);

@@ -1,12 +1,10 @@
 import { GearSix, Moon, Sun } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
-import type { LobbySettings, OnlineState, RoomMember } from '../../../network';
-import { MAX_PLAYER_NAME_LENGTH } from '../../../networkShared';
+import { MAX_PLAYER_NAME_LENGTH } from '../../../utils/constants';
+import type { LobbySettings, RoomMemberView } from '../../../utils/types';
 
 export function LobbyScreen({
 	roomId,
-	status,
-	error,
 	members,
 	hostId,
 	isHost,
@@ -19,18 +17,14 @@ export function LobbyScreen({
 	settings,
 	isGameInProgress,
 	onStart,
-	onReconnect,
 	onLeaveRoom,
 	isDarkMode,
 	onToggleDarkMode,
 	onEnableDebugMode,
-	onEnableDebugNetwork,
 	onUpdateSettings,
 }: {
 	roomId: string;
-	status: OnlineState['status'];
-	error: string | null;
-	members: RoomMember[];
+	members: RoomMemberView[];
 	hostId: string | null;
 	isHost: boolean;
 	selfId: string | null;
@@ -42,12 +36,10 @@ export function LobbyScreen({
 	settings: LobbySettings;
 	isGameInProgress: boolean;
 	onStart: () => void;
-	onReconnect: () => void;
 	onLeaveRoom: (() => void) | null;
 	isDarkMode: boolean;
 	onToggleDarkMode: () => void;
 	onEnableDebugMode: (() => void) | null;
-	onEnableDebugNetwork: (() => void) | null;
 	onUpdateSettings: (next: Partial<LobbySettings>) => void;
 }) {
 	const effectiveMembers = selfId
@@ -57,7 +49,6 @@ export function LobbyScreen({
 	const tvCount = effectiveMembers.length - seatedCount;
 	const host = effectiveMembers.find(member => member.peerId === hostId) ?? null;
 	const canStart = phase === 'lobby' && seatedCount >= 2 && seatedCount <= 5;
-	const showReconnect = status !== 'connected' || error !== null;
 	const playerCountError = seatedCount > 5 ? 'Max 5 players' : seatedCount < 2 ? 'Need at least 2 players' : null;
 	const handSize = seatedCount <= 3 ? 5 : 4;
 	const deckSize = 50 + (settings.includeMulticolor ? 5 : 0);
@@ -65,7 +56,7 @@ export function LobbyScreen({
 	const defaultNamePlaceholder = selfId ? `Player ${selfId.slice(-4).toUpperCase()}` : 'Player';
 	const [isConfigMenuOpen, setIsConfigMenuOpen] = useState(false);
 	const configMenuRef = useRef<HTMLDivElement | null>(null);
-	const hasDebugActions = Boolean(onEnableDebugMode || onEnableDebugNetwork);
+	const hasDebugActions = Boolean(onEnableDebugMode);
 
 	useEffect(() => {
 		if (!isConfigMenuOpen) {
@@ -157,12 +148,6 @@ export function LobbyScreen({
 								</p>
 							</div>
 						</div>
-
-						{error && (
-							<p className='lobby-note error' data-testid='lobby-error'>
-								{error}
-							</p>
-						)}
 
 						{isGameInProgress && (
 							<p className='lobby-note warning' data-testid='lobby-game-progress'>
@@ -291,31 +276,10 @@ export function LobbyScreen({
 											Debug local
 										</button>
 									)}
-									{onEnableDebugNetwork && (
-										<button
-											type='button'
-											className='lobby-config-dropdown-item'
-											onClick={() => handleConfigAction(onEnableDebugNetwork)}
-											role='menuitem'
-											data-testid='lobby-debug-network'
-										>
-											Debug network
-										</button>
-									)}
 								</div>
 							)}
 						</div>
 
-						{showReconnect && (
-							<button
-								type='button'
-								className='lobby-button lobby-reconnect'
-								onClick={onReconnect}
-								data-testid='lobby-reconnect'
-							>
-								Reconnect
-							</button>
-						)}
 						{isHost && phase === 'lobby' ? (
 							<button
 								type='button'

@@ -15,7 +15,7 @@ function LocalHarness({ namespace = null }: { namespace?: string | null }) {
 }
 
 function SessionHarness() {
-	const [value, setValue] = useWebStorageState('sessionStorage', 'tv_mode', false);
+	const [value, setValue] = useWebStorageState('sessionStorage', 'dark_mode', false);
 	return (
 		<button type='button' data-testid='session-toggle' onClick={() => setValue(current => !current)}>
 			{String(value)}
@@ -52,6 +52,6 @@ describe('useWebStorageState', () => {
 		render(<SessionHarness />);
 		fireEvent.click(screen.getByTestId('session-toggle'));
 
-		expect(window.sessionStorage.getItem('hanabi.tv_mode')).toBe('true');
+		expect(window.sessionStorage.getItem('hanabi.dark_mode')).toBe('true');
 	});
 });

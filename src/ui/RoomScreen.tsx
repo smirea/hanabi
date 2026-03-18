@@ -1,11 +1,15 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import App from '../App';
 import { parseRoomCode } from '../roomCodes';
 
-export function RoomScreen({ code }: { code: string }) {
+interface RoomScreenProps {
+	code: string;
+}
+
+export function RoomScreen({ code }: RoomScreenProps) {
 	const navigate = useNavigate();
-	const normalized = useMemo(() => parseRoomCode(code), [code]);
+	const normalized = parseRoomCode(code);
 	const currentHash = typeof window === 'undefined' ? '' : window.location.hash.replace(/^#/, '');
 
 	useEffect(() => {

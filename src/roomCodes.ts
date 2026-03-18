@@ -1,26 +1,8 @@
-const ROOM_CODE_LENGTH = 4;
-const ROOM_CODE_PATTERN = /^[A-Z]{4}$/;
-const ROOM_CODE_INPUT_PATTERN = /^[A-Za-z]{4}$/;
-const ROOM_CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-
-export function normalizeRoomCode(raw: string): string {
-	if (typeof raw !== 'string') {
-		return '';
-	}
-
-	return raw
-		.toUpperCase()
-		.replace(/[^A-Z]/g, '')
-		.slice(0, ROOM_CODE_LENGTH);
-}
-
-export function isValidRoomCode(code: string): boolean {
-	return ROOM_CODE_PATTERN.test(code);
-}
+import { ROOM_CODE_LENGTH } from './utils/constants';
 
 export function parseRoomCode(raw: string): string | null {
 	const candidate = raw.trim();
-	if (!ROOM_CODE_INPUT_PATTERN.test(candidate)) {
+	if (!/^[A-Za-z]{4}$/.test(candidate)) {
 		return null;
 	}
 
@@ -40,7 +22,7 @@ export function createRoomCode(): string {
 
 	let code = '';
 	for (const value of bytes) {
-		code += ROOM_CODE_ALPHABET[value % ROOM_CODE_ALPHABET.length];
+		code += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[value % 26];
 	}
 
 	return code;

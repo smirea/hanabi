@@ -17,28 +17,28 @@ type EndReason =
 	| 'final_round_complete'
 	| 'indispensable_card_discarded';
 
-export type CardHints = {
+export interface CardHints {
 	color: Suit | null;
 	number: CardNumber | null;
 	notColors: Suit[];
 	notNumbers: CardNumber[];
 	recentlyHinted: boolean;
-};
+}
 
-export type Card = {
+export interface Card {
 	id: CardId;
 	suit: Suit;
 	number: CardNumber;
 	hints: CardHints;
-};
+}
 
-export type Player = {
+export interface Player {
 	id: PlayerId;
 	name: string;
 	cards: CardId[];
-};
+}
 
-type HintLog = {
+interface HintLog {
 	id: string;
 	turn: number;
 	type: 'hint';
@@ -50,9 +50,9 @@ type HintLog = {
 	suit: Suit | null;
 	number: CardNumber | null;
 	touchedCardIds: CardId[];
-};
+}
 
-type PlayLog = {
+interface PlayLog {
 	id: string;
 	turn: number;
 	type: 'play';
@@ -64,9 +64,9 @@ type PlayLog = {
 	success: boolean;
 	gainedHint: boolean;
 	fuseTokensUsed: number;
-};
+}
 
-type DiscardLog = {
+interface DiscardLog {
 	id: string;
 	turn: number;
 	type: 'discard';
@@ -76,9 +76,9 @@ type DiscardLog = {
 	suit: Suit;
 	number: CardNumber;
 	gainedHint: boolean;
-};
+}
 
-type DrawLog = {
+interface DrawLog {
 	id: string;
 	turn: number;
 	type: 'draw';
@@ -86,29 +86,29 @@ type DrawLog = {
 	actorName: string;
 	cardId: CardId;
 	remainingDeck: number;
-};
+}
 
-type StatusLog = {
+interface StatusLog {
 	id: string;
 	turn: number;
 	type: 'status';
 	status: TerminalGameStatus;
 	reason: EndReason;
 	score: number;
-};
+}
 
 export type GameLogEntry = HintLog | PlayLog | DiscardLog | DrawLog | StatusLog;
 
-export type GameUiState = {
+export interface GameUiState {
 	pendingAction: PendingAction;
 	selectedCardId: CardId | null;
 	selectedTargetPlayerId: PlayerId | null;
 	selectedHintSuit: Suit | null;
 	selectedHintNumber: CardNumber | null;
 	highlightedCardIds: CardId[];
-};
+}
 
-export type GameSettings = {
+export interface GameSettings {
 	includeMulticolor: boolean;
 	multicolorShortDeck: boolean;
 	multicolorWildHints: boolean;
@@ -117,13 +117,13 @@ export type GameSettings = {
 	maxHintTokens: number;
 	maxFuseTokens: number;
 	handSize: number;
-};
+}
 
-type LastRoundState = {
+interface LastRoundState {
 	turnsRemaining: number;
-};
+}
 
-export type HanabiState = {
+export interface HanabiState {
 	players: Player[];
 	currentTurnPlayerIndex: number;
 	cards: Record<CardId, Card>;
@@ -139,14 +139,14 @@ export type HanabiState = {
 	turn: number;
 	nextLogId: number;
 	settings: GameSettings;
-};
+}
 
-type CardSeed = {
+interface CardSeed {
 	suit: Suit;
 	number: CardNumber;
-};
+}
 
-type NewGameInput = {
+interface NewGameInput {
 	playerNames?: string[];
 	playerIds?: string[];
 	includeMulticolor?: boolean;
@@ -158,13 +158,7 @@ type NewGameInput = {
 	startingPlayerIndex?: number;
 	deck?: CardSeed[];
 	shuffleSeed?: number;
-};
-
-type RestoreGameInput = {
-	state: HanabiState;
-};
-
-type GameConstructorInput = NewGameInput | RestoreGameInput;
+}
 
 const CARD_COPIES: Record<CardNumber, number> = {
 	1: 3,
@@ -174,26 +168,26 @@ const CARD_COPIES: Record<CardNumber, number> = {
 	5: 1,
 };
 
-export type PerspectiveCard = {
+export interface PerspectiveCard {
 	id: CardId;
 	suit: Suit | null;
 	number: CardNumber | null;
 	hints: CardHints;
 	isHiddenFromViewer: boolean;
-};
+}
 
-export type PerspectivePlayer = {
+export interface PerspectivePlayer {
 	id: PlayerId;
 	name: string;
 	cards: PerspectiveCard[];
 	isViewer: boolean;
 	isCurrentTurn: boolean;
-};
+}
 
 export type PerspectiveCountsByNumber = Record<CardNumber, number>;
 export type PerspectiveCountsBySuit = Record<Suit, PerspectiveCountsByNumber>;
 
-export type HanabiPerspectiveState = {
+export interface HanabiPerspectiveState {
 	viewerId: PlayerId;
 	currentTurnPlayerId: PlayerId;
 	players: PerspectivePlayer[];
@@ -211,38 +205,10 @@ export type HanabiPerspectiveState = {
 	fireworksHeights: Record<Suit, number>;
 	knownUnavailableCounts: PerspectiveCountsBySuit;
 	knownRemainingCounts: PerspectiveCountsBySuit;
-};
-
-function assert(condition: unknown, message: string): asserts condition {
-	if (!condition) {
-		throw new Error(message);
-	}
-}
-
-function isSuit(value: string): value is Suit {
-	return ALL_SUITS.includes(value as Suit);
-}
-
-function isCardNumber(value: number): value is CardNumber {
-	return CARD_NUMBERS.includes(value as CardNumber);
-}
-
-function isInteger(value: number): boolean {
-	return Number.isInteger(value);
 }
 
 function deepClone<T>(value: T): T {
 	return structuredClone(value);
-}
-
-function createEmptyHints(): CardHints {
-	return {
-		color: null,
-		number: null,
-		notColors: [],
-		notNumbers: [],
-		recentlyHinted: false,
-	};
 }
 
 function createEmptyUiState(): GameUiState {
@@ -253,17 +219,6 @@ function createEmptyUiState(): GameUiState {
 		selectedHintSuit: null,
 		selectedHintNumber: null,
 		highlightedCardIds: [],
-	};
-}
-
-function createEmptyFireworks(): Record<Suit, CardId[]> {
-	return {
-		R: [],
-		Y: [],
-		G: [],
-		B: [],
-		W: [],
-		M: [],
 	};
 }
 
@@ -284,35 +239,17 @@ function addUnique<T>(target: T[], value: T): void {
 	}
 }
 
-function isRestoreInput(input: GameConstructorInput | undefined): input is RestoreGameInput {
-	return typeof input === 'object' && input !== null && 'state' in input;
-}
-
-function createSeededRandom(seed: number): () => number {
-	let state = seed >>> 0 || 1;
-
-	return () => {
-		state = (state * 1664525 + 1013904223) >>> 0;
-		return state / 0x100000000;
-	};
-}
-
 export class HanabiGame {
 	public state: HanabiState;
 
-	public constructor(input?: GameConstructorInput) {
-		if (isRestoreInput(input)) {
-			this.state = HanabiGame.normalizeRestoredState(input.state);
-			HanabiGame.validateState(this.state);
-			return;
-		}
-
+	public constructor(input?: NewGameInput) {
 		this.state = HanabiGame.createInitialState(input);
-		HanabiGame.validateState(this.state);
 	}
 
 	public static fromState(state: HanabiState): HanabiGame {
-		return new HanabiGame({ state });
+		const game = Object.create(HanabiGame.prototype) as HanabiGame;
+		game.state = HanabiGame.normalizeRestoredState(state);
+		return game;
 	}
 
 	public getSnapshot(): HanabiState {
@@ -320,9 +257,7 @@ export class HanabiGame {
 	}
 
 	public replaceState(state: HanabiState): void {
-		const nextState = deepClone(state);
-		HanabiGame.validateState(nextState);
-		this.state = nextState;
+		this.state = deepClone(state);
 	}
 
 	public isGameOver(): boolean {
@@ -777,51 +712,16 @@ export class HanabiGame {
 
 	private static createInitialState(input: NewGameInput | undefined): HanabiState {
 		const playerNames = input?.playerNames ?? ['Player 1', 'Player 2'];
-		assert(Array.isArray(playerNames), 'playerNames must be an array');
-		assert(playerNames.length >= 2 && playerNames.length <= 5, 'Hanabi supports 2 to 5 players');
-
 		const playerIds = input?.playerIds ?? playerNames.map((_, index) => `p${index + 1}`);
-		assert(playerIds.length === playerNames.length, 'playerIds length must match playerNames length');
-
-		const uniquePlayerIds = new Set(playerIds);
-		assert(uniquePlayerIds.size === playerIds.length, 'playerIds must be unique');
-
-		for (const name of playerNames) {
-			assert(typeof name === 'string' && name.trim().length > 0, 'player names must be non-empty strings');
-		}
-
-		const uniquePlayerNames = new Set(playerNames.map(name => name.trim().replace(/\s+/g, ' ').toLowerCase()));
-		assert(uniquePlayerNames.size === playerNames.length, 'playerNames must be unique');
-
 		const includeMulticolor = Boolean(input?.includeMulticolor);
-		const requestedMulticolorShortDeck = Boolean(input?.multicolorShortDeck);
-		const requestedMulticolorWildHints = Boolean(input?.multicolorWildHints);
 		const multicolorWildHints = includeMulticolor;
 		const multicolorShortDeck = includeMulticolor;
 		const endlessMode = input?.endlessMode ?? false;
-		if (requestedMulticolorShortDeck && !includeMulticolor) {
-			throw new Error('multicolorShortDeck requires includeMulticolor=true');
-		}
-
-		if (requestedMulticolorWildHints && !includeMulticolor) {
-			throw new Error('multicolorWildHints requires includeMulticolor=true');
-		}
-
 		const maxHintTokens = input?.maxHintTokens ?? 8;
 		const maxFuseTokens = input?.maxFuseTokens ?? 3;
-		assert(isInteger(maxHintTokens) && maxHintTokens > 0, 'maxHintTokens must be a positive integer');
-		assert(isInteger(maxFuseTokens) && maxFuseTokens > 0, 'maxFuseTokens must be a positive integer');
-
 		const handSize = playerNames.length <= 3 ? 5 : 4;
 		const activeSuits = includeMulticolor ? [...ALL_SUITS] : [...BASE_SUITS];
-
-		if (input?.shuffleSeed !== undefined) {
-			assert(Number.isFinite(input.shuffleSeed), 'shuffleSeed must be a finite number');
-		}
-
-		const deckSeed = input?.deck
-			? HanabiGame.cloneAndValidateDeck(input.deck)
-			: HanabiGame.buildDeck(includeMulticolor, multicolorShortDeck);
+		const deckSeed = input?.deck ? deepClone(input.deck) : HanabiGame.buildDeck(includeMulticolor, multicolorShortDeck);
 		const shuffledDeck = input?.deck ? deckSeed : HanabiGame.shuffleDeck(deckSeed, input?.shuffleSeed);
 
 		const cards: Record<CardId, Card> = {};
@@ -832,7 +732,13 @@ export class HanabiGame {
 				id: cardId,
 				suit: seed.suit,
 				number: seed.number,
-				hints: createEmptyHints(),
+				hints: {
+					color: null,
+					number: null,
+					notColors: [],
+					notNumbers: [],
+					recentlyHinted: false,
+				},
 			};
 			drawDeck.push(cardId);
 		}
@@ -842,11 +748,6 @@ export class HanabiGame {
 			name,
 			cards: [],
 		}));
-
-		const requiredCards = players.length * handSize;
-		if (drawDeck.length < requiredCards) {
-			throw new Error(`Deck must contain at least ${requiredCards} cards to deal starting hands`);
-		}
 
 		for (let round = 0; round < handSize; round += 1) {
 			for (const player of players) {
@@ -860,18 +761,20 @@ export class HanabiGame {
 		}
 
 		const startingPlayerIndex = input?.startingPlayerIndex ?? 0;
-		assert(
-			isInteger(startingPlayerIndex) && startingPlayerIndex >= 0 && startingPlayerIndex < players.length,
-			'startingPlayerIndex is out of range',
-		);
-
 		return {
 			players,
 			currentTurnPlayerIndex: startingPlayerIndex,
 			cards,
 			drawDeck,
 			discardPile: [],
-			fireworks: createEmptyFireworks(),
+			fireworks: {
+				R: [],
+				Y: [],
+				G: [],
+				B: [],
+				W: [],
+				M: [],
+			},
 			hintTokens: maxHintTokens,
 			fuseTokensUsed: 0,
 			status: 'active',
@@ -893,20 +796,6 @@ export class HanabiGame {
 		};
 	}
 
-	private static cloneAndValidateDeck(deck: CardSeed[]): CardSeed[] {
-		assert(Array.isArray(deck), 'deck must be an array');
-		assert(deck.length > 0, 'deck must not be empty');
-
-		const clonedDeck = deepClone(deck);
-		for (const card of clonedDeck) {
-			assert(card && typeof card === 'object', 'deck cards must be objects');
-			assert(isSuit(card.suit), `Invalid suit in deck: ${String(card.suit)}`);
-			assert(isCardNumber(card.number), `Invalid number in deck: ${String(card.number)}`);
-		}
-
-		return clonedDeck;
-	}
-
 	private static buildDeck(includeMulticolor: boolean, multicolorShortDeck: boolean): CardSeed[] {
 		const suits = includeMulticolor ? ALL_SUITS : BASE_SUITS;
 		const deck: CardSeed[] = [];
@@ -925,7 +814,16 @@ export class HanabiGame {
 
 	private static shuffleDeck(deck: CardSeed[], seed: number | undefined): CardSeed[] {
 		const shuffled = [...deck];
-		const random = seed === undefined ? Math.random : createSeededRandom(seed);
+		const random =
+			seed === undefined
+				? Math.random
+				: (() => {
+						let state = seed >>> 0 || 1;
+						return () => {
+							state = (state * 1664525 + 1013904223) >>> 0;
+							return state / 0x100000000;
+						};
+					})();
 
 		for (let index = shuffled.length - 1; index > 0; index -= 1) {
 			const swapIndex = Math.floor(random() * (index + 1));
@@ -1185,7 +1083,6 @@ export class HanabiGame {
 
 		this.state.turn += 1;
 		this.state.ui = createEmptyUiState();
-		HanabiGame.validateState(this.state);
 	}
 
 	private nextLogId(): string {
@@ -1260,11 +1157,7 @@ export class HanabiGame {
 
 	private static normalizeRestoredState(state: HanabiState): HanabiState {
 		const cloned = deepClone(state);
-		if (!cloned.settings || typeof cloned.settings !== 'object') {
-			return cloned;
-		}
-
-		(cloned.settings as any).multicolorWildHints = Boolean((cloned.settings as any).includeMulticolor);
+		cloned.settings.multicolorWildHints = cloned.settings.includeMulticolor;
 
 		if (cloned.status === 'last_round') {
 			cloned.status = 'active';
@@ -1272,246 +1165,5 @@ export class HanabiGame {
 		}
 
 		return cloned;
-	}
-
-	private static validateState(state: HanabiState): void {
-		assert(state && typeof state === 'object', 'State must be an object');
-
-		assert(Array.isArray(state.players), 'players must be an array');
-		assert(state.players.length >= 2 && state.players.length <= 5, 'State must have 2 to 5 players');
-		assert(isInteger(state.currentTurnPlayerIndex), 'currentTurnPlayerIndex must be an integer');
-		assert(
-			state.currentTurnPlayerIndex >= 0 && state.currentTurnPlayerIndex < state.players.length,
-			'currentTurnPlayerIndex is out of range',
-		);
-
-		assert(state.settings && typeof state.settings === 'object', 'settings must be defined');
-		assert(isInteger(state.settings.maxHintTokens) && state.settings.maxHintTokens > 0, 'Invalid maxHintTokens');
-		assert(isInteger(state.settings.maxFuseTokens) && state.settings.maxFuseTokens > 0, 'Invalid maxFuseTokens');
-		assert(isInteger(state.settings.handSize) && state.settings.handSize > 0, 'Invalid handSize');
-		assert(typeof state.settings.endlessMode === 'boolean', 'endlessMode must be boolean');
-		assert(typeof state.settings.multicolorWildHints === 'boolean', 'multicolorWildHints must be boolean');
-		assert(Array.isArray(state.settings.activeSuits), 'activeSuits must be an array');
-		assert(state.settings.activeSuits.length > 0, 'activeSuits cannot be empty');
-		const activeSuitSet = new Set<Suit>();
-		for (const suit of state.settings.activeSuits) {
-			assert(isSuit(suit), `Invalid active suit: ${String(suit)}`);
-			activeSuitSet.add(suit);
-		}
-
-		assert(activeSuitSet.size === state.settings.activeSuits.length, 'activeSuits must not contain duplicates');
-		if (!state.settings.includeMulticolor) {
-			assert(!activeSuitSet.has('M'), 'Multicolor suit cannot be active when includeMulticolor=false');
-		} else {
-			assert(activeSuitSet.has('M'), 'Multicolor suit must be active when includeMulticolor=true');
-		}
-
-		assert(
-			state.settings.multicolorWildHints === state.settings.includeMulticolor,
-			'multicolorWildHints must match includeMulticolor',
-		);
-
-		if (state.settings.multicolorShortDeck) {
-			assert(state.settings.includeMulticolor, 'multicolorShortDeck requires includeMulticolor=true');
-		}
-
-		if (state.settings.multicolorWildHints) {
-			assert(state.settings.includeMulticolor, 'multicolorWildHints requires includeMulticolor=true');
-		}
-
-		assert(isInteger(state.hintTokens), 'hintTokens must be an integer');
-		assert(state.hintTokens >= 0 && state.hintTokens <= state.settings.maxHintTokens, 'hintTokens is out of range');
-		assert(isInteger(state.fuseTokensUsed), 'fuseTokensUsed must be an integer');
-		assert(
-			state.fuseTokensUsed >= 0 && state.fuseTokensUsed <= state.settings.maxFuseTokens,
-			'fuseTokensUsed is out of range',
-		);
-
-		assert(
-			state.status === 'active' ||
-				state.status === 'last_round' ||
-				state.status === 'won' ||
-				state.status === 'lost' ||
-				state.status === 'finished',
-			'Invalid game status',
-		);
-
-		if (state.status === 'last_round') {
-			assert(state.lastRound !== null, 'lastRound state is required when status is last_round');
-			assert(isInteger(state.lastRound.turnsRemaining), 'lastRound.turnsRemaining must be an integer');
-			assert(state.lastRound.turnsRemaining > 0, 'lastRound.turnsRemaining must be positive');
-		} else {
-			assert(state.lastRound === null, 'lastRound must be null unless status is last_round');
-		}
-
-		assert(state.cards && typeof state.cards === 'object', 'cards must be an object map');
-		const cardIds = Object.keys(state.cards);
-		assert(cardIds.length > 0, 'cards map cannot be empty');
-		for (const cardId of cardIds) {
-			const card = state.cards[cardId];
-			assert(card.id === cardId, `Card id mismatch for ${cardId}`);
-			assert(isSuit(card.suit), `Invalid suit for card ${cardId}`);
-			assert(isCardNumber(card.number), `Invalid number for card ${cardId}`);
-			if (!state.settings.includeMulticolor) {
-				assert(card.suit !== 'M', 'Found multicolor card while includeMulticolor=false');
-			}
-
-			assert(card.hints && typeof card.hints === 'object', `Missing hints for card ${cardId}`);
-			assert(card.hints.color === null || isSuit(card.hints.color), `Invalid hint color for card ${cardId}`);
-			assert(card.hints.number === null || isCardNumber(card.hints.number), `Invalid hint number for card ${cardId}`);
-			assert(Array.isArray(card.hints.notColors), `notColors must be an array for card ${cardId}`);
-			assert(Array.isArray(card.hints.notNumbers), `notNumbers must be an array for card ${cardId}`);
-			const notColorsSet = new Set<Suit>();
-			for (const notColor of card.hints.notColors) {
-				assert(isSuit(notColor), `Invalid notColor hint for card ${cardId}`);
-				notColorsSet.add(notColor);
-			}
-
-			assert(notColorsSet.size === card.hints.notColors.length, `Duplicate notColors for card ${cardId}`);
-			const notNumbersSet = new Set<CardNumber>();
-			for (const notNumber of card.hints.notNumbers) {
-				assert(isCardNumber(notNumber), `Invalid notNumber hint for card ${cardId}`);
-				notNumbersSet.add(notNumber);
-			}
-
-			assert(notNumbersSet.size === card.hints.notNumbers.length, `Duplicate notNumbers for card ${cardId}`);
-			assert(typeof card.hints.recentlyHinted === 'boolean', `recentlyHinted must be boolean for card ${cardId}`);
-		}
-
-		assert(Array.isArray(state.drawDeck), 'drawDeck must be an array');
-		assert(Array.isArray(state.discardPile), 'discardPile must be an array');
-
-		assert(state.fireworks && typeof state.fireworks === 'object', 'fireworks must be an object map');
-		for (const suit of ALL_SUITS) {
-			const firework = state.fireworks[suit];
-			assert(Array.isArray(firework), `Missing firework array for suit ${suit}`);
-			if (!activeSuitSet.has(suit)) {
-				assert(firework.length === 0, `Inactive suit ${suit} cannot have cards in fireworks`);
-			}
-
-			let expectedNumber = 1;
-			for (const cardId of firework) {
-				const card = state.cards[cardId];
-				assert(card, `Unknown card in fireworks: ${cardId}`);
-				assert(card.suit === suit, `Card ${cardId} is in wrong firework pile`);
-				assert(card.number === expectedNumber, `Firework ${suit} must be in ascending order starting at 1`);
-				expectedNumber += 1;
-			}
-		}
-
-		const seenCardIds = new Set<CardId>();
-		const playerIds = new Set<PlayerId>();
-		for (const player of state.players) {
-			assert(typeof player.id === 'string' && player.id.length > 0, 'Player id must be a non-empty string');
-			assert(!playerIds.has(player.id), `Duplicate player id: ${player.id}`);
-			playerIds.add(player.id);
-			assert(typeof player.name === 'string' && player.name.trim().length > 0, 'Player name must be non-empty');
-			assert(Array.isArray(player.cards), `Player cards must be an array (${player.id})`);
-			for (const cardId of player.cards) {
-				assert(state.cards[cardId], `Unknown card in hand: ${cardId}`);
-				assert(!seenCardIds.has(cardId), `Card appears in multiple zones: ${cardId}`);
-				seenCardIds.add(cardId);
-			}
-		}
-
-		for (const cardId of state.drawDeck) {
-			assert(state.cards[cardId], `Unknown card in drawDeck: ${cardId}`);
-			assert(!seenCardIds.has(cardId), `Card appears in multiple zones: ${cardId}`);
-			seenCardIds.add(cardId);
-		}
-
-		for (const cardId of state.discardPile) {
-			assert(state.cards[cardId], `Unknown card in discard pile: ${cardId}`);
-			assert(!seenCardIds.has(cardId), `Card appears in multiple zones: ${cardId}`);
-			seenCardIds.add(cardId);
-		}
-
-		for (const suit of ALL_SUITS) {
-			for (const cardId of state.fireworks[suit]) {
-				assert(state.cards[cardId], `Unknown card in fireworks: ${cardId}`);
-				assert(!seenCardIds.has(cardId), `Card appears in multiple zones: ${cardId}`);
-				seenCardIds.add(cardId);
-			}
-		}
-
-		assert(
-			seenCardIds.size === cardIds.length,
-			'Every card must exist in exactly one zone (hand, deck, discard, or fireworks)',
-		);
-
-		assert(isInteger(state.turn) && state.turn >= 1, 'turn must be a positive integer');
-		assert(isInteger(state.nextLogId) && state.nextLogId >= 1, 'nextLogId must be a positive integer');
-		assert(Array.isArray(state.logs), 'logs must be an array');
-
-		const logIds = new Set<string>();
-		for (const log of state.logs) {
-			assert(typeof log.id === 'string' && log.id.length > 0, 'Log id must be a non-empty string');
-			assert(!logIds.has(log.id), `Duplicate log id: ${log.id}`);
-			logIds.add(log.id);
-			assert(isInteger(log.turn) && log.turn >= 1, `Invalid log turn for log ${log.id}`);
-		}
-
-		assert(state.ui && typeof state.ui === 'object', 'ui must be defined');
-		const pendingAction = state.ui.pendingAction;
-		assert(
-			pendingAction === null ||
-				pendingAction === 'play' ||
-				pendingAction === 'discard' ||
-				pendingAction === 'hint-color' ||
-				pendingAction === 'hint-number',
-			'Invalid pendingAction',
-		);
-		assert(
-			state.ui.selectedCardId === null || typeof state.ui.selectedCardId === 'string',
-			'selectedCardId must be a string or null',
-		);
-		assert(
-			state.ui.selectedTargetPlayerId === null || typeof state.ui.selectedTargetPlayerId === 'string',
-			'selectedTargetPlayerId must be a string or null',
-		);
-		assert(
-			state.ui.selectedHintSuit === null || isSuit(state.ui.selectedHintSuit),
-			'selectedHintSuit must be a suit or null',
-		);
-		assert(
-			state.ui.selectedHintNumber === null || isCardNumber(state.ui.selectedHintNumber),
-			'selectedHintNumber must be a number or null',
-		);
-		assert(Array.isArray(state.ui.highlightedCardIds), 'highlightedCardIds must be an array');
-		for (const cardId of state.ui.highlightedCardIds) {
-			assert(state.cards[cardId], `Unknown highlighted card: ${cardId}`);
-		}
-
-		if (pendingAction === null) {
-			assert(state.ui.selectedCardId === null, 'selectedCardId must be null when no action is pending');
-			assert(state.ui.selectedTargetPlayerId === null, 'selectedTargetPlayerId must be null when no action is pending');
-			assert(state.ui.selectedHintSuit === null, 'selectedHintSuit must be null when no action is pending');
-			assert(state.ui.selectedHintNumber === null, 'selectedHintNumber must be null when no action is pending');
-			assert(state.ui.highlightedCardIds.length === 0, 'highlightedCardIds must be empty when no action is pending');
-		}
-
-		if (pendingAction === 'play' || pendingAction === 'discard') {
-			assert(state.ui.selectedTargetPlayerId === null, 'target selection is invalid for play/discard');
-			assert(state.ui.selectedHintSuit === null, 'hint suit selection is invalid for play/discard');
-			assert(state.ui.selectedHintNumber === null, 'hint number selection is invalid for play/discard');
-		}
-
-		if (pendingAction === 'hint-color' || pendingAction === 'hint-number') {
-			assert(state.ui.selectedCardId === null, 'card selection is invalid for hint actions');
-			if (state.ui.selectedTargetPlayerId !== null) {
-				assert(playerIds.has(state.ui.selectedTargetPlayerId), 'selectedTargetPlayerId references unknown player');
-			}
-		}
-
-		if (HanabiGame.isTerminalStatus(state.status)) {
-			assert(pendingAction === null, 'No action can be pending when the game is over');
-		}
-
-		const allFireworksComplete = state.settings.activeSuits.every(
-			suit => state.fireworks[suit].length === CARD_NUMBERS.length,
-		);
-		if (state.status === 'won') {
-			assert(allFireworksComplete, 'Won state requires all active fireworks to be complete');
-		}
 	}
 }

@@ -1,5 +1,5 @@
 import type { CardId, HanabiState, PlayerId, Suit } from '../../../game';
-import type { NetworkAction } from '../../../network';
+import type { GameAction } from '../../../utils/types';
 import { isKnownRedundantPlay, isRedundantHint } from '../utils/hintLogic';
 
 export type PendingCardAction = 'play' | 'discard' | 'hint-color' | 'hint-number' | null;
@@ -9,7 +9,7 @@ export type ResolvedCardSelection =
 	| { kind: 'arm-redundant-play'; cardId: CardId }
 	| { kind: 'wild-color-picker'; targetPlayerId: PlayerId }
 	| { kind: 'redundant-hint'; touchedCardIds: CardId[] }
-	| { kind: 'action'; action: NetworkAction };
+	| { kind: 'action'; action: GameAction };
 
 export function resolveCardSelectionAction({
 	state,
@@ -128,7 +128,7 @@ export function resolveCardSelectionAction({
 export type ResolvedDirectColorHint =
 	| { kind: 'noop' }
 	| { kind: 'redundant-hint'; touchedCardIds: CardId[] }
-	| { kind: 'action'; action: NetworkAction };
+	| { kind: 'action'; action: GameAction };
 
 export function resolveDirectColorHintAction({
 	state,

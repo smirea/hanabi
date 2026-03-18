@@ -1,7 +1,7 @@
 import { animate } from 'motion';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CardId, HanabiPerspectiveState, HanabiState, PlayerId, Suit } from '../../../game';
-import { suitBadgeForeground, suitColors } from '../constants';
+import { suitBadgeForeground, suitColors } from '../../../utils/constants';
 
 function isTerminalStatus(status: HanabiPerspectiveState['status']): boolean {
 	return status === 'won' || status === 'lost' || status === 'finished';

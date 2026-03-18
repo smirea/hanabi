@@ -3,7 +3,7 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import type { LobbySettings } from '../../../network';
+import type { LobbySettings } from '../../../utils/types';
 import { LobbyScreen } from './LobbyScreen';
 
 function createProps(settings: LobbySettings, onUpdateSettings = vi.fn()) {
@@ -11,7 +11,7 @@ function createProps(settings: LobbySettings, onUpdateSettings = vi.fn()) {
 		roomId: 'ABCD',
 		status: 'connected' as const,
 		error: null,
-		members: [{ peerId: 'p1', name: 'Alex', isTv: false }],
+		members: [{ id: 'player:1', peerId: 'p1', name: 'Alex', isTv: false }],
 		hostId: 'p1',
 		isHost: true,
 		selfId: 'p1',
@@ -23,12 +23,10 @@ function createProps(settings: LobbySettings, onUpdateSettings = vi.fn()) {
 		settings,
 		isGameInProgress: false,
 		onStart: vi.fn(),
-		onReconnect: vi.fn(),
 		onLeaveRoom: null,
 		isDarkMode: false,
 		onToggleDarkMode: vi.fn(),
 		onEnableDebugMode: null,
-		onEnableDebugNetwork: null,
 		onUpdateSettings,
 	};
 }

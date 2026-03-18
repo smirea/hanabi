@@ -1,57 +1,28 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { createRoomCode, isValidRoomCode, normalizeRoomCode } from '../roomCodes';
-import { useRoomDirectoryListing } from '../roomDirectory';
+import { useSnapshot } from 'valtio/react';
+import { getOnlineRoom } from '../onlineRoom';
+import { createRoomCode, parseRoomCode } from '../roomCodes';
 
 export function LobbyDirectory() {
 	const navigate = useNavigate();
-	const directory = useRoomDirectoryListing(true);
+	const onlineRoom = getOnlineRoom();
+	const directory = useSnapshot(onlineRoom.directoryState);
 	const [joinInput, setJoinInput] = useState('');
 	const currentHash = typeof window === 'undefined' ? '' : window.location.hash.replace(/^#/, '');
+	const joinCode = parseRoomCode(joinInput);
+	const visiblePlayers = directory.rooms.reduce((count, room) => count + (room.players?.length ?? 0), 0);
 
-	const normalizedJoin = useMemo(() => normalizeRoomCode(joinInput), [joinInput]);
-	const canJoin = isValidRoomCode(normalizedJoin);
-
-	const visibleRooms = useMemo(() => directory.rooms, [directory.rooms]);
-	const statusLabel =
-		directory.status === 'connected'
-			? 'Online'
-			: directory.status === 'connecting'
-				? 'Connecting'
-				: directory.status === 'error'
-					? 'Offline'
-					: 'Idle';
-	const visiblePlayers = useMemo(
-		() => visibleRooms.reduce((count, room) => count + room.seatedCount, 0),
-		[visibleRooms],
-	);
-
-	function goToRoom(code: string): void {
-		void navigate({
-			to: '/',
-			search: { room: code },
-			hash: currentHash,
-		});
-	}
-
-	function handleCreate(): void {
-		goToRoom(createRoomCode());
-	}
-
-	function handleJoin(): void {
-		if (!canJoin) {
-			return;
-		}
-
-		goToRoom(normalizedJoin);
-	}
+	useEffect(() => {
+		onlineRoom.syncRouteRoom(null);
+	}, [onlineRoom]);
 
 	return (
 		<main className='app lobby-app' data-testid='room-directory-root'>
 			<section className='stats lobby-shell-stats'>
 				<div className='stat lobby-shell-stat' data-testid='room-directory-shell-rooms'>
 					<span className='lobby-shell-stat-label'>Rooms</span>
-					<span className='lobby-shell-stat-value'>{visibleRooms.length}</span>
+					<span className='lobby-shell-stat-value'>{directory.rooms.length}</span>
 				</div>
 				<div className='stat lobby-shell-stat' data-testid='room-directory-shell-players'>
 					<span className='lobby-shell-stat-label'>Players</span>
@@ -59,7 +30,7 @@ export function LobbyDirectory() {
 				</div>
 				<div className='stat lobby-shell-stat' data-testid='room-directory-shell-status'>
 					<span className='lobby-shell-stat-label'>Status</span>
-					<span className='lobby-shell-stat-value'>{statusLabel}</span>
+					<span className='lobby-shell-stat-value'>Online</span>
 				</div>
 			</section>
 
@@ -70,7 +41,14 @@ export function LobbyDirectory() {
 						<button
 							type='button'
 							className='lobby-button subtle'
-							onClick={handleCreate}
+							onClick={() => {
+								const code = createRoomCode();
+								void navigate({
+									to: '/',
+									search: { room: code },
+									hash: currentHash,
+								});
+							}}
 							data-testid='room-directory-create'
 						>
 							New Room
@@ -97,14 +75,24 @@ export function LobbyDirectory() {
 							<button
 								type='button'
 								className='lobby-button'
-								onClick={handleJoin}
-								disabled={!canJoin}
+								onClick={() => {
+									if (!joinCode) {
+										return;
+									}
+
+									void navigate({
+										to: '/',
+										search: { room: joinCode },
+										hash: currentHash,
+									});
+								}}
+								disabled={joinCode === null}
 								data-testid='room-directory-join-button'
 							>
 								Join
 							</button>
 						</div>
-						{joinInput.trim().length > 0 && !canJoin && (
+						{joinInput.trim().length > 0 && joinCode === null && (
 							<p className='lobby-note' data-testid='room-directory-hint'>
 								Enter a 4-letter code.
 							</p>
@@ -115,29 +103,17 @@ export function LobbyDirectory() {
 						<div className='room-directory-list-header'>
 							<h2 className='lobby-section-title'>Open Rooms</h2>
 							<span className='room-directory-status' data-testid='room-directory-status'>
-								{directory.status === 'connected'
-									? `${visibleRooms.length} found`
-									: directory.status === 'connecting'
-										? 'Connecting…'
-										: directory.status === 'error'
-											? 'Offline'
-											: 'Idle'}
+								{directory.rooms.length} found
 							</span>
 						</div>
 
-						{directory.error && (
-							<p className='lobby-note error' data-testid='room-directory-error'>
-								{directory.error}
-							</p>
-						)}
-
 						<div className='room-directory-room-list'>
-							{visibleRooms.length === 0 ? (
+							{directory.rooms.length === 0 ? (
 								<p className='lobby-note' data-testid='room-directory-empty'>
 									No open rooms yet.
 								</p>
 							) : (
-								visibleRooms.map(room => (
+								directory.rooms.map(room => (
 									<article
 										key={room.code}
 										className='room-directory-room'
@@ -146,22 +122,19 @@ export function LobbyDirectory() {
 										<div className='room-directory-room-meta'>
 											<div className='room-directory-room-code'>{room.code}</div>
 											<div className='room-directory-room-players' aria-label='Players'>
-												{room.members.length === 0
-													? 'Waiting…'
-													: room.members
-															.filter(member => !member.isTv)
-															.map(member => member.name)
-															.slice(0, 5)
-															.join(', ')}
-											</div>
-											<div className='room-directory-room-counts'>
-												{room.seatedCount}p{room.tvCount > 0 ? ` + ${room.tvCount}tv` : ''}
+												{!room.players?.length ? 'Waiting…' : room.players.slice(0, 5).join(', ')}
 											</div>
 										</div>
 										<button
 											type='button'
 											className='lobby-button'
-											onClick={() => goToRoom(room.code)}
+											onClick={() => {
+												void navigate({
+													to: '/',
+													search: { room: room.code },
+													hash: currentHash,
+												});
+											}}
 											data-testid={`room-directory-join-${room.code}`}
 										>
 											Join

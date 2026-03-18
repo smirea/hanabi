@@ -204,7 +204,7 @@ describe('HanabiGame', () => {
 
 		const snapshot = gameAtMaxHints.getSnapshot();
 		snapshot.hintTokens = 7;
-		const game = new HanabiGame({ state: snapshot });
+		const game = HanabiGame.fromState(snapshot);
 		const currentPlayer = game.state.players[game.state.currentTurnPlayerIndex];
 		const cardId = currentPlayer.cards[0];
 		const deckBefore = game.state.drawDeck.length;
@@ -262,7 +262,7 @@ describe('HanabiGame', () => {
 		losingSnapshot.status = 'active';
 		losingSnapshot.lastRound = null;
 		losingSnapshot.currentTurnPlayerIndex = 0;
-		const losingGame = new HanabiGame({ state: losingSnapshot });
+		const losingGame = HanabiGame.fromState(losingSnapshot);
 
 		const losingCardId = losingGame.state.players[0].cards.find(candidate => {
 			const candidateCard = losingGame.state.cards[candidate];
@@ -309,7 +309,7 @@ describe('HanabiGame', () => {
 	});
 
 	test('playing the final needed card wins immediately', () => {
-		const game = new HanabiGame({ state: createAlmostWonState() });
+		const game = HanabiGame.fromState(createAlmostWonState());
 		game.playCard('W5');
 
 		expect(game.state.fireworks.W).toHaveLength(5);
@@ -366,46 +366,6 @@ describe('HanabiGame', () => {
 		game.beginColorHintSelection();
 		game.selectHintTarget('p2');
 		expect(() => game.selectHintColor('M')).toThrow('Color M is not active in this game');
-	});
-
-	test('rejects invalid player counts and duplicate player ids', () => {
-		expect(() => new HanabiGame({ playerNames: ['A'] })).toThrow('Hanabi supports 2 to 5 players');
-		expect(() => new HanabiGame({ playerNames: ['A', 'B', 'C', 'D', 'E', 'F'] })).toThrow(
-			'Hanabi supports 2 to 5 players',
-		);
-		expect(() => new HanabiGame({ playerNames: ['A', 'A'] })).toThrow('playerNames must be unique');
-		expect(() => new HanabiGame({ playerNames: ['A', 'B'], playerIds: ['same', 'same'] })).toThrow(
-			'playerIds must be unique',
-		);
-	});
-
-	test('rejects invalid starting player index and insufficient deck', () => {
-		expect(() => new HanabiGame({ playerNames: ['A', 'B'], startingPlayerIndex: 2 })).toThrow(
-			'startingPlayerIndex is out of range',
-		);
-		expect(
-			() =>
-				new HanabiGame({
-					playerNames: ['A', 'B'],
-					deck: [
-						card('R', 1),
-						card('R', 1),
-						card('R', 1),
-						card('R', 1),
-						card('R', 1),
-						card('R', 1),
-						card('R', 1),
-						card('R', 1),
-						card('R', 1),
-					],
-				}),
-		).toThrow('Deck must contain at least 10 cards to deal starting hands');
-	});
-
-	test('rejects invalid multicolor option combinations', () => {
-		expect(() => new HanabiGame({ playerNames: ['A', 'B'], multicolorShortDeck: true })).toThrow(
-			'multicolorShortDeck requires includeMulticolor=true',
-		);
 	});
 
 	test('deals four cards each for four-player games', () => {
@@ -491,24 +451,6 @@ describe('HanabiGame', () => {
 		expect(Object.values(shortWildMulticolor.state.cards).filter(entry => entry.suit === 'M')).toHaveLength(5);
 	});
 
-	test('rejects invalid custom deck cards', () => {
-		expect(
-			() =>
-				new HanabiGame({
-					playerNames: ['A', 'B'],
-					deck: [{ suit: 'Z' as DeckSuit, number: 1 }],
-				}),
-		).toThrow('Invalid suit in deck: Z');
-
-		expect(
-			() =>
-				new HanabiGame({
-					playerNames: ['A', 'B'],
-					deck: [{ suit: 'R', number: 6 as DeckNumber }],
-				}),
-		).toThrow('Invalid number in deck: 6');
-	});
-
 	test('rejects invalid hint targets and hint feasibility rules', () => {
 		const game = new HanabiGame({
 			playerNames: ['A', 'B'],
@@ -525,7 +467,7 @@ describe('HanabiGame', () => {
 
 		const noTokenState = game.getSnapshot();
 		noTokenState.hintTokens = 0;
-		const noTokenGame = new HanabiGame({ state: noTokenState });
+		const noTokenGame = HanabiGame.fromState(noTokenState);
 		expect(() => noTokenGame.giveColorHint('p2', 'R')).toThrow('Cannot give a hint with zero hint tokens');
 	});
 
@@ -652,7 +594,7 @@ describe('HanabiGame', () => {
 		const staleState = game.getSnapshot();
 		staleState.cards[targetCardId].hints.notColors.push('G');
 
-		const restored = new HanabiGame({ state: staleState });
+		const restored = HanabiGame.fromState(staleState);
 		restored.giveColorHint('p2', 'G');
 
 		expect(restored.state.cards[targetCardId].hints.notColors).not.toContain('G');
@@ -660,7 +602,7 @@ describe('HanabiGame', () => {
 	});
 
 	test('playing a five regains hint token without exceeding max', () => {
-		const needsHintGame = new HanabiGame({ state: createAlmostWonState() });
+		const needsHintGame = HanabiGame.fromState(createAlmostWonState());
 		needsHintGame.playCard('W5');
 		expect(needsHintGame.state.hintTokens).toBe(8);
 		expect(needsHintGame.state.logs.find(entry => entry.type === 'play')).toMatchObject({
@@ -670,7 +612,7 @@ describe('HanabiGame', () => {
 
 		const maxedState = createAlmostWonState();
 		maxedState.hintTokens = 8;
-		const maxHintGame = new HanabiGame({ state: maxedState });
+		const maxHintGame = HanabiGame.fromState(maxedState);
 		maxHintGame.playCard('W5');
 		expect(maxHintGame.state.hintTokens).toBe(8);
 		expect(maxHintGame.state.logs.find(entry => entry.type === 'play')).toMatchObject({
@@ -714,7 +656,7 @@ describe('HanabiGame', () => {
 		state.currentTurnPlayerIndex = 0;
 		state.hintTokens = 0;
 
-		const game = new HanabiGame({ state });
+		const game = HanabiGame.fromState(state);
 		expect(() => game.beginPlaySelection()).toThrow('Cannot play with no cards in hand');
 		expect(() => game.beginDiscardSelection()).toThrow('Cannot discard with no cards in hand');
 	});
@@ -731,7 +673,7 @@ describe('HanabiGame', () => {
 		state.currentTurnPlayerIndex = 0;
 		state.hintTokens = 0;
 
-		const game = new HanabiGame({ state });
+		const game = HanabiGame.fromState(state);
 		const cardId = game.state.players[0].cards.find(candidate => game.state.cards[candidate].number !== 5)!;
 		game.playCard(cardId);
 
@@ -750,7 +692,7 @@ describe('HanabiGame', () => {
 		state.currentTurnPlayerIndex = 0;
 		state.hintTokens = 1;
 
-		const game = new HanabiGame({ state });
+		const game = HanabiGame.fromState(state);
 		const cardId = game.state.players[0].cards.find(candidate => game.state.cards[candidate].number !== 5)!;
 		game.playCard(cardId);
 
@@ -775,42 +717,10 @@ describe('HanabiGame', () => {
 		const discardState = game.getSnapshot();
 		discardState.hintTokens = 7;
 		discardState.currentTurnPlayerIndex = 0;
-		const discardGame = new HanabiGame({ state: discardState });
+		const discardGame = HanabiGame.fromState(discardState);
 		discardGame.discardCard(discardGame.state.players[0].cards[0]);
 		expect(discardGame.state.players[0].cards).toHaveLength(3);
 		expect(discardGame.state.logs.at(-1)).toMatchObject({ type: 'discard' });
-	});
-
-	test('replaceState validates and rejects invalid snapshots', () => {
-		const game = new HanabiGame({
-			playerNames: ['A', 'B'],
-			deck: twoPlayerDeck(
-				[card('R', 1), card('Y', 2), card('G', 3), card('B', 4), card('W', 5)],
-				[card('R', 2), card('Y', 3), card('G', 4), card('B', 5), card('W', 1)],
-			),
-		});
-
-		const invalid = game.getSnapshot();
-		invalid.players[0].cards.push(invalid.players[1].cards[0]);
-		expect(() => game.replaceState(invalid)).toThrow('Card appears in multiple zones');
-	});
-
-	test('restore validation rejects terminal state with pending action', () => {
-		const invalidState = createAlmostWonState();
-		invalidState.status = 'lost';
-		invalidState.ui.pendingAction = 'play';
-		invalidState.ui.selectedCardId = 'W5';
-		invalidState.ui.highlightedCardIds = ['W5'];
-
-		expect(() => new HanabiGame({ state: invalidState })).toThrow('No action can be pending when the game is over');
-	});
-
-	test('restore validation rejects won state without complete fireworks', () => {
-		const invalidState = createAlmostWonState();
-		invalidState.status = 'won';
-		expect(() => new HanabiGame({ state: invalidState })).toThrow(
-			'Won state requires all active fireworks to be complete',
-		);
 	});
 
 	test('perspective view hides own cards and updates known availability by viewer', () => {

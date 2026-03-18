@@ -4,20 +4,12 @@ import {
 	CARD_NUMBERS,
 	HanabiGame,
 	type CardId,
-	type CardNumber,
 	type GameLogEntry,
 	type HanabiState,
 	type Suit,
 } from './game';
-
-export const DEBUG_SCREEN_EVENT = 'hanabi:debug-screen';
-
-export type DebugScreenName = 'win' | 'lose' | 'game';
-
-export type DebugScreenEventDetail = {
-	screen: DebugScreenName;
-	state: HanabiState;
-};
+import { DEBUG_SCREEN_EVENT } from './utils/constants';
+import type { DebugScreenEventDetail, DebugScreenName } from './utils/types';
 
 declare global {
 	interface Window {
@@ -31,9 +23,7 @@ declare global {
 	}
 }
 
-type DebugUiEmpty = HanabiState['ui'];
-
-const EMPTY_UI: DebugUiEmpty = {
+const EMPTY_UI: HanabiState['ui'] = {
 	pendingAction: null,
 	selectedCardId: null,
 	selectedTargetPlayerId: null,
@@ -52,39 +42,30 @@ const MOCK_GAME_PLAYERS = {
 	names: ['Ari', 'Blair', 'Casey', 'Devon', 'Elliot'],
 };
 
-function removeFromArray(values: string[], value: string): void {
-	const index = values.indexOf(value);
-	if (index === -1) {
-		return;
-	}
-
-	values.splice(index, 1);
-}
-
 function removeCardFromZones(state: HanabiState, cardId: CardId): void {
-	removeFromArray(state.drawDeck, cardId);
-	removeFromArray(state.discardPile, cardId);
+	const drawDeckIndex = state.drawDeck.indexOf(cardId);
+	if (drawDeckIndex !== -1) {
+		state.drawDeck.splice(drawDeckIndex, 1);
+	}
+
+	const discardPileIndex = state.discardPile.indexOf(cardId);
+	if (discardPileIndex !== -1) {
+		state.discardPile.splice(discardPileIndex, 1);
+	}
+
 	for (const player of state.players) {
-		removeFromArray(player.cards, cardId);
+		const handIndex = player.cards.indexOf(cardId);
+		if (handIndex !== -1) {
+			player.cards.splice(handIndex, 1);
+		}
 	}
+
 	for (const suit of Object.keys(state.fireworks) as Suit[]) {
-		removeFromArray(state.fireworks[suit], cardId);
-	}
-}
-
-function pickCardId(state: HanabiState, suit: Suit, number: CardNumber, used: Set<CardId>): CardId {
-	for (const [cardId, card] of Object.entries(state.cards)) {
-		if (used.has(cardId)) {
-			continue;
+		const fireworkIndex = state.fireworks[suit].indexOf(cardId);
+		if (fireworkIndex !== -1) {
+			state.fireworks[suit].splice(fireworkIndex, 1);
 		}
-		if (card.suit !== suit || card.number !== number) {
-			continue;
-		}
-		used.add(cardId);
-		return cardId;
 	}
-
-	throw new Error(`Unable to locate card for ${suit}${number}`);
 }
 
 function fillFireworks(state: HanabiState, heights: Partial<Record<Suit, number>>): void {
@@ -100,7 +81,19 @@ function fillFireworks(state: HanabiState, heights: Partial<Record<Suit, number>
 			if (number > height) {
 				break;
 			}
-			const cardId = pickCardId(state, suit, number, used);
+
+			const cardId = Object.entries(state.cards).find(([entryCardId, card]) => {
+				if (used.has(entryCardId)) {
+					return false;
+				}
+
+				return card.suit === suit && card.number === number;
+			})?.[0];
+			if (!cardId) {
+				throw new Error(`Unable to locate card for ${suit}${number}`);
+			}
+
+			used.add(cardId);
 			removeCardFromZones(state, cardId);
 			state.fireworks[suit].push(cardId);
 		}
@@ -132,23 +125,16 @@ function createBaseState(): HanabiState {
 	}).getSnapshot();
 }
 
-function buildMockLogs({
-	status,
-	score,
-	cardSamplesBySuitNumber,
-}: {
+interface BuildMockLogsInput {
 	status: Extract<HanabiState['status'], 'won' | 'lost' | 'finished'>;
 	score: number;
 	cardSamplesBySuitNumber: Partial<Record<string, CardId>>;
-}): GameLogEntry[] {
+}
+
+function buildMockLogs({ status, score, cardSamplesBySuitNumber }: BuildMockLogsInput): GameLogEntry[] {
 	const [p1, p2, p3] = MOCK_PLAYERS.ids;
 	const [n1, n2, n3] = MOCK_PLAYERS.names;
-
-	const touchedTwo: CardId[] = (() => {
-		const one = cardSamplesBySuitNumber.R1 ?? 'c001';
-		const two = cardSamplesBySuitNumber.Y1 ?? 'c002';
-		return [one, two];
-	})();
+	const touchedTwo: CardId[] = [cardSamplesBySuitNumber.R1 ?? 'c001', cardSamplesBySuitNumber.Y1 ?? 'c002'];
 
 	return [
 		{

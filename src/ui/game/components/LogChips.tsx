@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { Suit } from '../../../game';
-import { suitBadgeForeground, suitColors, suitNames } from '../constants';
+import { suitBadgeForeground, suitColors, suitNames } from '../../../utils/constants';
 import { SuitSymbol } from './SuitSymbol';
 
 export function LogCardChip({ suit, number }: { suit: Suit; number: number }) {

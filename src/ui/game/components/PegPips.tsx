@@ -5,6 +5,10 @@ const MAX_PEG_PIPS = 4;
 export type PegPipState = 'filled' | 'hollow' | 'cross' | 'deck' | 'hand' | 'unused';
 export type PegPipMode = 'default' | 'tibi';
 
+interface PegPipsProps {
+	pipStates: PegPipState[];
+}
+
 export function getPegPipStates(
 	mode: PegPipMode,
 	hiddenCount: number,
@@ -45,7 +49,7 @@ export function getPegPipStates(
 	});
 }
 
-export function PegPips({ pipStates }: { pipStates: PegPipState[] }) {
+export function PegPips({ pipStates }: PegPipsProps) {
 	const visible = pipStates.map((state, index) => ({ state, index })).filter(pip => pip.state !== 'unused');
 
 	if (visible.length === 0) {

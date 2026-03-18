@@ -28,9 +28,7 @@ export const Route = createFileRoute('/test')({
 					value={playerRoom.self.name}
 					onChange={e => networking.playerRoom.updateSelf({ name: e.target.value })}
 				/>
-				<button onClick={() => networking.joinRoom({ roomId: ('room:AAAA_' + location.search) as any, isHost: true })}>
-					create
-				</button>
+				<button onClick={() => networking.joinRoom(('room:AAAA_' + location.search) as any)}>create</button>
 				<button disabled={!playerRoom.self.room} onClick={() => networking.leaveRoom()}>
 					leave room
 				</button>
@@ -54,7 +52,7 @@ export const Route = createFileRoute('/test')({
 						room.id === ownRoom && gameRoom.host === playerRoom.self.peerId ? null : (
 							<div key={room.id} style={{ padding: '.5rem', border: '1px solid white' }}>
 								{room.id}
-								<button onClick={() => networking.joinRoom({ isHost: false, roomId: room.id })}>join</button> players(
+								<button onClick={() => networking.joinRoom(room.id)}>join</button> players(
 								{room.players.length}): {room.players.map(x => x.name).join(', ')}
 							</div>
 						),

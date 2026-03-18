@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { PerspectiveCard } from '../../../game';
 import type { Suit } from '../../../game';
-import { suitBadgeForeground, suitColors } from '../constants';
+import { suitBadgeForeground, suitColors } from '../../../utils/constants';
 import { SuitSymbol } from './SuitSymbol';
 
 export function CardView({

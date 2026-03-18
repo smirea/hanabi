@@ -299,59 +299,6 @@ describe('App local debug wiring', () => {
 		expect(screen.queryByTestId('lobby-room-input')).not.toBeInTheDocument();
 		expect(window.location.search).toBe('?room=alpha_7');
 	});
-
-	test('debug network frames namespace player config by debug id', () => {
-		window.location.hash = '#debug-1';
-		window.localStorage.setItem('hanabi.player_name', JSON.stringify('Global'));
-		window.localStorage.setItem('hanabi.player_name.dbg-1', JSON.stringify('Alice'));
-
-		render(<App roomCode={ROOM_CODE} />);
-		const input = screen.getByTestId('lobby-name-input') as HTMLInputElement;
-		expect(input.value).toBe('Alice');
-
-		fireEvent.change(input, { target: { value: 'Bob' } });
-		expect(window.localStorage.getItem('hanabi.player_name.dbg-1')).toBe(JSON.stringify('Bob'));
-		expect(window.localStorage.getItem('hanabi.player_name')).toBe(JSON.stringify('Global'));
-	});
-
-	test('debug network frame refreshes namespaced local storage when hash changes', async () => {
-		window.location.hash = '#debug-1';
-		window.localStorage.setItem('hanabi.player_name.dbg-1', JSON.stringify('Alice'));
-		window.localStorage.setItem('hanabi.player_name.dbg-2', JSON.stringify('Blair'));
-
-		render(<App roomCode={ROOM_CODE} />);
-
-		expect(screen.getByTestId('lobby-name-input')).toHaveValue('Alice');
-
-		window.location.hash = '#debug-2';
-		window.dispatchEvent(new Event('hashchange'));
-
-		await waitFor(() => {
-			expect(screen.getByTestId('lobby-name-input')).toHaveValue('Blair');
-		});
-	});
-
-	test('debug network shell switches iframe hash between local simulated players', () => {
-		window.localStorage.setItem('hanabi.debug_network_shell', 'true');
-		window.localStorage.setItem('hanabi.debug_network_players', JSON.stringify(['1', '2']));
-		window.localStorage.setItem('hanabi.debug_network_active_player', JSON.stringify('1'));
-
-		render(<App roomCode={ROOM_CODE} />);
-
-		const frame = screen.getByTestId('debug-network-frame');
-		expect(frame.getAttribute('src')).toContain('#debug-1');
-
-		fireEvent.click(screen.getByTestId('debug-network-player-2'));
-		expect(frame.getAttribute('src')).toContain('#debug-2');
-
-		fireEvent.click(screen.getByTestId('debug-network-add'));
-		expect(screen.getByTestId('debug-network-player-3')).toBeInTheDocument();
-		expect(frame.getAttribute('src')).toContain('#debug-3');
-
-		fireEvent.click(screen.getByTestId('debug-network-remove'));
-		expect(screen.queryByTestId('debug-network-player-3')).not.toBeInTheDocument();
-		expect(frame.getAttribute('src')).toContain('#debug-2');
-	});
 });
 
 describe('App session hash namespaces local storage', () => {

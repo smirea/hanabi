@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 
-export function DeckCount({ value }: { value: number }) {
+interface DeckCountProps {
+	value: number;
+}
+
+export function DeckCount({ value }: DeckCountProps) {
 	const [previousValue, setPreviousValue] = useState<number | null>(null);
 	const [direction, setDirection] = useState<'up' | 'down' | null>(null);
 	const timeoutRef = useRef<number | null>(null);

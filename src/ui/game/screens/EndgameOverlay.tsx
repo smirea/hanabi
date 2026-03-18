@@ -1,7 +1,7 @@
 import { Fire, LightbulbFilament } from '@phosphor-icons/react';
 import { useMemo, type CSSProperties } from 'react';
 import { CARD_NUMBERS, type GameLogEntry, type HanabiPerspectiveState, type PlayerId } from '../../../game';
-import { suitColors } from '../constants';
+import { suitColors } from '../../../utils/constants';
 import { PegPips, getPegPipStates } from '../components/PegPips';
 import { getLogBadge, renderLogMessage } from '../utils/logFormatting';
 
