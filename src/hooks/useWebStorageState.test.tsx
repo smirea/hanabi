@@ -3,8 +3,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, test } from 'bun:test';
 import { useWebStorageState } from './useWebStorageState';
 
-function LocalHarness({ namespace = null }: { namespace?: string | null }) {
-	const [value, setValue] = useWebStorageState('localStorage', 'debug_mode', false, namespace);
+function LocalHarness() {
+	const [value, setValue] = useWebStorageState('localStorage', 'debug_mode', false);
 	return (
 		<button type='button' data-testid='local-toggle' onClick={() => setValue(current => !current)}>
 			{String(value)}
@@ -25,6 +25,7 @@ afterEach(() => {
 	cleanup();
 	window.localStorage.clear();
 	window.sessionStorage.clear();
+	window.history.replaceState(null, '', '/');
 });
 
 describe('useWebStorageState', () => {
@@ -38,11 +39,12 @@ describe('useWebStorageState', () => {
 		expect(window.localStorage.getItem('hanabi.debug_mode')).toBe('false');
 	});
 
-	test('uses namespaced keys when namespace is provided', () => {
-		render(<LocalHarness namespace='dbg-1' />);
+	test('adds the debug_id query param to the resolved storage key', () => {
+		window.history.replaceState(null, '', '/?debug_id=tab-2');
+		render(<LocalHarness />);
 		fireEvent.click(screen.getByTestId('local-toggle'));
 
-		expect(window.localStorage.getItem('hanabi.debug_mode.dbg-1')).toBe('true');
+		expect(window.localStorage.getItem('hanabi.debug_mode.dbg-tab-2')).toBe('true');
 		expect(window.localStorage.getItem('hanabi.debug_mode')).toBeNull();
 	});
 

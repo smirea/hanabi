@@ -29,9 +29,8 @@ export function useWebStorageState<K extends StorageKey>(
 	target: StorageTarget,
 	key: K,
 	initialValue: StorageValueByKey[K],
-	namespace: string | null = null,
 ): [StorageValueByKey[K], (next: SetStateAction<StorageValueByKey[K]>) => void] {
-	const storageKey = resolveStorageKey(key, namespace);
+	const storageKey = resolveStorageKey(key);
 	const [value, setValue] = useState<StorageValueByKey[K]>(() => readStoredValue(target, storageKey, initialValue));
 	const initialValueRef = useRef(initialValue);
 	initialValueRef.current = initialValue;

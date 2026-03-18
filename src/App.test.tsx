@@ -311,17 +311,17 @@ describe('App local debug wiring', () => {
 	});
 });
 
-describe('App session hash namespaces local storage', () => {
-	test('player name writes to the session namespace when #session_* is present', () => {
-		window.location.hash = '#session_123';
-		window.localStorage.setItem('hanabi.debug_mode.sess-session_123', 'false');
+describe('App debug_id query namespaces local storage', () => {
+	test('player name writes to the debug_id namespace when present', () => {
+		window.history.replaceState(null, '', '/?debug_id=tab-2');
+		window.localStorage.setItem('hanabi.debug_mode.dbg-tab-2', 'false');
 
 		render(<App roomCode={ROOM_CODE} />);
 
 		const input = screen.getByTestId('lobby-name-input') as HTMLInputElement;
 		fireEvent.change(input, { target: { value: 'Alice' } });
 
-		expect(window.localStorage.getItem('hanabi.player_name.sess-session_123')).toBe(JSON.stringify('Alice'));
+		expect(window.localStorage.getItem('hanabi.player_name.dbg-tab-2')).toBe(JSON.stringify('Alice'));
 		expect(window.localStorage.getItem('hanabi.player_name')).toBeNull();
 	});
 });

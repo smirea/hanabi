@@ -5,7 +5,7 @@ import { RouterProvider } from '@tanstack/react-router';
 import { router } from './router';
 import './index.css';
 import { storageKeys } from './utils/constants';
-import { createSessionNamespace, getSessionIdFromHash, resolveStorageKey } from './storage';
+import { resolveStorageKey } from './storage';
 
 const rootElement = document.getElementById('root');
 
@@ -15,10 +15,7 @@ if (!rootElement) {
 
 const isDarkMode = (() => {
 	try {
-		const hash = window.location.hash ?? '';
-		const sessionId = getSessionIdFromHash(hash);
-		const namespace = sessionId ? createSessionNamespace(sessionId) : null;
-		const raw = window.localStorage.getItem(resolveStorageKey(storageKeys.darkMode, namespace));
+		const raw = window.localStorage.getItem(resolveStorageKey(storageKeys.darkMode));
 		return raw !== null && JSON.parse(raw) === true;
 	} catch {
 		return false;

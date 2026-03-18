@@ -94,13 +94,11 @@ function GameClient({
 	isDarkMode,
 	onToggleDarkMode,
 	onLeaveRoom,
-	storageNamespace,
 }: {
 	roomId: string;
 	isDarkMode: boolean;
 	onToggleDarkMode: () => void;
 	onLeaveRoom: (() => void) | null;
-	storageNamespace: string | null;
 }) {
 	const gameRef = useRef<HanabiGame | null>(null);
 	if (!gameRef.current) {
@@ -124,32 +122,24 @@ function GameClient({
 		clearActionDraft,
 		clearHintDraft,
 	} = useTransientActionState();
-	const [isDebugMode, setIsDebugMode] = useWebStorageState(
-		'localStorage',
-		storageKeys.debugMode,
-		false,
-		storageNamespace,
-	);
-	const [playerName, setPlayerName] = useWebStorageState('localStorage', storageKeys.playerName, '', storageNamespace);
+	const [isDebugMode, setIsDebugMode] = useWebStorageState('localStorage', storageKeys.debugMode, false);
+	const [playerName, setPlayerName] = useWebStorageState('localStorage', storageKeys.playerName, '');
 	const [showNegativeColorHints, setShowNegativeColorHints] = useWebStorageState(
 		'localStorage',
 		storageKeys.negativeColorHints,
 		true,
-		storageNamespace,
 	);
 	const [showNegativeNumberHints, setShowNegativeNumberHints] = useWebStorageState(
 		'localStorage',
 		storageKeys.negativeNumberHints,
 		true,
-		storageNamespace,
 	);
 	const [turnSoundEnabled, setTurnSoundEnabled] = useWebStorageState(
 		'localStorage',
 		storageKeys.turnSoundEnabled,
 		true,
-		storageNamespace,
 	);
-	const [isTibiMode, setIsTibiMode] = useWebStorageState('localStorage', storageKeys.tibiMode, false, storageNamespace);
+	const [isTibiMode, setIsTibiMode] = useWebStorageState('localStorage', storageKeys.tibiMode, false);
 	const logListRef = useRef<HTMLDivElement | null>(null);
 	const logDrawerTokenRef = useRef(0);
 	const logDrawerCloseTimeoutRef = useRef<number | null>(null);
