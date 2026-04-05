@@ -247,7 +247,7 @@ function GameClient({
 			return;
 		}
 
-		if (normalizedDesiredName === base || normalizedDesiredName.startsWith(base)) {
+		if (normalizedDesiredName === base) {
 			setPlayerName(memberName);
 		}
 	}, [
