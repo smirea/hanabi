@@ -906,6 +906,7 @@ body {
 	border: 1px solid rgba(195, 205, 227, 0.92);
 	border-radius: 9px;
 	background: rgba(251, 253, 255, 0.94);
+	min-height: 2.28rem;
 	padding: 0.4rem 0.48rem;
 	display: flex;
 	align-items: center;
