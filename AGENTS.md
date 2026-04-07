@@ -16,29 +16,27 @@ See `project_animation.md` for what the various animations are and how they are 
 ## Networking
 
 - Use WebRTC data channels for multiplayer.
-- Use Trystero for no-infra signaling/rendezvous.
-- Host election is deterministic (lowest peer id).
-- Reconnection must resync from host snapshot.
-- `src/utils/networking.ts` is the transport utility. Keep it small and generic.
+- Use Trystero (MQTT transport) for no-infra signaling/rendezvous.
+- Host election is deterministic (lowest peer id) with ping-based failover.
+- Reconnection resyncs from host snapshot; the host broadcasts game state to joining peers automatically.
+- `src/utils/networking.ts` is the transport utility (single `Networking` class). Keep it small and generic.
 - The utility has two layers:
   - a global player presence room that persists a stable `player.id` plus `peerId`, `name`, and current `room`
   - a per-room game channel that keeps a host-owned state snapshot, applies optimistic follower actions, and elects host internally
-- The utility already handles stable player ids, room presence, lobby discovery, host election, and room rejoin on load. Do not move app-specific room logic into it unless there is a clear gap.
-- The app-level online implementation lives in `src/onlineRoom.ts` and `src/onlineRoomShared.ts`.
-- `src/onlineRoom.ts` owns the singleton networking instance, Valtio state exposed to the UI, room join/leave flow, simple lobby directory data, and cached in-progress room restore/reconnect behavior.
-- `src/onlineRoomShared.ts` owns the actual room reducer rules and selectors for the Hanabi room state: `{ phase, settings, gameState, spectatorIds }`.
+- The utility handles stable player ids, room presence, lobby discovery, host election, room rejoin on page reload, and disposal tracking (noops after `.leave()`). Do not move app-specific room logic into it unless there is a clear gap.
+- `src/onlineGame.ts` owns everything app-specific: the singleton networking instance, the room state reducer (`applyOnlineRoomAction`), selectors (`selectRoomViewState`, `selectRoomMembers`, `selectRoomDirectoryListings`), and room member/settings logic.
+- `src/utils/utils.ts` creates the `LS` (namespaced localStorage) and `useLocalStorage` hook via `createLocalStorage`. Scoped by `debug_id` for multi-instance testing.
+- `src/utils/createLocalStorage.ts` is the storage abstraction (copied from tick-tack-toe). All network player persistence goes through `LS.get('player')` / `LS.set({ player })`.
 - TV mode is room-local spectator state in `spectatorIds`, not player presence metadata.
 - The room directory is intentionally simple: show room code plus player names. Do not add extra complexity unless it is clearly needed.
-- Keep `src/utils/networking.ts` unchanged unless the app truly cannot be built around its existing API.
 
 ## Current Status
 
-- The legacy networking stack (`src/network*.ts`, `src/roomDirectory.ts`, old host-election helpers, and `src/debugNetwork.ts`) has been removed.
-- Real online play now goes through the `onlineRoom` store, while local debug mode remains separate.
-- `src/ui/game/GameClient.tsx` and `src/ui/LobbyDirectory.tsx` consume the Valtio-backed `onlineRoom` state directly.
-- Stable player ids are the Hanabi player ids used in online games.
-- Reconnect currently relies on cached room snapshots in `src/onlineRoom.ts` to restore in-progress games while the transport reconnects.
-- Real browser testing in this refactor covered create, join, start, action sync, follower reload recovery, and host reload recovery. Trystero/WebRTC may still emit noisy `RTCErrorEvent` logs during reloads.
+- The networking layer is a single `Networking` class in `src/utils/networking.ts` (ported from tick-tack-toe).
+- `src/ui/game/GameClient.tsx` and `src/ui/LobbyDirectory.tsx` consume Valtio-backed `networking.state` directly via `useSnapshot`.
+- Stable player ids (persisted in localStorage) are the Hanabi player ids used in online games.
+- Reconnect works by: player id restored from localStorage + room id from URL `?room=` param → auto-rejoin on page load → host broadcasts current game state to the rejoining peer.
+- Trystero/WebRTC may emit noisy `RTCErrorEvent` logs during reloads; this is expected.
 
 ## UI and State
 
@@ -49,19 +47,28 @@ See `project_animation.md` for what the various animations are and how they are 
 
 ## Testing Guidance
 
+- Run tests with `bun test`. Tests use `bun:test` (not vitest).
 - Add stable `data-testid` attributes to every interactive control and critical status field.
 - Test id format: `section-element` or `entity-id-index`.
-- Preferred lightweight UI testing stack: Vitest + Testing Library.
-- Add visual regression checks as screenshot tests for key mobile states once flows stabilize.
+- UI component tests use Testing Library.
+- Networking tests use a `FakeRoom`/`FakeContext` harness with manual time advancement (see `src/utils/networking.test.ts`).
 
-## Playwright Guidance
+## Manual Browser Testing
 
-- When using Playwright (CLI), always resize the viewport to a representative mobile portrait size before debugging flows.
-- Recommended default: `390x844` (common iPhone portrait).
-- Example (CLI): `pwcli resize 390 844`
-- DevTools “device toolbar” emulation is not reliably toggleable via Playwright CLI; prefer viewport sizing, and optionally set `isMobile/hasTouch/deviceScaleFactor` via a `playwright-cli.json` config when needed.
+To test multiplayer locally, open multiple tabs with different `?debug_id=N` query params. Each debug_id gets its own namespaced localStorage, so each tab acts as a separate player from the same browser session.
+
+1. Open `http://localhost:3000/?debug_id=1` — this is player 1
+2. Open `http://localhost:3000/?debug_id=2` — this is player 2
+3. Create a room from one tab, join it from the other via the lobby directory or by navigating to `/?room=XXXX&debug_id=2`
+4. Start the game from the host tab and play moves
+
+Key scenarios to verify:
+- Only the host sees the "Start Game" button and can change settings
+- Refreshing a player tab should auto-rejoin the room and restore game state
+- Closing the host tab should trigger host election on the remaining player(s)
+- WebRTC `RTCErrorEvent` console noise during reloads is expected and harmless
 
 ## Deployment
 
-- Local runtime uses `bun ./src/index.html` via `bun run start`.
-- Target deployment is static hosting on S3 at the end of implementation.
+- Dev server: `bun run dev` (port 3000).
+- Target deployment is static hosting on S3.
