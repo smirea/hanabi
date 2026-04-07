@@ -636,6 +636,7 @@ body {
 	justify-content: space-between;
 	gap: 0.42rem;
 	padding: 0 0.58rem;
+	cursor: pointer;
 }
 
 .lobby-config-divider {
@@ -1020,14 +1021,17 @@ body {
 	justify-content: space-between;
 	gap: 0.16rem;
 	padding: 0.45rem 0.58rem;
+	cursor: pointer;
 }
 
 .lobby-setting-toggle:disabled {
 	opacity: 0.5;
+	cursor: default;
 }
 
 .lobby-setting-toggle.readonly {
 	opacity: 0.78;
+	cursor: default;
 }
 
 .lobby-setting-text {
@@ -1159,6 +1163,7 @@ body {
 	font-family: inherit;
 	font-size: 0.66rem;
 	font-weight: 700;
+	cursor: pointer;
 }
 
 .lobby-button.subtle {
@@ -1175,6 +1180,7 @@ body {
 
 .lobby-button:disabled {
 	opacity: 0.42;
+	cursor: default;
 }
 
 .lobby-waiting {
