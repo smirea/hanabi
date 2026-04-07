@@ -9,8 +9,8 @@ export function withPersistentSearch(room?: string): AppSearch {
 			? undefined
 			: new URLSearchParams(window.location.search).get('debug_id')?.trim() || undefined;
 
-	return {
-		room,
-		debug_id: debugId,
-	};
+	const search: AppSearch = {};
+	if (room !== undefined) search.room = room;
+	if (debugId !== undefined) search.debug_id = debugId;
+	return search;
 }
