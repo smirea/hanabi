@@ -689,6 +689,7 @@ body {
 
 .room-directory-room-meta {
 	min-width: 0;
+	flex: 1;
 	display: grid;
 	gap: 0.14rem;
 }

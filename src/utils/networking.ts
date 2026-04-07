@@ -122,10 +122,19 @@ export default class Networking<
 					isHost: false,
 				};
 		const searchParams = new URLSearchParams(this.runtime.urlSearch);
-		if (searchParams.get('room')) self.room = searchParams.get('room') as any;
+		const urlRoom = searchParams.get('room');
+		if (urlRoom) self.room = `room:${urlRoom}` as RoomId;
 		this.updateSelf(self);
 		onPlayerUpdate((data, peerId) => {
 			this.state.players[peerId] = data;
+			if (
+				data.isHost &&
+				this.state.self.isHost &&
+				data.room === this.state.self.room &&
+				peerId < this.runtime.ownPeerId
+			) {
+				this.updateSelf({ isHost: false });
+			}
 		});
 		this.playerRoom.onPeerJoin(peerId =>
 			this.sendPlayerUpdate(snapshot(this.state.self), [peerId]),
@@ -139,6 +148,12 @@ export default class Networking<
 		if (!this.gameRoom) return null;
 		const candidates = [...this.gameRoom.getPeerIds(), this.runtime.ownPeerId];
 		return Object.values(this.state.players).find(p => p.isHost && candidates.includes(p.peerId));
+	}
+
+	private hasKnownHostInRoom() {
+		return Object.values(this.state.players).some(
+			p => p.isHost && p.room === this.state.self.room,
+		);
 	}
 
 	updateSelf(diff: Partial<NetworkPlayer>) {
@@ -201,19 +216,21 @@ export default class Networking<
 			if (this.state.self.isHost) this.sendHostUpdate([peerId]);
 		});
 		this.gameRoom.onPeerLeave(peerId => {
-			if (peerId !== this.getGameRoomHost()?.peerId) return;
+			const wasHost = this.state.players[peerId]?.isHost;
+			if (!wasHost) return;
 			if (this.state.players[peerId]) this.state.players[peerId].isHost = false;
 			void this.runHostElection();
 		});
 		this.hostElectionTimeout = this.runtime.setTimeout(
 			() => {
-				if (!this.getGameRoomHost()) void this.runHostElection();
+				if (!this.getGameRoomHost() && !this.hasKnownHostInRoom()) void this.runHostElection();
 			},
 			(create ? 500 : 2000) + Math.round(this.runtime.random() * 100),
 		);
 	}
 
 	leaveGameRoom() {
+		if (this.hostElectionTimeout) this.runtime.clearTimeout(this.hostElectionTimeout);
 		this.state.location = 'lobby';
 		this.updateSelf({ room: null, isHost: false });
 		this.gameRoom?.leave();
@@ -257,7 +274,7 @@ export default class Networking<
 	}
 
 	private async runHostElection() {
-		if (!this.gameRoom) throw new Error('not in a game room');
+		if (!this.gameRoom) return;
 		const candidates = this.gameRoom.getPeerIds();
 		console.log(candidates);
 		candidates.push(this.runtime.ownPeerId);
@@ -276,6 +293,7 @@ export default class Networking<
 			}
 			try {
 				await promiseTimeout(1000, this.gameRoom.ping(peerId), this.runtime);
+				if (this.state.self.isHost) this.updateSelf({ isHost: false });
 				break;
 			} catch {}
 		}

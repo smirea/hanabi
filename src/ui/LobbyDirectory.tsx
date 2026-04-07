@@ -132,7 +132,7 @@ export function LobbyDirectory() {
 										</div>
 										<button
 											type='button'
-											className='lobby-button'
+											className='lobby-button subtle'
 											onClick={() => {
 												void navigate({
 													to: '/',
