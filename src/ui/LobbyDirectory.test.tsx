@@ -15,9 +15,9 @@ void mock.module('valtio/react', () => ({
 
 void mock.module('../onlineGame', () => ({
 	getOnlineNetworking: () => ({
-		playerRoom: { state: {} },
-		lobbies: {},
-		leaveRoom: leaveRoomMock,
+		state: {},
+		rooms: {},
+		leaveGameRoom: leaveRoomMock,
 	}),
 	selectRoomDirectoryListings: () => [],
 }));

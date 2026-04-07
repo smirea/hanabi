@@ -1,23 +1,6 @@
 import type { CardNumber, HanabiState, PlayerId as GamePlayerId, Suit } from '../game';
 import { storageKeys } from './constants';
 
-export type NetworkPeerId = string & { __brand: 'TrysteroPeerId' };
-export type NetworkPlayerId = `player:${string}` & { __brand: 'PlayerId' };
-export type NetworkRoomId = `room:${string}` & { __brand: 'RoomId' };
-
-export interface NetworkPlayer {
-	id: NetworkPlayerId;
-	peerId: NetworkPeerId;
-	name: string;
-	room: NetworkRoomId | null;
-}
-
-export interface NetworkingRoomSnapshot<GameState> {
-	v: number;
-	host: NetworkPeerId | null;
-	game: GameState;
-}
-
 export interface LobbySettings {
 	includeMulticolor: boolean;
 	multicolorShortDeck: boolean;
@@ -34,6 +17,7 @@ export type GameAction =
 	| { type: 'hint-number'; actorId: GamePlayerId; targetPlayerId: GamePlayerId; number: CardNumber };
 
 export interface OnlineRoomState {
+	v: number;
 	phase: RoomPhase;
 	settings: LobbySettings;
 	gameState: HanabiState | null;

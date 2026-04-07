@@ -8,6 +8,7 @@ void mock.module('trystero/mqtt', () => ({
 		onPeerJoin: () => {},
 		onPeerLeave: () => {},
 		makeAction: () => [async () => {}, () => {}, () => {}] as const,
+		getPeers: () => ({}),
 		ping: async () => 1,
 		leave: async () => {},
 	}),

@@ -146,14 +146,13 @@ function GameClient({
 
 	const isLocalDebugMode = isDebugMode;
 	const onlineNetworking = getOnlineNetworking();
-	const onlinePlayerSnapshot = useSnapshot(onlineNetworking.playerRoom.state);
-	const onlineNetworkingSnapshot = useSnapshot(onlineNetworking.state);
+	const onlineStateSnapshot = useSnapshot(onlineNetworking.state);
 	const connectionState = useMemo(
 		() => (isLocalDebugMode ? DISCONNECTED_ROOM_VIEW_STATE : selectRoomViewState(onlineNetworking)),
-		[isLocalDebugMode, onlineNetworking, onlineNetworkingSnapshot, onlinePlayerSnapshot],
+		[isLocalDebugMode, onlineNetworking, onlineStateSnapshot],
 	);
 	const leaveOnlineRoom = useCallback(() => {
-		onlineNetworking.leaveRoom();
+		onlineNetworking.leaveGameRoom();
 		onLeaveRoom?.();
 	}, [onLeaveRoom, onlineNetworking]);
 
@@ -163,13 +162,13 @@ function GameClient({
 		}
 
 		const targetRoomId = `room:${roomId}` as RoomId;
-		if (onlineNetworking.gameRoom?.roomId === targetRoomId) {
+		if (onlineNetworking.state.self.room === targetRoomId) {
 			return;
 		}
 
-		onlineNetworking.joinRoom({
+		onlineNetworking.joinGameRoom({
 			roomId: targetRoomId,
-			isHost: false,
+			create: false,
 		});
 	}, [isLocalDebugMode, onlineNetworking, roomId]);
 
@@ -187,14 +186,14 @@ function GameClient({
 				return;
 			}
 
-			const self = onlineNetworking.playerRoom.state.self;
+			const self = onlineNetworking.state.self;
 			const fallbackName = `Player ${self.id.slice(-4).toUpperCase()}`;
 			const nextName = sanitizePlayerName(playerName) ?? fallbackName;
 			if (self.name === nextName) {
 				return;
 			}
 
-			onlineNetworking.playerRoom.updateSelf({ name: nextName });
+			onlineNetworking.updateSelf({ name: nextName });
 		}, 220);
 
 		return () => {
@@ -843,13 +842,13 @@ function GameClient({
 	}
 
 	function toggleOnlineSpectator(next?: boolean): void {
-		if (!connectionState.selfPlayerId || !onlineNetworking.gameRoom) {
+		if (!connectionState.selfPlayerId || !onlineNetworking.state.self.room) {
 			return;
 		}
 
 		const current = connectionState.members.find(member => member.id === connectionState.selfPlayerId)?.isTv ?? false;
 		const spectator = next ?? !current;
-		onlineNetworking.gameRoom.act({
+		onlineNetworking.act({
 			type: 'set-spectator',
 			actorId: connectionState.selfPlayerId,
 			spectator,
@@ -857,11 +856,11 @@ function GameClient({
 	}
 
 	function updateOnlineSettings(next: Partial<LobbySettings>): void {
-		if (!connectionState.selfPlayerId || !onlineNetworking.gameRoom) {
+		if (!connectionState.selfPlayerId || !onlineNetworking.state.self.room) {
 			return;
 		}
 
-		onlineNetworking.gameRoom.act({
+		onlineNetworking.act({
 			type: 'set-settings',
 			actorId: connectionState.selfPlayerId,
 			next,
@@ -869,22 +868,22 @@ function GameClient({
 	}
 
 	function startOnlineGame(): void {
-		if (!connectionState.selfPlayerId || !onlineNetworking.gameRoom) {
+		if (!connectionState.selfPlayerId || !onlineNetworking.state.self.room) {
 			return;
 		}
 
-		onlineNetworking.gameRoom.act({
+		onlineNetworking.act({
 			type: 'start-game',
 			actorId: connectionState.selfPlayerId,
 		});
 	}
 
 	function sendOnlineGameAction(action: GameAction): void {
-		if (!onlineNetworking.gameRoom) {
+		if (!onlineNetworking.state.self.room) {
 			return;
 		}
 
-		onlineNetworking.gameRoom.act({
+		onlineNetworking.act({
 			type: 'game-action',
 			actorId: action.actorId,
 			action,

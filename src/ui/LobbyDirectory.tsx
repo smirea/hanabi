@@ -8,10 +8,10 @@ import { createRoomCode, parseRoomCode } from '../roomCodes';
 export function LobbyDirectory() {
 	const navigate = useNavigate();
 	const onlineNetworking = getOnlineNetworking();
-	const presenceSnapshot = useSnapshot(onlineNetworking.playerRoom.state);
+	const stateSnapshot = useSnapshot(onlineNetworking.state);
 	const directory = useMemo(
-		() => selectRoomDirectoryListings(onlineNetworking.lobbies),
-		[onlineNetworking, presenceSnapshot],
+		() => selectRoomDirectoryListings(onlineNetworking.rooms),
+		[onlineNetworking, stateSnapshot],
 	);
 	const [joinInput, setJoinInput] = useState('');
 	const currentHash = typeof window === 'undefined' ? '' : window.location.hash.replace(/^#/, '');
@@ -19,7 +19,7 @@ export function LobbyDirectory() {
 	const visiblePlayers = directory.reduce((count, room) => count + (room.players?.length ?? 0), 0);
 
 	useEffect(() => {
-		onlineNetworking.leaveRoom();
+		onlineNetworking.leaveGameRoom();
 	}, [onlineNetworking]);
 
 	return (

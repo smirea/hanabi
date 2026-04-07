@@ -3,12 +3,14 @@ import { describe, expect, test } from 'bun:test';
 import Networking, {
 	createNetworkingRuntime,
 	type NetworkingRuntime,
+	type NetworkPlayer,
 	type PeerId,
 	type PlayerId,
 	type RoomId,
 } from './networking';
 
 type TestGameState = {
+	v: number;
 	total: number;
 	history: string[];
 };
@@ -29,12 +31,13 @@ type PendingMessage = {
 
 function createGameState(): TestGameState {
 	return {
+		v: 0,
 		total: 0,
 		history: [],
 	};
 }
 
-function applyAction(state: TestGameState, action: TestGameAction) {
+function gameReducer(state: TestGameState, action: TestGameAction) {
 	state.total += action.amount;
 	state.history.push(action.label);
 }
@@ -43,15 +46,19 @@ function clone<T>(value: T): T {
 	return JSON.parse(JSON.stringify(value)) as T;
 }
 
-class MemoryStorage implements Pick<Storage, 'getItem' | 'setItem'> {
-	private readonly values = new Map<string, string>();
+class MemoryStorage {
+	private player: NetworkPlayer | null = null;
 
-	getItem(key: string) {
-		return this.values.get(key) ?? null;
+	get() {
+		return this.player;
 	}
 
-	setItem(key: string, value: string) {
-		this.values.set(key, value);
+	set(player: NetworkPlayer) {
+		this.player = clone(player);
+	}
+
+	seed(player: NetworkPlayer) {
+		this.player = clone(player);
 	}
 }
 
@@ -143,6 +150,15 @@ class FakeRoom {
 		return this.network.ping(this.roomId, this.peerId, peerId);
 	}
 
+	getPeers() {
+		return {};
+	}
+
+	getPeerIds() {
+		const peers = this.network.getRoomPeers(this.roomId);
+		return peers.filter(id => id !== this.peerId);
+	}
+
 	leave() {
 		this.network.leave(this.roomId, this.peerId);
 		return Promise.resolve();
@@ -182,6 +198,12 @@ class FakeTrystero {
 			existing.notifyJoin(peerId);
 		}
 		return room;
+	}
+
+	getRoomPeers(roomId: string): PeerId[] {
+		const peers = this.rooms.get(roomId);
+		if (!peers) return [];
+		return [...peers.keys()];
 	}
 
 	queue({
@@ -288,20 +310,18 @@ function createPeer(
 	},
 ) {
 	const storage = new MemoryStorage();
-	storage.setItem(
-		'networking:player',
-		JSON.stringify({
-			id: playerId,
-			peerId,
-			name,
-			room: roomId,
-		}),
-	);
+	storage.seed({
+		id: playerId,
+		peerId,
+		name,
+		room: roomId,
+		isHost: false,
+	});
 	const runtime: Partial<NetworkingRuntime> = createNetworkingRuntime({
-		selfId: peerId,
-		joinRoom: ((app, room) => context.transport.joinRoom(peerId, room) as any) as NetworkingRuntime['joinRoom'],
+		ownPeerId: peerId,
+		joinRoom: ((app: any, room: string) => context.transport.joinRoom(peerId, room) as any) as NetworkingRuntime['joinRoom'],
 		storage,
-		locationSearch: '',
+		urlSearch: '',
 		now: () => context.scheduler.now,
 		random: () => 0,
 		setTimeout: context.scheduler.setTimeout,
@@ -314,7 +334,7 @@ function createPeer(
 			{
 				appId: APP_ID,
 				getNewGameState: createGameState,
-				applyAction,
+				gameReducer,
 			},
 			runtime,
 		),
@@ -338,8 +358,12 @@ async function advance(context: TestContext, ms: number) {
 	}
 }
 
+function findPlayerById(networking: Networking<TestGameState, TestGameAction>, playerId: PlayerId) {
+	return Object.values(networking.state.players).find(p => p.id === playerId);
+}
+
 describe('networking', () => {
-	test('rehydrates persisted room membership and publishes it through presence lobbies', async () => {
+	test('rehydrates persisted room membership and publishes it through presence rooms', async () => {
 		const context = createContext();
 		const alex = createPeer(context, {
 			peerId: 'peer-alex' as PeerId,
@@ -355,9 +379,9 @@ describe('networking', () => {
 
 		await flushNetwork(context);
 
-		expect(alex.networking.gameRoom?.roomId).toBe(ALPHA);
-		expect(blair.networking.playerRoom.getById(alex.playerId)?.room).toBe(ALPHA);
-		expect(blair.networking.lobbies).toEqual([
+		expect(alex.networking.state.self.room).toBe(ALPHA);
+		expect(findPlayerById(blair.networking, alex.playerId)?.room).toBe(ALPHA);
+		expect(blair.networking.rooms).toEqual([
 			{
 				id: ALPHA,
 				players: [expect.objectContaining({ id: alex.playerId, name: 'Alex' })],
@@ -387,20 +411,14 @@ describe('networking', () => {
 		});
 
 		await flushNetwork(context);
-		await advance(context, 500);
+		await advance(context, 2100);
 
-		expect(hostCandidate.networking.state.gameRoom.host).toBe(hostCandidate.peerId);
-		expect(hostCandidate.networking.state.gameRoom.v).toBe(1);
-		expect(second.networking.state.gameRoom).toMatchObject({
-			host: hostCandidate.peerId,
-			ready: true,
-			v: 1,
-		});
-		expect(third.networking.state.gameRoom).toMatchObject({
-			host: hostCandidate.peerId,
-			ready: true,
-			v: 1,
-		});
+		expect(hostCandidate.networking.getGameRoomHost()?.peerId).toBe(hostCandidate.peerId);
+		expect(hostCandidate.networking.state.game.v).toBe(1);
+		expect(second.networking.state.gameReady).toBeTrue();
+		expect(second.networking.state.game.v).toBe(1);
+		expect(third.networking.state.gameReady).toBeTrue();
+		expect(third.networking.state.game.v).toBe(1);
 	});
 
 	test('reconciles optimistic follower actions and ignores stale snapshots that arrive later', async () => {
@@ -417,43 +435,40 @@ describe('networking', () => {
 		});
 
 		await flushNetwork(context);
-		alex.networking.joinRoom({ roomId: ALPHA, isHost: true });
-		blair.networking.joinRoom({ roomId: ALPHA, isHost: false });
+		alex.networking.joinGameRoom({ roomId: ALPHA, create: false });
+		blair.networking.joinGameRoom({ roomId: ALPHA, create: false });
 		await flushNetwork(context);
+		await advance(context, 2100);
+
+		const hostPeerId = alex.networking.getGameRoomHost()!.peerId;
+		expect(hostPeerId).toBe(alex.peerId);
+		const initialVersion = alex.networking.state.game.v;
 
 		const staleSnapshot = {
-			v: 1,
-			host: alex.peerId,
-			game: createGameState(),
+			v: initialVersion,
+			total: 0,
+			history: [] as string[],
 		};
 
-		blair.networking.gameRoom?.act({
+		blair.networking.act({
 			type: 'add',
 			amount: 3,
 			label: 'optimistic',
 		});
 
-		expect(blair.networking.state.gameRoom.game).toEqual({
-			total: 3,
-			history: ['optimistic'],
-		});
-		expect(blair.networking.state.gameRoom.v).toBe(1.0001);
+		expect(blair.networking.state.game.total).toBe(3);
+		expect(blair.networking.state.game.history).toEqual(['optimistic']);
 
 		await flushNetwork(context);
 
-		expect(alex.networking.state.gameRoom.host).toBe(alex.peerId);
-		expect(alex.networking.state.gameRoom.v).toBe(2);
-		expect(alex.networking.state.gameRoom.game).toEqual({
-			total: 3,
-			history: ['optimistic'],
-		});
-		expect(blair.networking.state.gameRoom.host).toBe(alex.peerId);
-		expect(blair.networking.state.gameRoom.ready).toBeTrue();
-		expect(blair.networking.state.gameRoom.v).toBe(2);
-		expect(blair.networking.state.gameRoom.game).toEqual({
-			total: 3,
-			history: ['optimistic'],
-		});
+		expect(alex.networking.state.self.isHost).toBeTrue();
+		expect(alex.networking.state.game.v).toBe(initialVersion + 1);
+		expect(alex.networking.state.game.total).toBe(3);
+		expect(alex.networking.state.game.history).toEqual(['optimistic']);
+		expect(blair.networking.state.gameReady).toBeTrue();
+		expect(blair.networking.state.game.v).toBe(initialVersion + 1);
+		expect(blair.networking.state.game.total).toBe(3);
+		expect(blair.networking.state.game.history).toEqual(['optimistic']);
 
 		context.transport.inject({
 			roomId: ALPHA,
@@ -464,16 +479,13 @@ describe('networking', () => {
 		});
 		await flushNetwork(context);
 
-		expect(blair.networking.state.gameRoom.host).toBe(alex.peerId);
-		expect(blair.networking.state.gameRoom.ready).toBeTrue();
-		expect(blair.networking.state.gameRoom.v).toBe(2);
-		expect(blair.networking.state.gameRoom.game).toEqual({
-			total: 3,
-			history: ['optimistic'],
-		});
+		expect(blair.networking.state.gameReady).toBeTrue();
+		expect(blair.networking.state.game.v).toBe(initialVersion + 1);
+		expect(blair.networking.state.game.total).toBe(3);
+		expect(blair.networking.state.game.history).toEqual(['optimistic']);
 	});
 
-	test('skips stale presence candidates during host election when the old host disappears first', async () => {
+	test('leaveGameRoom resets state and removes self from the room', async () => {
 		const context = createContext();
 		const alex = createPeer(context, {
 			peerId: 'peer-a' as PeerId,
@@ -485,26 +497,22 @@ describe('networking', () => {
 			playerId: 'player:2' as PlayerId,
 			name: 'Blair',
 		});
-		const casey = createPeer(context, {
-			peerId: 'peer-c' as PeerId,
-			playerId: 'player:3' as PlayerId,
-			name: 'Casey',
-		});
 
 		await flushNetwork(context);
-		alex.networking.joinRoom({ roomId: ALPHA, isHost: true });
-		blair.networking.joinRoom({ roomId: ALPHA, isHost: false });
-		casey.networking.joinRoom({ roomId: ALPHA, isHost: false });
+		alex.networking.joinGameRoom({ roomId: ALPHA, create: false });
+		blair.networking.joinGameRoom({ roomId: ALPHA, create: false });
+		await flushNetwork(context);
+		await advance(context, 2100);
+
+		expect(alex.networking.state.self.room).toBe(ALPHA);
+		expect(alex.networking.state.gameReady).toBeTrue();
+
+		alex.networking.leaveGameRoom();
 		await flushNetwork(context);
 
-		blair.networking.gameRoom?.leave();
-		blair.networking.gameRoom = null;
-		alex.networking.leaveRoom();
-
-		await advance(context, 2000);
-
-		expect(casey.networking.state.gameRoom.host).toBe(casey.peerId);
-		expect(casey.networking.state.gameRoom.game).toEqual(createGameState());
-		expect(casey.networking.state.gameRoom.v).toBeGreaterThanOrEqual(2);
+		expect(alex.networking.state.self.room).toBeNull();
+		expect(alex.networking.state.gameReady).toBeFalse();
+		expect(alex.networking.state.location).toBe('lobby');
+		expect(findPlayerById(blair.networking, alex.playerId)?.room).toBeNull();
 	});
 });
