@@ -20,6 +20,36 @@ void mock.module('trystero/mqtt', () => ({
 	}),
 }));
 
+void mock.module('valtio/react', () => ({
+	useSnapshot: <T,>(value: T) => value,
+}));
+
+void mock.module('../onlineGame', () => ({
+	getOnlineNetworking: () => ({
+		state: { self: { name: '', room: null, isHost: false }, players: {}, gameReady: false, game: { v: 0 } },
+		rooms: [],
+		joinGameRoom: () => {},
+		leaveGameRoom: () => {},
+		updateSelf: () => {},
+		getGameRoomHost: () => null,
+		act: () => {},
+	}),
+	selectRoomViewState: () => ({
+		status: 'connected',
+		selfId: 'peer-test',
+		selfPlayerId: 'player:1',
+		hostId: null,
+		isHost: false,
+		snapshotVersion: 0,
+		phase: 'lobby',
+		members: [{ id: 'player:1', peerId: 'peer-test', name: 'unnamed', isTv: false }],
+		settings: { includeMulticolor: false, multicolorShortDeck: false, multicolorWildHints: false, endlessMode: false },
+		gameState: null,
+	}),
+	sanitizePlayerName: (v: string) => v.trim() || null,
+	cloneLobbySettings: () => ({ includeMulticolor: false, multicolorShortDeck: false, multicolorWildHints: false, endlessMode: false }),
+}));
+
 import { RoomScreen } from './RoomScreen';
 
 describe('RoomScreen', () => {
