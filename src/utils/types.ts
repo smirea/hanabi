@@ -77,6 +77,7 @@ export interface StorageValueByKey {
 	negative_number_hints: boolean;
 	turn_sound_enabled: boolean;
 	tibi_mode: boolean;
+	tv_mode: boolean;
 }
 
 export type DebugScreenName = 'win' | 'lose' | 'game';

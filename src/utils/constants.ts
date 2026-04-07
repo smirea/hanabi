@@ -23,6 +23,7 @@ export const storageKeys = {
 	negativeNumberHints: 'negative_number_hints',
 	turnSoundEnabled: 'turn_sound_enabled',
 	tibiMode: 'tibi_mode',
+	tvMode: 'tv_mode',
 } as const;
 
 export const suitColors: Record<Suit, string> = {

@@ -140,6 +140,7 @@ function GameClient({
 		true,
 	);
 	const [isTibiMode, setIsTibiMode] = useWebStorageState('localStorage', storageKeys.tibiMode, false);
+	const [storedTvMode, setStoredTvMode] = useWebStorageState('localStorage', storageKeys.tvMode, false);
 	const logListRef = useRef<HTMLDivElement | null>(null);
 	const logDrawerTokenRef = useRef(0);
 	const logDrawerCloseTimeoutRef = useRef<number | null>(null);
@@ -257,6 +258,26 @@ function GameClient({
 		playerName,
 		setPlayerName,
 	]);
+
+	useEffect(() => {
+		if (
+			isLocalDebugMode ||
+			!storedTvMode ||
+			!connectionState.selfPlayerId ||
+			!onlineNetworking.state.self.room ||
+			!onlineNetworking.state.gameReady
+		) {
+			return;
+		}
+		if (connectionState.phase !== 'lobby') {
+			return;
+		}
+		const current = connectionState.members.find(member => member.id === connectionState.selfPlayerId)?.isTv ?? false;
+		if (current !== storedTvMode) {
+			toggleOnlineSpectator(storedTvMode);
+		}
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [connectionState.selfPlayerId, onlineStateSnapshot]);
 
 	const onlineGameState = useMemo(() => {
 		if (!connectionState.gameState) {
@@ -848,6 +869,7 @@ function GameClient({
 
 		const current = connectionState.members.find(member => member.id === connectionState.selfPlayerId)?.isTv ?? false;
 		const spectator = next ?? !current;
+		setStoredTvMode(spectator);
 		onlineNetworking.act({
 			type: 'set-spectator',
 			actorId: connectionState.selfPlayerId,

@@ -267,7 +267,6 @@ describe('App local debug wiring', () => {
 		render(<App roomCode={ROOM_CODE} />);
 
 		expect(screen.getByTestId('lobby-root')).toBeInTheDocument();
-		expect(screen.getByTestId('lobby-name-input')).toBeInTheDocument();
 		expect(screen.getByTestId('lobby-waiting-host')).toBeInTheDocument();
 		expect(screen.queryByTestId('lobby-start')).not.toBeInTheDocument();
 	});
@@ -288,17 +287,11 @@ describe('App local debug wiring', () => {
 		});
 	});
 
-	test('staging lobby player name persists in local storage', () => {
+	test('staging lobby room code is visible', () => {
 		window.localStorage.setItem('hanabi.debug_mode', 'false');
 		render(<App roomCode={ROOM_CODE} />);
 
-		const input = screen.getByTestId('lobby-name-input') as HTMLInputElement;
-		fireEvent.change(input, { target: { value: 'Stefan' } });
-		expect(window.localStorage.getItem('hanabi.player_name')).toBe(JSON.stringify('Stefan'));
-
-		cleanup();
-		render(<App roomCode={ROOM_CODE} />);
-		expect(screen.getByTestId('lobby-name-input')).toHaveValue('Stefan');
+		expect(screen.getByTestId('lobby-room-code')).toHaveTextContent(ROOM_CODE);
 	});
 
 	test('staging lobby room follows the explicit room code prop', () => {
@@ -313,17 +306,14 @@ describe('App local debug wiring', () => {
 });
 
 describe('App debug_id query namespaces local storage', () => {
-	test('player name writes to the debug_id namespace when present', () => {
+	test('debug_id namespace is used for debug mode storage', () => {
 		window.history.replaceState(null, '', '/?debug_id=tab-2');
 		window.localStorage.setItem('hanabi.debug_mode.dbg-tab-2', 'false');
 
 		render(<App roomCode={ROOM_CODE} />);
 
-		const input = screen.getByTestId('lobby-name-input') as HTMLInputElement;
-		fireEvent.change(input, { target: { value: 'Alice' } });
-
-		expect(window.localStorage.getItem('hanabi.player_name.dbg-tab-2')).toBe(JSON.stringify('Alice'));
-		expect(window.localStorage.getItem('hanabi.player_name')).toBeNull();
+		expect(screen.getByTestId('lobby-root')).toBeInTheDocument();
+		expect(screen.getByTestId('lobby-room-code')).toHaveTextContent(ROOM_CODE);
 	});
 });
 

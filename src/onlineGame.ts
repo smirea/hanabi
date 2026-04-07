@@ -160,12 +160,17 @@ export function selectRoomViewState(networking: OnlineNetworking): RoomViewState
 	const hasRoomState = Boolean(roomId && (gameReady || self.isHost));
 	const roomState = hasRoomState ? game : null;
 	const host = roomId ? networking.getGameRoomHost() : null;
+	const hostPeerId = host?.peerId
+		?? (roomId
+			? Object.values(players).find(p => p.isHost && p.room === roomId)?.peerId
+			: null)
+		?? null;
 
 	return {
 		status: roomId ? (hasRoomState ? 'connected' : 'connecting') : 'idle',
 		selfId: self.peerId ?? null,
 		selfPlayerId: self.id ?? null,
-		hostId: host?.peerId ?? null,
+		hostId: hostPeerId,
 		isHost: roomId ? self.isHost : false,
 		snapshotVersion: hasRoomState ? game.v : 0,
 		phase: roomState?.phase ?? 'lobby',

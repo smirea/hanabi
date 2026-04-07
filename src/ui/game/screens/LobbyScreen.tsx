@@ -1,4 +1,4 @@
-import { GearSix, Moon, Sun } from '@phosphor-icons/react';
+import { Moon, SignOut, Sun } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import { MAX_PLAYER_NAME_LENGTH } from '../../../utils/constants';
 import type { LobbySettings, RoomMemberView } from '../../../utils/types';
@@ -50,13 +50,8 @@ export function LobbyScreen({
 	const host = effectiveMembers.find(member => member.peerId === hostId) ?? null;
 	const canStart = phase === 'lobby' && seatedCount >= 2 && seatedCount <= 5;
 	const playerCountError = seatedCount > 5 ? 'Max 5 players' : seatedCount < 2 ? 'Need at least 2 players' : null;
-	const handSize = seatedCount <= 3 ? 5 : 4;
-	const deckSize = 50 + (settings.includeMulticolor ? 5 : 0);
-	const maxScore = (settings.includeMulticolor ? 6 : 5) * 5;
-	const defaultNamePlaceholder = selfId ? `Player ${selfId.slice(-4).toUpperCase()}` : 'Player';
 	const [isConfigMenuOpen, setIsConfigMenuOpen] = useState(false);
 	const configMenuRef = useRef<HTMLDivElement | null>(null);
-	const hasDebugActions = Boolean(onEnableDebugMode);
 
 	useEffect(() => {
 		if (!isConfigMenuOpen) {
@@ -123,38 +118,57 @@ export function LobbyScreen({
 		<main className='app lobby-app' data-testid='lobby-root'>
 			<section className='lobby-shell-body lobby-shell-body-full'>
 				<section className='lobby-card'>
-					<div className='lobby-summary'>
-						<div className='lobby-identity-grid' data-testid='lobby-identity-grid'>
-							<div className='lobby-identity-field'>
-								<label className='lobby-identity-label' htmlFor='lobby-name-input'>
-									Name
-								</label>
-								<input
-									id='lobby-name-input'
-									className='lobby-name-input'
-									value={selfName}
-									onChange={event => onSelfNameChange(event.target.value)}
-									placeholder={defaultNamePlaceholder}
-									maxLength={MAX_PLAYER_NAME_LENGTH}
-									autoComplete='nickname'
-									spellCheck={false}
-									data-testid='lobby-name-input'
-								/>
-							</div>
-							<div className='lobby-identity-field'>
-								<span className='lobby-identity-label'>Room</span>
-								<p className='lobby-room-code' data-testid='lobby-room-code'>
-									{roomId}
-								</p>
-							</div>
-						</div>
-
-						{isGameInProgress && (
-							<p className='lobby-note warning' data-testid='lobby-game-progress'>
-								Game in progress. You will join next round from this room.
-							</p>
+					<div className='lobby-topbar'>
+						{onLeaveRoom ? (
+							<button
+								type='button'
+								className='lobby-leave-btn'
+								onClick={onLeaveRoom}
+								data-testid='lobby-leave-room'
+							>
+								<SignOut size={14} weight='bold' aria-hidden />
+								Leave
+							</button>
+						) : (
+							<span />
 						)}
+						<p className='lobby-topbar-code' data-testid='lobby-room-code'>
+							{roomId}
+						</p>
 					</div>
+
+					<div className='lobby-info-row'>
+						<label className='lobby-info-row-label' htmlFor='lobby-name-input'>Name</label>
+						<input
+							id='lobby-name-input'
+							className='lobby-name-input'
+							value={selfName}
+							onChange={e => onSelfNameChange(e.target.value)}
+							placeholder='Judy Hopps'
+							maxLength={MAX_PLAYER_NAME_LENGTH}
+							autoComplete='nickname'
+							spellCheck={false}
+							data-testid='lobby-name-input'
+						/>
+						<label className='lobby-tv-switch' data-testid='lobby-tv-toggle'>
+							<input
+								type='checkbox'
+								className='lobby-tv-switch-input'
+								checked={selfIsTv}
+								onChange={e => onSelfIsTvChange(e.target.checked)}
+							/>
+							<span className='lobby-tv-switch-track'>
+								<span className='lobby-tv-switch-thumb' />
+							</span>
+							<span className='lobby-tv-switch-label'>TV</span>
+						</label>
+					</div>
+
+					{isGameInProgress && (
+						<p className='lobby-note warning' data-testid='lobby-game-progress'>
+							Game in progress. You will join next round from this room.
+						</p>
+					)}
 
 					<section className='lobby-players'>
 						<h2 className='lobby-section-title'>
@@ -167,24 +181,10 @@ export function LobbyScreen({
 									className={`lobby-player${member.peerId === selfId ? ' self' : ''}`}
 									data-testid={`lobby-player-${member.peerId}`}
 								>
-									<div>
-										<div className='lobby-player-name'>{member.name}</div>
-									</div>
+									<div className='lobby-player-name'>{member.name}</div>
 									<div className='lobby-chip-row'>
 										{member.peerId === hostId && <span className='lobby-chip host'>Host</span>}
-										{member.isTv && member.peerId !== selfId && <span className='lobby-chip tv'>TV</span>}
-										{member.peerId === selfId && (
-											<button
-												type='button'
-												className={`lobby-tv-toggle ${selfIsTv ? 'on' : 'off'}`}
-												onClick={() => onSelfIsTvChange(!selfIsTv)}
-												aria-pressed={selfIsTv}
-												aria-label={selfIsTv ? 'Disable TV mode' : 'Enable TV mode'}
-												data-testid='lobby-tv-toggle'
-											>
-												TV
-											</button>
-										)}
+										{member.isTv && <span className='lobby-chip lobby-chip-tv'>TV</span>}
 									</div>
 								</article>
 							))}
@@ -225,11 +225,6 @@ export function LobbyScreen({
 								))}
 							</div>
 						)}
-						<ul className='lobby-settings-list' data-testid='lobby-settings-derived'>
-							<li>Hand size: {handSize}</li>
-							<li>Deck size: {deckSize}</li>
-							<li>Max score: {maxScore}</li>
-						</ul>
 					</section>
 
 					{playerCountError && isHost && phase === 'lobby' && (
@@ -240,43 +235,37 @@ export function LobbyScreen({
 
 					<section className='lobby-actions'>
 						<div className='lobby-config-menu lobby-actions-config' ref={configMenuRef}>
-							<button
-								type='button'
-								className='lobby-button subtle lobby-config-toggle'
-								aria-haspopup='menu'
-								aria-expanded={isConfigMenuOpen}
-								aria-label='Open lobby settings'
-								onClick={() => setIsConfigMenuOpen(open => !open)}
-								data-testid='lobby-config-toggle'
-							>
-								<GearSix size={16} weight='bold' aria-hidden />
-							</button>
-							{isConfigMenuOpen && (
-								<div className='lobby-config-dropdown' role='menu' data-testid='lobby-config-dropdown'>
-									{onLeaveRoom && (
-										<button
-											type='button'
-											className='lobby-config-dropdown-item'
-											onClick={() => handleConfigAction(onLeaveRoom)}
-											role='menuitem'
-											data-testid='lobby-leave-room'
+							{onEnableDebugMode && (
+								<>
+									<button
+										type='button'
+										className='lobby-button subtle lobby-config-toggle'
+										aria-haspopup='menu'
+										aria-expanded={isConfigMenuOpen}
+										aria-label='Open lobby settings'
+										onClick={() => setIsConfigMenuOpen(open => !open)}
+										data-testid='lobby-config-toggle'
+									>
+										⋯
+									</button>
+									{isConfigMenuOpen && (
+										<div
+											className='lobby-config-dropdown'
+											role='menu'
+											data-testid='lobby-config-dropdown'
 										>
-											Leave room
-										</button>
+											<button
+												type='button'
+												className='lobby-config-dropdown-item'
+												onClick={() => handleConfigAction(onEnableDebugMode)}
+												role='menuitem'
+												data-testid='lobby-debug-mode'
+											>
+												Debug local
+											</button>
+										</div>
 									)}
-									{onLeaveRoom && hasDebugActions && <div className='lobby-config-divider' role='separator' />}
-									{onEnableDebugMode && (
-										<button
-											type='button'
-											className='lobby-config-dropdown-item'
-											onClick={() => handleConfigAction(onEnableDebugMode)}
-											role='menuitem'
-											data-testid='lobby-debug-mode'
-										>
-											Debug local
-										</button>
-									)}
-								</div>
+								</>
 							)}
 						</div>
 
@@ -303,7 +292,11 @@ export function LobbyScreen({
 							aria-label={isDarkMode ? 'Disable dark mode' : 'Enable dark mode'}
 							data-testid='lobby-theme-toggle'
 						>
-							{isDarkMode ? <Sun size={16} weight='fill' aria-hidden /> : <Moon size={16} weight='fill' aria-hidden />}
+							{isDarkMode ? (
+								<Sun size={16} weight='fill' aria-hidden />
+							) : (
+								<Moon size={16} weight='fill' aria-hidden />
+							)}
 						</button>
 					</section>
 				</section>
