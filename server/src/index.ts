@@ -341,6 +341,7 @@ function broadcastUserDeleted(userId: number) {
 
 function streamRoom(code: string, userId: number | null) {
 	let client: RoomClient | null = null;
+	let heartbeat: Timer | null = null;
 
 	return new Response(
 		new ReadableStream<Uint8Array>({
@@ -351,8 +352,16 @@ function streamRoom(code: string, userId: number | null) {
 				roomClients.set(code, clients);
 				controller.enqueue(encoder.encode('retry: 1000\n\n'));
 				controller.enqueue(eventChunk(code, userId));
+				heartbeat = setInterval(() => {
+					try {
+						controller.enqueue(encoder.encode(': heartbeat\n\n'));
+					} catch {
+						if (heartbeat) clearInterval(heartbeat);
+					}
+				}, 10000);
 			},
 			cancel() {
+				if (heartbeat) clearInterval(heartbeat);
 				if (!client) return;
 
 				const clients = roomClients.get(code);
@@ -363,7 +372,8 @@ function streamRoom(code: string, userId: number | null) {
 		{
 			headers: {
 				'Content-Type': 'text/event-stream',
-				'Cache-Control': 'no-cache',
+				'Cache-Control': 'no-cache, no-transform',
+				'X-Accel-Buffering': 'no',
 				Connection: 'keep-alive',
 			},
 		},
