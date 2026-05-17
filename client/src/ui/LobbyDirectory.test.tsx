@@ -26,7 +26,7 @@ describe('LobbyDirectory', () => {
 	});
 
 	test('preserves debug_id when joining a room via code input', () => {
-		window.history.replaceState(null, '', '/?debug_id=tab-2');
+		window.history.replaceState(null, '', '/?DEBUG_ID=tab-2');
 
 		render(<LobbyDirectory />);
 

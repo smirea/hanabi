@@ -48,6 +48,20 @@ describe('onlineGame', () => {
 		]);
 	});
 
+	test('leave removes room membership and lobby state', () => {
+		const state = createState({
+			members: PLAYERS.slice(0, 2),
+			spectatorIds: ['player:1' as PlayerId],
+			readyPlayerIds: ['player:1' as PlayerId, 'player:2' as PlayerId],
+		});
+
+		expect(applyOnlineRoomAction(state, { type: 'leave', actorId: 'player:1' })).toBeTrue();
+
+		expect(state.members).toEqual([PLAYERS[1]]);
+		expect(state.spectatorIds).toEqual([]);
+		expect(state.readyPlayerIds).toEqual([]);
+	});
+
 	test('any room member can update settings in the lobby', () => {
 		const state = createState({ members: PLAYERS });
 		const changed = applyOnlineRoomAction(state, {

@@ -71,7 +71,7 @@ describe('RoomScreen', () => {
 	});
 
 	test('preserves debug_id when canonicalizing URL search', async () => {
-		window.history.replaceState(null, '', '/room/abCd?debug_id=tab-2');
+		window.history.replaceState(null, '', '/room/abCd?DEBUG_ID=tab-2');
 
 		render(<RoomScreen code='abCd' />);
 

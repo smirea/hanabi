@@ -317,6 +317,20 @@ function appendRoomAction(code: string, userId: number, action: OnlineRoomAction
 	return next;
 }
 
+function leaveOtherRooms(targetCode: string, user: UserRecord): void {
+	const playerId = playerIdForUser(user.id);
+	const allRooms = db.select().from(rooms).all();
+
+	for (const room of allRooms) {
+		if (room.code === targetCode) continue;
+
+		const state = loadRoomState(room.code);
+		if (!state.members.some(member => member.userId === user.id)) continue;
+
+		appendRoomAction(room.code, user.id, { type: 'leave', actorId: playerId });
+	}
+}
+
 async function readBody<T>(request: Request): Promise<T> {
 	try {
 		return (await request.json()) as T;
@@ -436,6 +450,7 @@ const server = Bun.serve({
 					if (request.method === 'POST' && parts[2] === 'join') {
 						const body = await readBody<{ userId?: number | null; name?: string }>(request);
 						const user = ensureUser(body.userId ?? null, body.name);
+						leaveOtherRooms(code, user);
 						const state = appendRoomAction(code, user.id, {
 							type: 'join',
 							actorId: playerIdForUser(user.id),

@@ -61,6 +61,7 @@ export interface OnlineRoomState {
 
 export type OnlineRoomAction =
 	| { type: 'join'; actorId: GamePlayerId; userId: number; name: string }
+	| { type: 'leave'; actorId: GamePlayerId }
 	| { type: 'set-name'; actorId: GamePlayerId; name: string }
 	| { type: 'set-settings'; actorId: GamePlayerId; next: Partial<LobbySettings> }
 	| { type: 'set-spectator'; actorId: GamePlayerId; spectator: boolean }
@@ -327,6 +328,13 @@ export function applyOnlineRoomAction(state: OnlineRoomState, action: OnlineRoom
 	if (!actor) return false;
 
 	switch (action.type) {
+		case 'leave': {
+			state.members = state.members.filter(member => member.id !== action.actorId);
+			state.spectatorIds = state.spectatorIds.filter(id => id !== action.actorId);
+			state.readyPlayerIds = state.readyPlayerIds.filter(id => id !== action.actorId);
+			clearLobbyConsensus(state);
+			return true;
+		}
 		case 'set-name': {
 			const name = sanitizePlayerName(action.name);
 			if (!name || actor.name === name) return false;

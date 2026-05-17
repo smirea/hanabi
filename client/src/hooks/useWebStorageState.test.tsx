@@ -56,6 +56,15 @@ describe('useWebStorageState', () => {
 		expect(window.localStorage.getItem('hanabi.debug_mode')).toBeNull();
 	});
 
+	test('accepts DEBUG_ID case-insensitively', () => {
+		window.history.replaceState(null, '', '/?DEBUG_ID=tab-3');
+		render(<LocalHarness />);
+		fireEvent.click(screen.getByTestId('local-toggle'));
+
+		expect(window.localStorage.getItem('hanabi.debug_mode.dbg-tab-3')).toBe('true');
+		expect(window.localStorage.getItem('hanabi.debug_mode')).toBeNull();
+	});
+
 	test('supports sessionStorage target', () => {
 		render(<SessionHarness />);
 		fireEvent.click(screen.getByTestId('session-toggle'));
