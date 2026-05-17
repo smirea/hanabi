@@ -35,6 +35,7 @@ sqlite.exec('PRAGMA foreign_keys = ON');
 
 export const users = sqliteTable('users', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
+	clientKey: text('client_key'),
 	name: text('name').notNull(),
 	createdAt: text('created_at').notNull(),
 	updatedAt: text('updated_at').notNull(),
@@ -58,10 +59,12 @@ export const roomActions = sqliteTable('room_actions', {
 sqlite.exec(`
 	CREATE TABLE IF NOT EXISTS users (
 		id integer PRIMARY KEY AUTOINCREMENT,
+		client_key text,
 		name text NOT NULL,
 		created_at text NOT NULL,
 		updated_at text NOT NULL
 	);
+	CREATE UNIQUE INDEX IF NOT EXISTS users_client_key_idx ON users(client_key) WHERE client_key IS NOT NULL;
 	CREATE TABLE IF NOT EXISTS rooms (
 		code text PRIMARY KEY,
 		created_at text NOT NULL,
@@ -80,9 +83,18 @@ sqlite.exec(`
 	CREATE INDEX IF NOT EXISTS room_actions_room_code_id_idx ON room_actions(room_code, id);
 `);
 
+const userColumns = sqlite.query<{ name: string }, []>('PRAGMA table_info(users)').all();
+if (!userColumns.some(column => column.name === 'client_key')) {
+	sqlite.exec('ALTER TABLE users ADD COLUMN client_key text');
+	sqlite.exec(
+		'CREATE UNIQUE INDEX IF NOT EXISTS users_client_key_idx ON users(client_key) WHERE client_key IS NOT NULL',
+	);
+}
+
 const db = drizzle(sqlite);
 const encoder = new TextEncoder();
 type RoomActionRow = typeof roomActions.$inferSelect;
+type UserRow = typeof users.$inferSelect;
 type RoomClient = {
 	controller: ReadableStreamDefaultController<Uint8Array>;
 	userId: number | null;
@@ -160,32 +172,71 @@ function readAction(row: RoomActionRow): OnlineRoomAction | null {
 	}
 }
 
-function getUser(userId: number | null): UserRecord | null {
-	if (!userId || !Number.isInteger(userId) || userId < 1) return null;
-
-	const user = db.select().from(users).where(eq(users.id, userId)).get();
-	return user ? { id: user.id, name: user.name } : null;
+function userRecord(user: UserRow): UserRecord {
+	return { id: user.id, name: user.name };
 }
 
-function ensureUser(userId: number | null, rawName: string | null | undefined): UserRecord {
+function getUserRow(userId: number | null): UserRow | null {
+	if (!userId || !Number.isInteger(userId) || userId < 1) return null;
+	return db.select().from(users).where(eq(users.id, userId)).get() ?? null;
+}
+
+function getUserByClientKey(clientKey: string | null): UserRow | null {
+	if (!clientKey) return null;
+	return db.select().from(users).where(eq(users.clientKey, clientKey)).get() ?? null;
+}
+
+function getUser(userId: number | null): UserRecord | null {
+	const user = getUserRow(userId);
+	return user ? userRecord(user) : null;
+}
+
+function sanitizeClientKey(value: string | null | undefined): string | null {
+	const key = value?.trim() ?? '';
+	return key ? key.slice(0, 128) : null;
+}
+
+function updateUser(user: UserRow, name: string, clientKey: string | null): UserRecord {
+	const timestamp = nowIso();
+	const updates: Partial<typeof users.$inferInsert> = {};
+	if (user.name !== name) updates.name = name;
+	if (clientKey && !user.clientKey) updates.clientKey = clientKey;
+	if (Object.keys(updates).length > 0) {
+		db.update(users)
+			.set({ ...updates, updatedAt: timestamp })
+			.where(eq(users.id, user.id))
+			.run();
+	}
+
+	return { id: user.id, name };
+}
+
+function ensureUser(
+	userId: number | null,
+	clientKeyValue: string | null | undefined,
+	rawName: string | null | undefined,
+): UserRecord {
 	const name = sanitizePlayerName(rawName ?? '') ?? 'Player';
-	const existing = getUser(userId);
+	const clientKey = sanitizeClientKey(clientKeyValue);
+	const existing = getUserRow(userId) ?? getUserByClientKey(clientKey);
 	const timestamp = nowIso();
 
 	if (existing) {
-		if (existing.name !== name) {
-			db.update(users).set({ name, updatedAt: timestamp }).where(eq(users.id, existing.id)).run();
-		}
-
-		return { ...existing, name };
+		return updateUser(existing, name, clientKey);
 	}
 
-	const inserted = db
-		.insert(users)
-		.values({ name, createdAt: timestamp, updatedAt: timestamp })
-		.returning()
-		.get();
-	return { id: inserted.id, name: inserted.name };
+	try {
+		const inserted = db
+			.insert(users)
+			.values({ clientKey, name, createdAt: timestamp, updatedAt: timestamp })
+			.returning()
+			.get();
+		return userRecord(inserted);
+	} catch (error) {
+		const existingByClientKey = getUserByClientKey(clientKey);
+		if (existingByClientKey) return updateUser(existingByClientKey, name, clientKey);
+		throw error;
+	}
 }
 
 function ensureRoom(code: string): void {
@@ -419,8 +470,12 @@ const server = Bun.serve({
 				if (url.pathname === '/status') return json({ ok: true });
 
 				if (url.pathname === '/users' && request.method === 'POST') {
-					const body = await readBody<{ userId?: number | null; name?: string }>(request);
-					return json({ user: ensureUser(body.userId ?? null, body.name) });
+					const body = await readBody<{
+						userId?: number | null;
+						clientKey?: string | null;
+						name?: string;
+					}>(request);
+					return json({ user: ensureUser(body.userId ?? null, body.clientKey, body.name) });
 				}
 
 				if (url.pathname === '/rooms' && request.method === 'GET') {
@@ -448,8 +503,12 @@ const server = Bun.serve({
 					}
 
 					if (request.method === 'POST' && parts[2] === 'join') {
-						const body = await readBody<{ userId?: number | null; name?: string }>(request);
-						const user = ensureUser(body.userId ?? null, body.name);
+						const body = await readBody<{
+							userId?: number | null;
+							clientKey?: string | null;
+							name?: string;
+						}>(request);
+						const user = ensureUser(body.userId ?? null, body.clientKey, body.name);
 						leaveOtherRooms(code, user);
 						const state = appendRoomAction(code, user.id, {
 							type: 'join',

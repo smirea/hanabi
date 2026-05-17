@@ -33,6 +33,30 @@ function setStoredUserId(userId: number): void {
 	window.localStorage.setItem(resolveStorageKey(storageKeys.serverUserId), JSON.stringify(userId));
 }
 
+function createClientKey(): string {
+	if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+	return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function getStoredClientKey(): string | null {
+	if (typeof window === 'undefined') return null;
+
+	const storageKey = resolveStorageKey(storageKeys.serverClientKey);
+	const raw = window.localStorage.getItem(storageKey);
+	if (raw) {
+		try {
+			const parsed = JSON.parse(raw) as string;
+			if (typeof parsed === 'string' && parsed.trim()) return parsed;
+		} catch {
+			if (raw.trim()) return raw.trim();
+		}
+	}
+
+	const clientKey = createClientKey();
+	window.localStorage.setItem(storageKey, JSON.stringify(clientKey));
+	return clientKey;
+}
+
 async function readJson<T>(response: Response): Promise<T> {
 	const payload = (await response.json()) as T | { error: string };
 	if (!response.ok) {
@@ -49,33 +73,43 @@ async function readJson<T>(response: Response): Promise<T> {
 export function useServerUser(name: string, enabled = true) {
 	const [user, setUser] = useState<UserRecord | null>(null);
 	const [userError, setUserError] = useState<string | null>(null);
+	const userRef = useRef<UserRecord | null>(null);
+	const inFlightRef = useRef<Promise<UserRecord | null> | null>(null);
 	const desiredNameRef = useRef(name);
 	desiredNameRef.current = name;
+	userRef.current = user;
 
 	const ensureUser = useCallback(async (): Promise<UserRecord | null> => {
 		if (!enabled) return null;
+		if (inFlightRef.current) return inFlightRef.current;
 
-		try {
+		inFlightRef.current = (async () => {
 			const payload = await readJson<UserResponse>(
 				await fetch(`${apiBase}/users`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ userId: getStoredUserId(), name: desiredNameRef.current }),
+					body: JSON.stringify({
+						userId: userRef.current?.id ?? getStoredUserId(),
+						clientKey: getStoredClientKey(),
+						name: desiredNameRef.current,
+					}),
 				}),
 			);
 			setStoredUserId(payload.user.id);
 			setUser(payload.user);
 			setUserError(null);
 			return payload.user;
+		})();
+
+		try {
+			return await inFlightRef.current;
 		} catch (error) {
 			setUserError(error instanceof Error ? error.message : 'Unable to connect');
 			return null;
+		} finally {
+			inFlightRef.current = null;
 		}
 	}, [enabled]);
-
-	useEffect(() => {
-		void ensureUser();
-	}, [ensureUser]);
 
 	return { user, userError, ensureUser };
 }
@@ -168,7 +202,11 @@ export function useOnlineRoom(roomCode: string, playerName: string, enabled = tr
 				await fetch(`${apiBase}/rooms/${encodeURIComponent(roomCode)}/join`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ userId: currentUser.id, name: playerName }),
+					body: JSON.stringify({
+						userId: currentUser.id,
+						clientKey: getStoredClientKey(),
+						name: playerName,
+					}),
 				}),
 			);
 			setRoom(payload.room);

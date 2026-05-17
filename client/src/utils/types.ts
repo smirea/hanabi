@@ -25,6 +25,7 @@ export interface StorageValueByKey {
 	debug_mode: boolean;
 	player_name: string;
 	server_user_id: number | null;
+	server_client_key: string;
 	dark_mode: boolean;
 	negative_color_hints: boolean;
 	negative_number_hints: boolean;
