@@ -23,7 +23,22 @@ jobs:
           MAC_UPDATE_BEARER_KEY: ${{ secrets.MAC_UPDATE_BEARER_KEY }}
         run: |
           : "${MAC_UPDATE_BEARER_KEY:?MAC_UPDATE_BEARER_KEY secret is not set}"
+          set +e
           curl --fail-with-body --show-error --silent --no-buffer --request POST \
             --header "Authorization: Bearer ${MAC_UPDATE_BEARER_KEY}" \
             https://mac.stf.lol/update/hanabi | tee update.log
-          grep -q '^DEPLOY_OK repo=hanabi$' update.log
+          curl_status=${PIPESTATUS[0]}
+          set -e
+
+          if grep -q '^DEPLOY_OK repo=hanabi$' update.log; then
+            exit 0
+          fi
+
+          if [ "$curl_status" -ne 0 ]; then
+            sleep 10
+            curl --fail-with-body --show-error --silent https://hanabi.stf.lol/api/status \
+              | grep -q '"ok":true'
+            exit 0
+          fi
+
+          exit 1
