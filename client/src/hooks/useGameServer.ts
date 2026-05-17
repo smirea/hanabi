@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { resolveStorageKey } from '../storage';
 import { storageKeys } from '../utils/constants';
+import { LS } from '../utils/utils';
 import type {
 	DirectoryResponse,
 	HistoryResponse,
@@ -16,22 +16,12 @@ import type {
 const apiBase = '/api';
 
 export function getStoredUserId(): number | null {
-	if (typeof window === 'undefined') return null;
-
-	const raw = window.localStorage.getItem(resolveStorageKey(storageKeys.serverUserId));
-	if (!raw) return null;
-
-	try {
-		const parsed = JSON.parse(raw) as number;
-		return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-	} catch {
-		return null;
-	}
+	const userId = LS.get(storageKeys.serverUserId);
+	return typeof userId === 'number' && Number.isInteger(userId) && userId > 0 ? userId : null;
 }
 
 function setStoredUserId(userId: number): void {
-	if (typeof window === 'undefined') return;
-	window.localStorage.setItem(resolveStorageKey(storageKeys.serverUserId), JSON.stringify(userId));
+	LS.set({ [storageKeys.serverUserId]: userId });
 }
 
 function createClientKey(): string {
@@ -40,36 +30,17 @@ function createClientKey(): string {
 }
 
 export function getStoredClientKey(): string | null {
-	if (typeof window === 'undefined') return null;
-
-	const storageKey = resolveStorageKey(storageKeys.serverClientKey);
-	const raw = window.localStorage.getItem(storageKey);
-	if (raw) {
-		try {
-			const parsed = JSON.parse(raw) as string;
-			if (typeof parsed === 'string' && parsed.trim()) return parsed;
-		} catch {
-			if (raw.trim()) return raw.trim();
-		}
-	}
+	const storedClientKey = readStoredClientKey();
+	if (storedClientKey) return storedClientKey;
 
 	const clientKey = createClientKey();
-	window.localStorage.setItem(storageKey, JSON.stringify(clientKey));
+	LS.set({ [storageKeys.serverClientKey]: clientKey });
 	return clientKey;
 }
 
 function readStoredClientKey(): string | null {
-	if (typeof window === 'undefined') return null;
-
-	const raw = window.localStorage.getItem(resolveStorageKey(storageKeys.serverClientKey));
-	if (!raw) return null;
-
-	try {
-		const parsed = JSON.parse(raw) as unknown;
-		return typeof parsed === 'string' && parsed.trim() ? parsed : null;
-	} catch {
-		return raw.trim() ? raw.trim() : null;
-	}
+	const clientKey = LS.get(storageKeys.serverClientKey);
+	return typeof clientKey === 'string' && clientKey.trim() ? clientKey : null;
 }
 
 export function useCurrentRoomResume(enabled = true) {

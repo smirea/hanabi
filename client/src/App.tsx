@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
-import { useWebStorageState } from './hooks/useWebStorageState';
 import { parseRoomCode } from './roomCodes';
 import { storageKeys } from './utils/constants';
+import { useLocalStorage } from './utils/utils';
 import GameClient from './ui/game/GameClient';
 
 interface AppProps {
@@ -15,11 +15,7 @@ function App({ roomCode, onLeaveRoom }: AppProps) {
 		throw new Error(`Invalid room code "${roomCode}". Room codes must be 4 letters.`);
 	}
 
-	const [isDarkMode, setIsDarkMode] = useWebStorageState(
-		'localStorage',
-		storageKeys.darkMode,
-		false,
-	);
+	const [isDarkMode, setIsDarkMode] = useLocalStorage(storageKeys.darkMode, false);
 
 	useEffect(() => {
 		if (typeof document === 'undefined') {

@@ -6,7 +6,7 @@ import { RouterProvider } from '@tanstack/react-router';
 import { router } from './router';
 import './index.css';
 import { storageKeys } from './utils/constants';
-import { resolveStorageKey } from './storage';
+import { LS } from './utils/utils';
 
 const rootElement = document.getElementById('root');
 
@@ -16,8 +16,7 @@ if (!rootElement) {
 
 const isDarkMode = (() => {
 	try {
-		const raw = window.localStorage.getItem(resolveStorageKey(storageKeys.darkMode));
-		return raw !== null && JSON.parse(raw) === true;
+		return LS.get(storageKeys.darkMode, false) === true;
 	} catch {
 		return false;
 	}

@@ -1,21 +1,17 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { useWebStorageState } from '../hooks/useWebStorageState';
 import { useRoomDirectory } from '../hooks/useGameServer';
 import { withPersistentSearch } from '../navigation';
 import { sanitizePlayerName } from '../onlineGame';
 import { createRoomCode, parseRoomCode } from '../roomCodes';
 import { storageKeys } from '../utils/constants';
+import { useLocalStorage } from '../utils/utils';
 
 export function LobbyDirectory() {
 	const navigate = useNavigate();
 	const { rooms: directory } = useRoomDirectory();
 	const [joinInput, setJoinInput] = useState('');
-	const [playerName, setPlayerName] = useWebStorageState(
-		'localStorage',
-		storageKeys.playerName,
-		'',
-	);
+	const [playerName, setPlayerName] = useLocalStorage(storageKeys.playerName, '');
 	const currentHash = typeof window === 'undefined' ? '' : window.location.hash.replace(/^#/, '');
 
 	const goToRoom = (code: string) => {

@@ -19,6 +19,8 @@ void mock.module('./hooks/useGameServer', () => ({
 
 import App from './App';
 import { HanabiGame } from './game';
+import { storageKeys } from './utils/constants';
+import { LS } from './utils/utils';
 
 function createFinishedRoom() {
 	const game = new HanabiGame({
@@ -65,11 +67,11 @@ describe('App online reconnect state', () => {
 
 	afterEach(() => {
 		cleanup();
-		window.localStorage.clear();
+		LS.clearAll();
 	});
 
 	test('does not show the lobby controls while rejoining a room', () => {
-		window.localStorage.setItem('hanabi.debug_mode', 'false');
+		LS.set({ [storageKeys.debugMode]: false });
 
 		render(<App roomCode='ABCD' />);
 
@@ -78,7 +80,7 @@ describe('App online reconnect state', () => {
 	});
 
 	test('endgame back to game only dismisses the local overlay', () => {
-		window.localStorage.setItem('hanabi.debug_mode', 'false');
+		LS.set({ [storageKeys.debugMode]: false });
 		mockRoom = createFinishedRoom();
 
 		render(<App roomCode='ABCD' />);

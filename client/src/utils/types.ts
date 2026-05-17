@@ -20,7 +20,6 @@ export type {
 } from '../../../shared/onlineGame';
 
 export type StorageKey = (typeof storageKeys)[keyof typeof storageKeys];
-export type SetStateAction<T> = T | ((prev: T) => T);
 
 export interface StorageValueByKey {
 	debug_mode: boolean;

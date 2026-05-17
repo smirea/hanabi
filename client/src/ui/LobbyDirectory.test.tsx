@@ -25,7 +25,7 @@ describe('LobbyDirectory', () => {
 		cleanup();
 	});
 
-	test('preserves debug_id when joining a room via code input', () => {
+	test('joins a room with initialized persistent search params', () => {
 		window.history.replaceState(null, '', '/?DEBUG_ID=tab-2');
 
 		render(<LobbyDirectory />);
@@ -36,7 +36,7 @@ describe('LobbyDirectory', () => {
 
 		expect(navigateMock).toHaveBeenCalledWith({
 			to: '/',
-			search: { room: 'ABCD', debug_id: 'tab-2' },
+			search: { room: 'ABCD' },
 			hash: '',
 		});
 	});

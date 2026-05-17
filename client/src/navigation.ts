@@ -1,6 +1,6 @@
 import { parseRoomCode } from './roomCodes';
-import { currentDebugId, resolveStorageKey } from './storage';
 import { storageKeys } from './utils/constants';
+import { getDebugId, LS } from './utils/utils';
 
 export interface AppSearch {
 	room?: string;
@@ -8,7 +8,7 @@ export interface AppSearch {
 }
 
 export function withPersistentSearch(room?: string): AppSearch {
-	const debugId = currentDebugId() ?? undefined;
+	const debugId = getDebugId() ?? undefined;
 
 	const search: AppSearch = {};
 	if (room !== undefined) search.room = room;
@@ -17,17 +17,7 @@ export function withPersistentSearch(room?: string): AppSearch {
 }
 
 export function getStoredRoomCode(): string | null {
-	if (typeof window === 'undefined') return null;
-
-	const raw = window.localStorage.getItem(resolveStorageKey(storageKeys.currentRoom));
-	if (!raw) return null;
-
-	try {
-		const parsed = JSON.parse(raw) as unknown;
-		return typeof parsed === 'string' ? parseRoomCode(parsed) : null;
-	} catch {
-		return parseRoomCode(raw);
-	}
+	return parseRoomCode(LS.get(storageKeys.currentRoom) ?? '');
 }
 
 export function setStoredRoomCode(room: string): void {
@@ -36,13 +26,11 @@ export function setStoredRoomCode(room: string): void {
 	const code = parseRoomCode(room);
 	if (!code) return;
 
-	window.localStorage.setItem(resolveStorageKey(storageKeys.currentRoom), JSON.stringify(code));
+	LS.set({ [storageKeys.currentRoom]: code });
 }
 
 export function clearStoredRoomCode(): void {
-	if (typeof window === 'undefined') return;
-
-	window.localStorage.removeItem(resolveStorageKey(storageKeys.currentRoom));
+	LS.delete(storageKeys.currentRoom);
 }
 
 export function resolveHomeRoom(searchRoom: string | undefined): string | null {

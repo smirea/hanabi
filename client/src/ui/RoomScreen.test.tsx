@@ -1,6 +1,8 @@
 import '@testing-library/jest-dom';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { storageKeys } from '../utils/constants';
+import { LS } from '../utils/utils';
 
 const navigateMock = mock(() => {});
 
@@ -44,7 +46,7 @@ describe('RoomScreen', () => {
 
 	afterEach(() => {
 		cleanup();
-		window.localStorage.clear();
+		LS.clearAll();
 	});
 
 	test('rejects legacy non-4-letter codes', () => {
@@ -71,7 +73,7 @@ describe('RoomScreen', () => {
 		});
 	});
 
-	test('preserves debug_id when canonicalizing URL search', async () => {
+	test('canonicalizes with the initialized persistent search params', async () => {
 		window.history.replaceState(null, '', '/room/abCd?DEBUG_ID=tab-2');
 
 		render(<RoomScreen code='abCd' />);
@@ -79,7 +81,7 @@ describe('RoomScreen', () => {
 		await waitFor(() => {
 			expect(navigateMock).toHaveBeenCalledWith({
 				to: '/',
-				search: { room: 'ABCD', debug_id: 'tab-2' },
+				search: { room: 'ABCD' },
 				hash: '',
 				replace: true,
 			});
@@ -101,11 +103,11 @@ describe('RoomScreen', () => {
 	test('stores the active room and clears it when leaving', () => {
 		render(<RoomScreen code='ABCD' />);
 
-		expect(window.localStorage.getItem('hanabi.current_room')).toBe('"ABCD"');
+		expect(LS.get(storageKeys.currentRoom)).toBe('ABCD');
 
 		fireEvent.click(screen.getByTestId('lobby-leave-room'));
 
-		expect(window.localStorage.getItem('hanabi.current_room')).toBeNull();
+		expect(LS.get(storageKeys.currentRoom)).toBeNull();
 		expect(navigateMock).toHaveBeenCalledWith({
 			to: '/',
 			search: {},

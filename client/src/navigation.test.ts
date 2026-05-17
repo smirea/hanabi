@@ -5,10 +5,11 @@ import {
 	resolveHomeRoom,
 	setStoredRoomCode,
 } from './navigation';
+import { LS } from './utils/utils';
 
 describe('room navigation persistence', () => {
 	afterEach(() => {
-		window.localStorage.clear();
+		LS.clearAll();
 		window.history.replaceState(null, '', '/');
 	});
 
@@ -26,14 +27,11 @@ describe('room navigation persistence', () => {
 		expect(resolveHomeRoom('legacy_7')).toBe('legacy_7');
 	});
 
-	test('stored room codes are scoped by debug_id', () => {
+	test('stored room codes keep the initialized namespace when debug_id changes later', () => {
 		window.history.replaceState(null, '', '/?debug_id=1');
 		setStoredRoomCode('ABCD');
 
 		window.history.replaceState(null, '', '/?debug_id=2');
-		expect(getStoredRoomCode()).toBeNull();
-
-		window.history.replaceState(null, '', '/?debug_id=1');
 		expect(getStoredRoomCode()).toBe('ABCD');
 
 		clearStoredRoomCode();

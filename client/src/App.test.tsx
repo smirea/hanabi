@@ -31,6 +31,8 @@ void mock.module('./hooks/useGameServer', () => ({
 }));
 
 import App from './App';
+import { storageKeys } from './utils/constants';
+import { LS } from './utils/utils';
 
 const ROOM_CODE = 'ABCD';
 
@@ -116,13 +118,13 @@ function findTeammateCardIndexWithNumberOverOne(playerId: string): number {
 
 afterEach(() => {
 	cleanup();
-	window.localStorage.clear();
+	LS.clearAll();
 	window.history.replaceState(null, '', '/');
 });
 
 describe('App local debug wiring', () => {
 	beforeEach(() => {
-		window.localStorage.setItem('hanabi.debug_mode', 'true');
+		LS.set({ [storageKeys.debugMode]: true });
 	});
 
 	test('play action resolves on card tap and swaps perspective to the next player', () => {
@@ -193,7 +195,7 @@ describe('App local debug wiring', () => {
 		expect(screen.getByTestId('menu-local-debug-value')).toHaveTextContent('On');
 
 		fireEvent.click(screen.getByTestId('menu-local-debug-toggle'));
-		expect(window.localStorage.getItem('hanabi.debug_mode')).toBe('false');
+		expect(LS.get(storageKeys.debugMode)).toBe(false);
 		expect(screen.getByTestId('lobby-root')).toBeInTheDocument();
 		expect(screen.queryByTestId('actions-play')).not.toBeInTheDocument();
 	});
@@ -206,12 +208,12 @@ describe('App local debug wiring', () => {
 		expect(screen.getByTestId('menu-negative-number-value')).toHaveTextContent('On');
 
 		fireEvent.click(screen.getByTestId('menu-negative-color-toggle'));
-		expect(window.localStorage.getItem('hanabi.negative_color_hints')).toBe('false');
+		expect(LS.get(storageKeys.negativeColorHints)).toBe(false);
 		fireEvent.click(screen.getByTestId('actions-menu'));
 		expect(screen.getByTestId('menu-negative-color-value')).toHaveTextContent('Off');
 
 		fireEvent.click(screen.getByTestId('menu-negative-number-toggle'));
-		expect(window.localStorage.getItem('hanabi.negative_number_hints')).toBe('false');
+		expect(LS.get(storageKeys.negativeNumberHints)).toBe(false);
 		fireEvent.click(screen.getByTestId('actions-menu'));
 		expect(screen.getByTestId('menu-negative-number-value')).toHaveTextContent('Off');
 	});
@@ -245,7 +247,7 @@ describe('App local debug wiring', () => {
 		expect(screen.getByTestId('menu-turn-sound-value')).toHaveTextContent('On');
 
 		fireEvent.click(screen.getByTestId('menu-turn-sound-toggle'));
-		expect(window.localStorage.getItem('hanabi.turn_sound_enabled')).toBe('false');
+		expect(LS.get(storageKeys.turnSoundEnabled)).toBe(false);
 
 		fireEvent.click(screen.getByTestId('actions-menu'));
 		expect(screen.getByTestId('menu-turn-sound-value')).toHaveTextContent('Off');
@@ -258,7 +260,7 @@ describe('App local debug wiring', () => {
 		expect(screen.getByTestId('menu-tibi-mode-value')).toHaveTextContent('Off');
 
 		fireEvent.click(screen.getByTestId('menu-tibi-mode-toggle'));
-		expect(window.localStorage.getItem('hanabi.tibi_mode')).toBe('true');
+		expect(LS.get(storageKeys.tibiMode)).toBe(true);
 
 		fireEvent.click(screen.getByTestId('actions-menu'));
 		expect(screen.getByTestId('menu-tibi-mode-value')).toHaveTextContent('On');
@@ -274,14 +276,14 @@ describe('App local debug wiring', () => {
 		fireEvent.click(screen.getByTestId('actions-menu'));
 		fireEvent.click(screen.getByTestId('menu-dark-mode-toggle'));
 
-		expect(window.localStorage.getItem('hanabi.dark_mode')).toBe('true');
+		expect(LS.get(storageKeys.darkMode)).toBe(true);
 		await waitFor(() => {
 			expect(document.documentElement.dataset.theme).toBe('dark');
 		});
 	});
 
 	test('non-debug mode renders the staging lobby flow', () => {
-		window.localStorage.setItem('hanabi.debug_mode', 'false');
+		LS.set({ [storageKeys.debugMode]: false });
 		render(<App roomCode={ROOM_CODE} />);
 
 		expect(screen.getByTestId('lobby-root')).toBeInTheDocument();
@@ -289,7 +291,7 @@ describe('App local debug wiring', () => {
 	});
 
 	test('dark mode toggle is available on the lobby landing screen', async () => {
-		window.localStorage.setItem('hanabi.debug_mode', 'false');
+		LS.set({ [storageKeys.debugMode]: false });
 		render(<App roomCode={ROOM_CODE} />);
 
 		await waitFor(() => {
@@ -298,21 +300,21 @@ describe('App local debug wiring', () => {
 
 		fireEvent.click(screen.getByTestId('lobby-theme-toggle'));
 
-		expect(window.localStorage.getItem('hanabi.dark_mode')).toBe('true');
+		expect(LS.get(storageKeys.darkMode)).toBe(true);
 		await waitFor(() => {
 			expect(document.documentElement.dataset.theme).toBe('dark');
 		});
 	});
 
 	test('staging lobby room code is visible', () => {
-		window.localStorage.setItem('hanabi.debug_mode', 'false');
+		LS.set({ [storageKeys.debugMode]: false });
 		render(<App roomCode={ROOM_CODE} />);
 
 		expect(screen.getByTestId('lobby-room-code')).toHaveTextContent(ROOM_CODE);
 	});
 
 	test('staging lobby room follows the explicit room code prop', () => {
-		window.localStorage.setItem('hanabi.debug_mode', 'false');
+		LS.set({ [storageKeys.debugMode]: false });
 		window.history.replaceState(null, '', '/?room=alpha_7');
 		render(<App roomCode={ROOM_CODE} />);
 
@@ -322,10 +324,10 @@ describe('App local debug wiring', () => {
 	});
 });
 
-describe('App debug_id query namespaces local storage', () => {
-	test('debug_id namespace is used for debug mode storage', () => {
+describe('App initialized storage namespace', () => {
+	test('uses the storage namespace initialized at module load', () => {
 		window.history.replaceState(null, '', '/?debug_id=tab-2');
-		window.localStorage.setItem('hanabi.debug_mode.dbg-tab-2', 'false');
+		LS.set({ [storageKeys.debugMode]: false });
 
 		render(<App roomCode={ROOM_CODE} />);
 

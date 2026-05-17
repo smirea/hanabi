@@ -47,6 +47,7 @@ See `project_animation.md` for what the various animations are and how they are 
 - Keep the UI clean and simple: avoid scoreboard-like side info, extra helper copy, or notification-board clutter unless it is strictly required for immediate gameplay decisions.
 - Own cards are hidden but hint metadata is always visible.
 - Persist clue metadata per card: known color/value and exclusions.
+- Client persistence should use `LS` and `useLocalStorage` from `client/src/utils/utils.ts`; that module initializes the `debug_id` namespace once, so callers should not read or scope `localStorage` directly.
 
 ## Testing Guidance
 

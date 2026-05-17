@@ -2,6 +2,8 @@ import '@testing-library/jest-dom';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 import { useCurrentRoomResume } from './useGameServer';
+import { storageKeys } from '../utils/constants';
+import { LS } from '../utils/utils';
 
 const originalFetch = globalThis.fetch;
 
@@ -17,15 +19,17 @@ function ResumeHarness() {
 
 afterEach(() => {
 	cleanup();
-	window.localStorage.clear();
+	LS.clearAll();
 	window.history.replaceState(null, '', '/');
 	globalThis.fetch = originalFetch;
 });
 
 describe('useCurrentRoomResume', () => {
 	test('loads the server room for the stored user when no room is in the URL', async () => {
-		window.localStorage.setItem('hanabi.server_user_id', '7');
-		window.localStorage.setItem('hanabi.server_client_key', '"client-7"');
+		LS.set({
+			[storageKeys.serverUserId]: 7,
+			[storageKeys.serverClientKey]: 'client-7',
+		});
 		const fetchMock = mock(async () =>
 			Response.json({
 				roomCode: 'ABCD',

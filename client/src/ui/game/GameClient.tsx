@@ -13,8 +13,8 @@ import {
 import { useDebugScreensController } from '../../debugScreens';
 import { cloneLobbySettings, playerIdForUser, sanitizePlayerName } from '../../onlineGame';
 import { useOnlineRoom } from '../../hooks/useGameServer';
-import { useWebStorageState } from '../../hooks/useWebStorageState';
 import { storageKeys, suitColors, suitNames } from '../../utils/constants';
+import { useLocalStorage } from '../../utils/utils';
 import type { GameAction, LobbySettings, RoomViewState } from '../../utils/types';
 import { CardView } from './components/CardView';
 import { DeckCount } from './components/DeckCount';
@@ -122,41 +122,22 @@ function GameClient({
 		clearActionDraft,
 		clearHintDraft,
 	} = useTransientActionState();
-	const [isDebugMode, setIsDebugMode] = useWebStorageState(
-		'localStorage',
-		storageKeys.debugMode,
-		false,
-	);
-	const [playerName, setPlayerName] = useWebStorageState(
-		'localStorage',
-		storageKeys.playerName,
-		'',
-	);
-	const [showNegativeColorHints, setShowNegativeColorHints] = useWebStorageState(
-		'localStorage',
+	const [isDebugMode, setIsDebugMode] = useLocalStorage(storageKeys.debugMode, false);
+	const [playerName, setPlayerName] = useLocalStorage(storageKeys.playerName, '');
+	const [showNegativeColorHints, setShowNegativeColorHints] = useLocalStorage(
 		storageKeys.negativeColorHints,
 		true,
 	);
-	const [showNegativeNumberHints, setShowNegativeNumberHints] = useWebStorageState(
-		'localStorage',
+	const [showNegativeNumberHints, setShowNegativeNumberHints] = useLocalStorage(
 		storageKeys.negativeNumberHints,
 		true,
 	);
-	const [turnSoundEnabled, setTurnSoundEnabled] = useWebStorageState(
-		'localStorage',
+	const [turnSoundEnabled, setTurnSoundEnabled] = useLocalStorage(
 		storageKeys.turnSoundEnabled,
 		true,
 	);
-	const [isTibiMode, setIsTibiMode] = useWebStorageState(
-		'localStorage',
-		storageKeys.tibiMode,
-		false,
-	);
-	const [storedTvMode, setStoredTvMode] = useWebStorageState(
-		'localStorage',
-		storageKeys.tvMode,
-		false,
-	);
+	const [isTibiMode, setIsTibiMode] = useLocalStorage(storageKeys.tibiMode, false);
+	const [storedTvMode, setStoredTvMode] = useLocalStorage(storageKeys.tvMode, false);
 	const logListRef = useRef<HTMLDivElement | null>(null);
 	const logDrawerTokenRef = useRef(0);
 	const logDrawerCloseTimeoutRef = useRef<number | null>(null);
