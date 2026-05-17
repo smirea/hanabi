@@ -10,11 +10,12 @@ import type {
 	RoomViewState,
 	UserRecord,
 	UserResponse,
+	CurrentRoomResponse,
 } from '../utils/types';
 
 const apiBase = '/api';
 
-function getStoredUserId(): number | null {
+export function getStoredUserId(): number | null {
 	if (typeof window === 'undefined') return null;
 
 	const raw = window.localStorage.getItem(resolveStorageKey(storageKeys.serverUserId));
@@ -38,7 +39,7 @@ function createClientKey(): string {
 	return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
-function getStoredClientKey(): string | null {
+export function getStoredClientKey(): string | null {
 	if (typeof window === 'undefined') return null;
 
 	const storageKey = resolveStorageKey(storageKeys.serverClientKey);
@@ -55,6 +56,69 @@ function getStoredClientKey(): string | null {
 	const clientKey = createClientKey();
 	window.localStorage.setItem(storageKey, JSON.stringify(clientKey));
 	return clientKey;
+}
+
+function readStoredClientKey(): string | null {
+	if (typeof window === 'undefined') return null;
+
+	const raw = window.localStorage.getItem(resolveStorageKey(storageKeys.serverClientKey));
+	if (!raw) return null;
+
+	try {
+		const parsed = JSON.parse(raw) as unknown;
+		return typeof parsed === 'string' && parsed.trim() ? parsed : null;
+	} catch {
+		return raw.trim() ? raw.trim() : null;
+	}
+}
+
+export function useCurrentRoomResume(enabled = true) {
+	const [roomCode, setRoomCode] = useState<string | null>(null);
+	const [isLoading, setIsLoading] = useState(enabled);
+
+	useEffect(() => {
+		let cancelled = false;
+
+		async function loadCurrentRoom() {
+			if (!enabled) {
+				setRoomCode(null);
+				setIsLoading(false);
+				return;
+			}
+
+			const userId = getStoredUserId();
+			const clientKey = readStoredClientKey();
+			if (!userId && !clientKey) {
+				setRoomCode(null);
+				setIsLoading(false);
+				return;
+			}
+
+			setIsLoading(true);
+			try {
+				const params = new URLSearchParams();
+				if (userId) params.set('userId', String(userId));
+				if (clientKey) params.set('clientKey', clientKey);
+				const payload = await readJson<CurrentRoomResponse>(
+					await fetch(`${apiBase}/users/current-room?${params.toString()}`, {
+						headers: { Accept: 'application/json' },
+					}),
+				);
+				if (!cancelled) setRoomCode(payload.roomCode);
+			} catch {
+				if (!cancelled) setRoomCode(null);
+			} finally {
+				if (!cancelled) setIsLoading(false);
+			}
+		}
+
+		void loadCurrentRoom();
+		return () => {
+			cancelled = true;
+		};
+	}, [enabled]);
+
+	return { roomCode, isLoading };
 }
 
 async function readJson<T>(response: Response): Promise<T> {

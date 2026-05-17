@@ -12,6 +12,7 @@ import {
 	sanitizePlayerName,
 	selectRoomDirectoryListings,
 	selectRoomViewState,
+	type CurrentRoomResponse,
 	type GameHistoryEntry,
 	type OnlineRoomAction,
 	type OnlineRoomState,
@@ -188,6 +189,13 @@ function getUserByClientKey(clientKey: string | null): UserRow | null {
 function getUser(userId: number | null): UserRecord | null {
 	const user = getUserRow(userId);
 	return user ? userRecord(user) : null;
+}
+
+function getUserByIdOrClientKey(
+	userId: number | null,
+	clientKeyValue: string | null,
+): UserRow | null {
+	return getUserRow(userId) ?? getUserByClientKey(sanitizeClientKey(clientKeyValue));
 }
 
 function sanitizeClientKey(value: string | null | undefined): string | null {
@@ -568,6 +576,22 @@ function activeRoomDirectory() {
 	return selectRoomDirectoryListings(entries);
 }
 
+function currentRoomForUser(userId: number | null, clientKey: string | null): CurrentRoomResponse {
+	const user = getUserByIdOrClientKey(userId, clientKey);
+	if (!user) return { roomCode: null };
+
+	const room = db
+		.select()
+		.from(rooms)
+		.orderBy(desc(rooms.updatedAt))
+		.all()
+		.find(candidate =>
+			loadRoomState(candidate.code).members.some(member => member.userId === user.id),
+		);
+
+	return { roomCode: room?.code ?? null };
+}
+
 function allHistory() {
 	return db
 		.select()
@@ -609,6 +633,16 @@ const server = Bun.serve({
 
 				if (url.pathname === '/history' && request.method === 'GET') {
 					return json({ games: allHistory() });
+				}
+
+				if (url.pathname === '/users/current-room' && request.method === 'GET') {
+					const userId = Number(url.searchParams.get('userId'));
+					return json(
+						currentRoomForUser(
+							Number.isInteger(userId) ? userId : null,
+							url.searchParams.get('clientKey'),
+						),
+					);
 				}
 
 				if (url.pathname === '/admin/delete-room' && request.method === 'POST') {

@@ -113,6 +113,10 @@ export interface HistoryResponse {
 	games: GameHistoryEntry[];
 }
 
+export interface CurrentRoomResponse {
+	roomCode: string | null;
+}
+
 export interface UserResponse {
 	user: UserRecord;
 }

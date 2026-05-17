@@ -1,6 +1,7 @@
 import { storageKeys } from './constants';
 
 export type {
+	CurrentRoomResponse,
 	DirectoryResponse,
 	GameAction,
 	GameHistoryEntry,
