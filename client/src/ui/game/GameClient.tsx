@@ -388,6 +388,7 @@ function GameClient({
 
 	const showLobby =
 		!isLocalDebugMode &&
+		connectionState.status === 'connected' &&
 		(connectionState.phase === 'lobby' ||
 			connectionState.gameState === null ||
 			(!isOnlineParticipant && !showTv));

@@ -103,6 +103,22 @@ describe('onlineGame', () => {
 		expect(first.gameState?.players).toEqual(second.gameState?.players);
 	});
 
+	test('rejoining a playing room preserves the active player seat', () => {
+		const actions = [
+			{ type: 'join', actorId: 'player:1', userId: 1, name: 'Alex' },
+			{ type: 'join', actorId: 'player:2', userId: 2, name: 'Blair' },
+			{ type: 'set-ready', actorId: 'player:1', ready: true },
+			{ type: 'set-ready', actorId: 'player:2', ready: true, shuffleSeed: 1234 },
+			{ type: 'join', actorId: 'player:1', userId: 1, name: 'Alex' },
+		] as const;
+
+		const state = reduceOnlineRoomActions(actions);
+
+		expect(state.phase).toBe('playing');
+		expect(state.members.map(member => member.id)).toEqual(['player:1', 'player:2']);
+		expect(state.gameState?.players.map(player => player.id)).toContain('player:1');
+	});
+
 	test('spectator toggles are room-local and reject active players mid-game', () => {
 		const playingState = createState({
 			members: PLAYERS.slice(0, 2),
