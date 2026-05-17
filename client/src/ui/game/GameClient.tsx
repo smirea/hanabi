@@ -111,6 +111,7 @@ function GameClient({
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const [isLeaveGameArmed, setIsLeaveGameArmed] = useState(false);
 	const [endgamePanel, setEndgamePanel] = useState<'summary' | 'log'>('summary');
+	const [dismissedEndgameKey, setDismissedEndgameKey] = useState<string | null>(null);
 	const {
 		pendingAction,
 		setPendingAction,
@@ -315,6 +316,7 @@ function GameClient({
 	}, [activeGameState]);
 	useEffect(() => {
 		setEndgamePanel('summary');
+		setDismissedEndgameKey(null);
 	}, [terminalStatusLogId]);
 	const discardCounts = useMemo(() => {
 		const counts = new Map<string, number>();
@@ -1081,8 +1083,12 @@ function GameClient({
 		(_, index) => index < remainingFuses,
 	);
 	const gameOver = isTerminalStatus(perspective.status);
+	const endgameKey = gameOver
+		? (terminalStatusLogId ?? `${perspective.status}:${perspective.turn}`)
+		: null;
 	const endgameOutcome: 'win' | 'lose' = perspective.status === 'won' ? 'win' : 'lose';
-	const showEndgameOverlay = gameOver && !isActionAnimationRunning;
+	const showEndgameOverlay =
+		gameOver && !isActionAnimationRunning && dismissedEndgameKey !== endgameKey;
 	const reduceMotion =
 		typeof window !== 'undefined' &&
 		typeof window.matchMedia === 'function' &&
@@ -1110,24 +1116,12 @@ function GameClient({
 		setEndgamePanel(current => (current === 'log' ? 'summary' : 'log'));
 	}
 
-	function backToStart(): void {
+	function backToGame(): void {
 		setEndgamePanel('summary');
+		setDismissedEndgameKey(endgameKey);
 		setIsMenuOpen(false);
 		closeLogDrawer();
 		clearActionDraft();
-
-		if (isLocalDebugMode) {
-			debugGame.replaceState(new HanabiGame(LOCAL_DEBUG_SETUP).getSnapshot());
-			setDebugGameState(debugGame.getSnapshot());
-			return;
-		}
-
-		if (connectionState.selfPlayerId) {
-			void onlineRoom.sendAction({
-				type: 'reset-room',
-				actorId: connectionState.selfPlayerId,
-			});
-		}
 	}
 
 	return (
@@ -1618,7 +1612,7 @@ function GameClient({
 					panel={endgamePanel}
 					reduceMotion={reduceMotion}
 					onToggleLog={toggleEndgameLog}
-					onBackToStart={backToStart}
+					onBackToGame={backToGame}
 				/>
 			)}
 		</main>

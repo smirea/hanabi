@@ -15,6 +15,7 @@ export const storageKeys = {
 	playerName: 'player_name',
 	serverUserId: 'server_user_id',
 	serverClientKey: 'server_client_key',
+	currentRoom: 'current_room',
 	darkMode: 'dark_mode',
 	negativeColorHints: 'negative_color_hints',
 	negativeNumberHints: 'negative_number_hints',

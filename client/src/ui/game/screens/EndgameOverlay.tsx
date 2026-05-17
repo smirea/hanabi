@@ -42,7 +42,7 @@ export function EndgameOverlay({
 	panel,
 	reduceMotion,
 	onToggleLog,
-	onBackToStart,
+	onBackToGame,
 }: {
 	outcome: 'win' | 'lose';
 	status: HanabiPerspectiveState['status'];
@@ -59,7 +59,7 @@ export function EndgameOverlay({
 	panel: 'summary' | 'log';
 	reduceMotion: boolean;
 	onToggleLog: () => void;
-	onBackToStart: () => void;
+	onBackToGame: () => void;
 }) {
 	const title = status === 'won' ? 'You win' : status === 'lost' ? 'You lost' : 'Game over';
 
@@ -395,10 +395,10 @@ export function EndgameOverlay({
 					<button
 						type='button'
 						className='endgame-button primary'
-						onClick={onBackToStart}
-						data-testid='endgame-back-start'
+						onClick={onBackToGame}
+						data-testid='endgame-back-game'
 					>
-						Back to Start
+						Back to Game
 					</button>
 				</footer>
 			</section>

@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import type { AppSearch } from '../navigation';
+import { resolveHomeRoom, type AppSearch } from '../navigation';
 import { LobbyDirectory } from '../ui/LobbyDirectory';
 import { RoomScreen } from '../ui/RoomScreen';
 
@@ -10,9 +10,10 @@ export const Route = createFileRoute('/')({
 
 function HomeRoute() {
 	const { room } = Route.useSearch();
+	const restoredRoom = resolveHomeRoom(room);
 
-	if (room?.trim()) {
-		return <RoomScreen code={room} />;
+	if (restoredRoom) {
+		return <RoomScreen code={restoredRoom} />;
 	}
 
 	return <LobbyDirectory />;

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import App from '../App';
-import { withPersistentSearch } from '../navigation';
+import { clearStoredRoomCode, setStoredRoomCode, withPersistentSearch } from '../navigation';
 import { parseRoomCode } from '../roomCodes';
 
 interface RoomScreenProps {
@@ -35,6 +35,14 @@ export function RoomScreen({ code }: RoomScreenProps) {
 			replace: true,
 		});
 	}, [currentHash, navigate, normalized]);
+
+	useEffect(() => {
+		if (!normalized) {
+			return;
+		}
+
+		setStoredRoomCode(normalized);
+	}, [normalized]);
 
 	if (!normalized) {
 		return (
@@ -81,6 +89,7 @@ export function RoomScreen({ code }: RoomScreenProps) {
 		<App
 			roomCode={normalized}
 			onLeaveRoom={() => {
+				clearStoredRoomCode();
 				void navigate({ to: '/', search: withPersistentSearch(), hash: currentHash });
 			}}
 		/>

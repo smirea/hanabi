@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 const navigateMock = mock(() => {});
@@ -44,6 +44,7 @@ describe('RoomScreen', () => {
 
 	afterEach(() => {
 		cleanup();
+		window.localStorage.clear();
 	});
 
 	test('rejects legacy non-4-letter codes', () => {
@@ -94,6 +95,21 @@ describe('RoomScreen', () => {
 		expect(screen.getByTestId('lobby-room-code')).toHaveTextContent('ABCD');
 		await waitFor(() => {
 			expect(navigateMock).not.toHaveBeenCalled();
+		});
+	});
+
+	test('stores the active room and clears it when leaving', () => {
+		render(<RoomScreen code='ABCD' />);
+
+		expect(window.localStorage.getItem('hanabi.current_room')).toBe('"ABCD"');
+
+		fireEvent.click(screen.getByTestId('lobby-leave-room'));
+
+		expect(window.localStorage.getItem('hanabi.current_room')).toBeNull();
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: '/',
+			search: {},
+			hash: '',
 		});
 	});
 });

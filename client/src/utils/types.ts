@@ -26,6 +26,7 @@ export interface StorageValueByKey {
 	player_name: string;
 	server_user_id: number | null;
 	server_client_key: string;
+	current_room: string | null;
 	dark_mode: boolean;
 	negative_color_hints: boolean;
 	negative_number_hints: boolean;
