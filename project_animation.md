@@ -148,7 +148,7 @@
 - FX layering: confetti/rain render above the endgame UI content (but remain `pointer-events: none`).
 - Buttons:
   - View log: toggles an in-overlay log list (reuses log chip styling).
-  - Back to start: local debug resets to a fresh game; online host resets the room to lobby; online non-host reloads to leave the round.
+  - Back to start: local debug resets to a fresh game; online sends `reset-room` so the room returns to the lobby.
 - Reduced motion: endgame overlay entry + FX should be disabled when `prefers-reduced-motion: reduce` is enabled.
 
 ## Implementation Notes
@@ -186,7 +186,7 @@
 ## Progress Log
 
 - 2026-02-09: Initialized animation work tracker.
-- 2026-02-09: Added `motion@12.34.0`, plus deck count + last-action tickers in `src/App.tsx`.
+- 2026-02-09: Added `motion@12.34.0`, plus deck count + last-action tickers in `client/src/App.tsx`.
 - 2026-02-09: Added motion overlay layer + rect snapshotting (`useLayoutEffect`) to animate removed cards after state updates.
 - 2026-02-09: Implemented token FX (bulbs spend/gain, fuse extinguish) via CSS keyframes and class triggers on the SVG nodes.
 - 2026-02-09: Implemented draw (0.5s) from deck pill -> drawn card slot with a deck counter tick at the start.
@@ -200,6 +200,6 @@
 - 2026-02-09: Added discard explosion animation (with flip reveal for the acting player's hidden hand) and increased play/discard/misplay sequences to ~1.0s (draw stays 0.5s).
 - 2026-02-09: Playwright update artifacts captured under `output/playwright/animations-ux/`, `output/playwright/animations-actions/`, and `output/playwright/animations-misplay2/`.
 - 2026-02-09: Fixed action animation triggering when a terminal `status` log is appended in the same turn (the animation driver now inspects newly appended logs and ignores trailing status logs).
-- 2026-02-09: Added endgame overlay (win/lose/finished): final score + per-player stats, View Log toggle, and Back to Start behavior (local reset, host lobby reset, non-host reload).
+- 2026-02-09: Added endgame overlay (win/lose/finished): final score + per-player stats, View Log toggle, and Back to Start behavior (local reset, online reset-room to lobby).
 - 2026-02-09: Added endgame FX: win confetti burst; lose/finished rain with heavy intro then subtle loop; reduced-motion disables entry + FX animations.
 - 2026-02-09: Playwright artifacts captured for endgame flows under `output/playwright/endgame-win/` and `output/playwright/endgame-lose/` (screenshots + `win-endgame.webm` / `lose-endgame.webm` videos).

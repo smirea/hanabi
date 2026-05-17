@@ -1,13 +1,6 @@
 name: Deploy
 
 on:
-  workflow_run:
-    workflows:
-      - CI
-    branches:
-      - master
-    types:
-      - completed
   workflow_dispatch:
 
 concurrency:
@@ -16,84 +9,13 @@ concurrency:
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
   deploy:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'master') }}
     runs-on: ubuntu-latest
-    env:
-      AWS_REGION: us-east-1
-      S3_BUCKET: stf.lol
-      S3_PREFIX: hanabi
-      CLOUDFRONT_DISTRIBUTION_ID: EF8ZR6OCMZQ48
     steps:
-      - name: Download dist artifact
-        if: ${{ github.event_name == 'workflow_run' }}
-        uses: actions/download-artifact@v4
-        with:
-          name: dist
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ github.event.workflow_run.id }}
-          path: dist
-
-      - name: Checkout
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        uses: actions/checkout@v4
-
-      - name: Setup Bun
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install dependencies
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: bun install --frozen-lockfile
-
-      - name: Lint
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: bun run lint:ci
-
-      - name: Typecheck
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: bun run typecheck
-
-      - name: Unit tests
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: bun run test
-
-      - name: UI tests
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: bun run test:ui
-
-      - name: Build
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: bun run build
-
-      - name: Verify dist
-        run: test -f dist/index.html
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Upload immutable assets
+      - name: Deployment disabled
         run: |
-          aws s3 sync dist/ "s3://${S3_BUCKET}/${S3_PREFIX}/" \
-            --delete \
-            --exclude "index.html" \
-            --cache-control "public,max-age=31536000,immutable"
-
-      - name: Upload index.html
-        run: |
-          aws s3 cp dist/index.html "s3://${S3_BUCKET}/${S3_PREFIX}/index.html" \
-            --cache-control "no-cache,no-store,must-revalidate" \
-            --content-type "text/html; charset=utf-8"
-
-      - name: Invalidate CloudFront cache
-        run: |
-          aws cloudfront create-invalidation \
-            --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
-            --paths "/" "/index.html"
+          echo "Deploy is disabled because Hanabi now requires the Bun API server and SQLite storage."
+          echo "Configure server hosting, persistent DATABASE_URL storage, and API/SSE routing before re-enabling production deploy."
+          exit 1

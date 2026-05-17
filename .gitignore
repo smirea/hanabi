@@ -6,6 +6,7 @@ dist
 output/playwright
 .playwright-cli
 *.tgz
+.data
 
 # dotenv environment variable files
 .env

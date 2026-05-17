@@ -8,35 +8,31 @@ See `project_animation.md` for what the various animations are and how they are 
 ## Core Rules
 
 - Use Bun for all tooling: install, dev, build, test, and serve.
-- Keep architecture frontend-only: no custom backend APIs.
+- Keep the backend small: a Bun API server plus SQLite is enough.
 - Treat `rules.md` as the single source of gameplay truth.
 - Build for mobile portrait only.
 - Keep gameplay on one screen: avoid multi-screen UX for gameplay. Overlays/drawers are OK for non-critical info (logs/debug) as long as gameplay-critical decisions stay visible.
 
 ## Networking
 
-- Use WebRTC data channels for multiplayer.
-- Use Trystero (MQTT transport) for no-infra signaling/rendezvous.
-- Host election is deterministic (lowest peer id) with ping-based failover.
-- Reconnection resyncs from host snapshot; the host broadcasts game state to joining peers automatically.
-- `src/utils/networking.ts` is the transport utility (single `Networking` class). Keep it small and generic.
-- The utility has two layers:
-  - a global player presence room that persists a stable `player.id` plus `peerId`, `name`, and current `room`
-  - a per-room game channel that keeps a host-owned state snapshot, applies optimistic follower actions, and elects host internally
-- The utility handles stable player ids, room presence, lobby discovery, host election, room rejoin on page reload, and disposal tracking (noops after `.leave()`). Do not move app-specific room logic into it unless there is a clear gap.
-- `src/onlineGame.ts` owns everything app-specific: the singleton networking instance, the room state reducer (`applyOnlineRoomAction`), selectors (`selectRoomViewState`, `selectRoomMembers`, `selectRoomDirectoryListings`), and room member/settings logic.
-- `src/utils/utils.ts` creates the `LS` (namespaced localStorage) and `useLocalStorage` hook via `createLocalStorage`. Scoped by `debug_id` for multi-instance testing.
-- `src/utils/createLocalStorage.ts` is the storage abstraction (copied from tick-tack-toe). All network player persistence goes through `LS.get('player')` / `LS.set({ player })`.
+- Multiplayer uses the Bun server in `server/src/index.ts`.
+- Use SQLite through Drizzle for durable users, rooms, and room actions.
+- Game state is derived by replaying the initial room state plus all stored room actions.
+- Use server-sent events for live room updates.
+- There are no hosts or host election. Any room member can update lobby settings.
+- Starting a game requires all seated players to ready up.
+- The client stores the server user id in debug_id-scoped localStorage via `server_user_id`.
+- `shared/onlineGame.ts` owns the room action types, reducer, selectors, and shared constants.
+- `client/src/hooks/useGameServer.ts` owns client API/SSE wiring.
 - TV mode is room-local spectator state in `spectatorIds`, not player presence metadata.
 - The room directory is intentionally simple: show room code plus player names. Do not add extra complexity unless it is clearly needed.
 
 ## Current Status
 
-- The networking layer is a single `Networking` class in `src/utils/networking.ts` (ported from tick-tack-toe).
-- `src/ui/game/GameClient.tsx` and `src/ui/LobbyDirectory.tsx` consume Valtio-backed `networking.state` directly via `useSnapshot`.
-- Stable player ids (persisted in localStorage) are the Hanabi player ids used in online games.
-- Reconnect works by: player id restored from localStorage + room id from URL `?room=` param → auto-rejoin on page load → host broadcasts current game state to the rejoining peer.
-- Trystero/WebRTC may emit noisy `RTCErrorEvent` logs during reloads; this is expected.
+- The frontend lives in `client/`, shared game/reducer code lives in `shared/`, and the Bun API server lives in `server/`.
+- Stable server user ids are persisted in localStorage and converted to Hanabi player ids as `player:${user.id}`.
+- Reconnect works by: user id restored from localStorage + room id from URL `?room=` param -> POST join if needed -> GET/SSE current room state from the server.
+- Room history is built from terminal games found while replaying room actions.
 
 ## UI and State
 
@@ -51,7 +47,7 @@ See `project_animation.md` for what the various animations are and how they are 
 - Add stable `data-testid` attributes to every interactive control and critical status field.
 - Test id format: `section-element` or `entity-id-index`.
 - UI component tests use Testing Library.
-- Networking tests use a `FakeRoom`/`FakeContext` harness with manual time advancement (see `src/utils/networking.test.ts`).
+- Shared room-action tests live around `client/src/onlineGame.test.ts`.
 
 ## Manual Browser Testing
 
@@ -60,15 +56,16 @@ To test multiplayer locally, open multiple tabs with different `?debug_id=N` que
 1. Open `http://localhost:3000/?debug_id=1` — this is player 1
 2. Open `http://localhost:3000/?debug_id=2` — this is player 2
 3. Create a room from one tab, join it from the other via the lobby directory or by navigating to `/?room=XXXX&debug_id=2`
-4. Start the game from the host tab and play moves
+4. Ready up from every seated player tab and play moves
 
 Key scenarios to verify:
-- Only the host sees the "Start Game" button and can change settings
+
+- Any player can change settings in the lobby
+- The game starts only after every seated player is ready
 - Refreshing a player tab should auto-rejoin the room and restore game state
-- Closing the host tab should trigger host election on the remaining player(s)
-- WebRTC `RTCErrorEvent` console noise during reloads is expected and harmless
+- Game actions should update other tabs through SSE
 
 ## Deployment
 
 - Dev server: `bun run dev` (port 3000).
-- Target deployment is static hosting on S3.
+- Production deployment now needs the Bun API server plus SQLite storage; static-only S3 hosting is no longer enough.

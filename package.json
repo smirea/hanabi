@@ -3,28 +3,31 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"routes:gen": "bunx tsr generate",
-		"routes:watch": "bunx tsr watch",
-		"start": "bun run routes:gen && bun --port ${PORT:-3000} ./src/index.html",
-		"dev": "bun run routes:gen && bun --hot --port ${CLIENT_PORT:-3000} ./src/index.html",
-		"build": "bun run routes:gen && bun build ./src/index.html --outdir ./dist --minify --asset-naming='[name].[ext]'",
-		"preview": "bun run build && cd dist && bun --port ${PORT:-3000} ./index.html",
+		"routes:gen": "cd client && bunx tsr generate",
+		"routes:watch": "cd client && bunx tsr watch",
+		"server:dev": "API_PORT=${API_PORT:-3001} bun --watch server/src/index.ts",
+		"client:dev": "CLIENT_PORT=${CLIENT_PORT:-3000} VITE_API_URL=${VITE_API_URL:-http://localhost:3001} bun --filter client dev",
+		"dev": "bun run routes:gen && concurrently --restart-tries=-1 --restart-after=1000 --names 'server,client' --prefix-colors 'green,cyan' 'bun run server:dev' 'bun run client:dev'",
+		"build": "bun run routes:gen && bun --filter client build",
+		"preview": "bun run build && SERVE_CLIENT=1 API_PORT=${PORT:-3000} bun server/src/index.ts",
 		"lint": "./scripts/lint.sh",
 		"lint:ci": "bunx oxlint .",
 		"typecheck": "bunx tsc --noEmit",
-		"test": "sh -c 'files=$(find src -type f \\( -name \"*.test.ts\" -o -name \"*.test.tsx\" \\) -print); [ -z \"$files\" ] && exit 0; bun test $files --pass-with-no-tests'",
-		"test:ui": "sh -c 'files=$(find src -type f -name \"*.test.tsx\" -print); [ -z \"$files\" ] && exit 0; bun test $files --pass-with-no-tests'"
+		"test": "sh -c 'files=$(find client/src shared server/src -type f \\( -name \"*.test.ts\" -o -name \"*.test.tsx\" \\) -print); [ -z \"$files\" ] && exit 0; bun test $files --pass-with-no-tests'",
+		"test:ui": "sh -c 'files=$(find client/src -type f -name \"*.test.tsx\" -print); [ -z \"$files\" ] && exit 0; bun test $files --pass-with-no-tests'"
 	},
 	"dependencies": {
 		"@phosphor-icons/react": "^2.1.10",
 		"@tanstack/react-router": "^1.159.5",
+		"@vitejs/plugin-react": "^6.0.1",
+		"concurrently": "^9.2.1",
+		"drizzle-orm": "^0.45.1",
 		"motion": "^12.34.0",
 		"oxfmt": "^0.41.0",
 		"oxlint-tsgolint": "^0.17.0",
 		"react": "^19.2.4",
 		"react-dom": "^19.2.4",
-		"trystero": "^0.21.4",
-		"valtio": "^2.3.1"
+		"vite": "^8.0.10"
 	},
 	"devDependencies": {
 		"@happy-dom/global-registrator": "^20.0.10",

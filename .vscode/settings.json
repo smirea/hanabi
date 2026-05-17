@@ -1,5 +1,5 @@
 {
 	"files.readonlyInclude": {
-		"src/routeTree.gen.ts": true
+		"client/src/routeTree.gen.ts": true
 	}
 }
