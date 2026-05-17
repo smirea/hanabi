@@ -16,7 +16,6 @@ See `project_animation.md` for what the various animations are and how they are 
 ## Networking
 
 - Multiplayer uses the Bun server in `server/src/index.ts`.
-- Use SQLite through Drizzle for durable users, rooms, and room actions.
 - Game state is derived by replaying the initial room state plus all stored room actions.
 - Use server-sent events for live room updates.
 - There are no hosts or host election. Any room member can update lobby settings.
@@ -26,6 +25,14 @@ See `project_animation.md` for what the various animations are and how they are 
 - `client/src/hooks/useGameServer.ts` owns client API/SSE wiring.
 - TV mode is room-local spectator state in `spectatorIds`, not player presence metadata.
 - The room directory is intentionally simple: show room code plus player names. Do not add extra complexity unless it is clearly needed.
+
+## Database
+
+- SQLite stores users, rooms, and room actions.
+- Drizzle table definitions live in `server/src/index.ts`.
+- Use Drizzle for all runtime DB operations: select, insert, update, delete, and returning rows.
+- Do not use raw SQL strings, `sqlite.prepare`, or direct `DELETE FROM`/`SELECT`/`UPDATE`/`INSERT` for app behavior.
+- Raw `sqlite.exec` is only acceptable for bootstrapping schema, indexes, PRAGMAs, or tiny migrations that Drizzle does not handle here.
 
 ## Current Status
 
