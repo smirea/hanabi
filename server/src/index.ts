@@ -64,7 +64,6 @@ sqlite.exec(`
 		created_at text NOT NULL,
 		updated_at text NOT NULL
 	);
-	CREATE UNIQUE INDEX IF NOT EXISTS users_client_key_idx ON users(client_key) WHERE client_key IS NOT NULL;
 	CREATE TABLE IF NOT EXISTS rooms (
 		code text PRIMARY KEY,
 		created_at text NOT NULL,
@@ -86,10 +85,8 @@ sqlite.exec(`
 const userColumns = sqlite.query<{ name: string }, []>('PRAGMA table_info(users)').all();
 if (!userColumns.some(column => column.name === 'client_key')) {
 	sqlite.exec('ALTER TABLE users ADD COLUMN client_key text');
-	sqlite.exec(
-		'CREATE UNIQUE INDEX IF NOT EXISTS users_client_key_idx ON users(client_key) WHERE client_key IS NOT NULL',
-	);
 }
+sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_client_key_idx ON users(client_key) WHERE client_key IS NOT NULL');
 
 const db = drizzle(sqlite);
 const encoder = new TextEncoder();
