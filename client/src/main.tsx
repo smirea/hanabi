@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { installDebugServerNamespace } from './debugServer';
 import { installDebugNamespace } from './debugScreens';
 import { RouterProvider } from '@tanstack/react-router';
 import { router } from './router';
@@ -27,6 +28,7 @@ document
 	?.setAttribute('content', isDarkMode ? '#0b0d14' : '#f5f7fc');
 
 installDebugNamespace();
+installDebugServerNamespace();
 
 createRoot(rootElement).render(
 	<StrictMode>

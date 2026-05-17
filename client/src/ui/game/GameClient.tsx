@@ -177,6 +177,12 @@ function GameClient({
 	}, [onLeaveRoom]);
 
 	useEffect(() => {
+		if (!isLocalDebugMode && onlineRoom.wasKicked) {
+			onLeaveRoom?.();
+		}
+	}, [isLocalDebugMode, onLeaveRoom, onlineRoom.wasKicked]);
+
+	useEffect(() => {
 		if (isLocalDebugMode || !connectionState.selfPlayerId) {
 			return;
 		}

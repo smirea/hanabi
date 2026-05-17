@@ -168,6 +168,7 @@ export function useOnlineRoom(roomCode: string, playerName: string, enabled = tr
 	const { user, userError, ensureUser } = useServerUser(playerName, enabled);
 	const [room, setRoom] = useState<RoomViewState | null>(null);
 	const [roomError, setRoomError] = useState<string | null>(null);
+	const [wasKicked, setWasKicked] = useState(false);
 	const joinedRoomRef = useRef<string | null>(null);
 
 	const reloadRoom = useCallback(async (): Promise<RoomViewState | null> => {
@@ -222,6 +223,7 @@ export function useOnlineRoom(roomCode: string, playerName: string, enabled = tr
 	useEffect(() => {
 		if (!enabled) {
 			setRoom(null);
+			setWasKicked(false);
 			joinedRoomRef.current = null;
 			return;
 		}
@@ -235,6 +237,12 @@ export function useOnlineRoom(roomCode: string, playerName: string, enabled = tr
 		const events = new EventSource(
 			`${apiBase}/rooms/${encodeURIComponent(roomCode)}/events?userId=${encodeURIComponent(String(user.id))}`,
 		);
+		const handleKick = () => {
+			setWasKicked(true);
+			setRoom(null);
+			setRoomError(null);
+			events.close();
+		};
 		const updateRoom = (event: Event) => {
 			try {
 				const payload = JSON.parse((event as MessageEvent<string>).data) as RoomResponse;
@@ -246,6 +254,8 @@ export function useOnlineRoom(roomCode: string, playerName: string, enabled = tr
 		};
 
 		events.addEventListener('room', updateRoom);
+		events.addEventListener('room-deleted', handleKick);
+		events.addEventListener('user-deleted', handleKick);
 		events.onmessage = updateRoom;
 		events.onerror = () => void reloadRoom();
 		return () => events.close();
@@ -279,7 +289,15 @@ export function useOnlineRoom(roomCode: string, playerName: string, enabled = tr
 	);
 
 	return useMemo(
-		() => ({ room, user, error: roomError ?? userError, joinRoom, reloadRoom, sendAction }),
-		[joinRoom, reloadRoom, room, roomError, sendAction, user, userError],
+		() => ({
+			room,
+			user,
+			error: roomError ?? userError,
+			wasKicked,
+			joinRoom,
+			reloadRoom,
+			sendAction,
+		}),
+		[joinRoom, reloadRoom, room, roomError, sendAction, user, userError, wasKicked],
 	);
 }

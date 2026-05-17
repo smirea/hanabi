@@ -2,7 +2,7 @@ import { Database } from 'bun:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { env } from 'node:process';
-import { asc, desc, eq } from 'drizzle-orm';
+import { asc, desc, eq, inArray } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import {
@@ -86,7 +86,9 @@ const userColumns = sqlite.query<{ name: string }, []>('PRAGMA table_info(users)
 if (!userColumns.some(column => column.name === 'client_key')) {
 	sqlite.exec('ALTER TABLE users ADD COLUMN client_key text');
 }
-sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_client_key_idx ON users(client_key) WHERE client_key IS NOT NULL');
+sqlite.exec(
+	'CREATE UNIQUE INDEX IF NOT EXISTS users_client_key_idx ON users(client_key) WHERE client_key IS NOT NULL',
+);
 
 const db = drizzle(sqlite);
 const encoder = new TextEncoder();
@@ -281,9 +283,11 @@ function roomResponse(
 }
 
 function eventChunk(code: string, userId: number | null, state?: OnlineRoomState) {
-	return encoder.encode(
-		`event: room\ndata: ${JSON.stringify(roomResponse(code, userId, state))}\n\n`,
-	);
+	return sseChunk('room', roomResponse(code, userId, state));
+}
+
+function sseChunk(event: string, data: unknown) {
+	return encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
 function broadcastRoom(code: string, state = loadRoomState(code)) {
@@ -296,6 +300,42 @@ function broadcastRoom(code: string, state = loadRoomState(code)) {
 		} catch {
 			clients.delete(client);
 		}
+	}
+}
+
+function broadcastRoomDeleted(code: string) {
+	const clients = roomClients.get(code);
+	if (!clients?.size) return;
+
+	for (const client of clients) {
+		try {
+			client.controller.enqueue(sseChunk('room-deleted', { roomCode: code }));
+		} catch {}
+		try {
+			client.controller.close();
+		} catch {}
+	}
+	roomClients.delete(code);
+}
+
+function broadcastUserDeleted(userId: number) {
+	for (const [code, clients] of roomClients) {
+		const deletedClients: RoomClient[] = [];
+		for (const client of clients) {
+			if (client.userId !== userId) continue;
+			deletedClients.push(client);
+		}
+
+		for (const client of deletedClients) {
+			try {
+				client.controller.enqueue(sseChunk('user-deleted', { userId }));
+			} catch {}
+			try {
+				client.controller.close();
+			} catch {}
+			clients.delete(client);
+		}
+		if (clients.size === 0) roomClients.delete(code);
 	}
 }
 
@@ -377,6 +417,84 @@ function leaveOtherRooms(targetCode: string, user: UserRecord): void {
 
 		appendRoomAction(room.code, user.id, { type: 'leave', actorId: playerId });
 	}
+}
+
+function deleteRoomData(code: string) {
+	const existing = db.select().from(rooms).where(eq(rooms.code, code)).get();
+	if (!existing) return { ok: true, roomCode: code, deletedRoom: false, kickedUsers: [] };
+
+	const kickedUsers = loadRoomState(code).members.map(member => member.userId);
+	broadcastRoomDeleted(code);
+	const deletedActions = db
+		.delete(roomActions)
+		.where(eq(roomActions.roomCode, code))
+		.returning({ id: roomActions.id })
+		.all();
+	const deletedRooms = db
+		.delete(rooms)
+		.where(eq(rooms.code, code))
+		.returning({ code: rooms.code })
+		.all();
+	roomStateCache.delete(code);
+
+	return {
+		ok: true,
+		roomCode: code,
+		deletedRoom: deletedRooms.length > 0,
+		deletedActions: deletedActions.length,
+		kickedUsers,
+	};
+}
+
+function userNameKey(value: string) {
+	return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function deleteUserData(rawName: string | null | undefined) {
+	const name = sanitizePlayerName(rawName ?? '');
+	if (!name) throw new HttpError('Name is required', 400);
+
+	const targetKey = userNameKey(name);
+	const matchingUsers = db
+		.select()
+		.from(users)
+		.all()
+		.filter(user => userNameKey(user.name) === targetKey);
+	if (matchingUsers.length === 0) {
+		return { ok: true, name, deletedUsers: [], affectedRooms: [] };
+	}
+
+	const userIds = matchingUsers.map(user => user.id);
+	const affectedRooms = [
+		...new Set(
+			db
+				.select({ roomCode: roomActions.roomCode })
+				.from(roomActions)
+				.where(inArray(roomActions.userId, userIds))
+				.all()
+				.map(action => action.roomCode),
+		),
+	];
+
+	for (const userId of userIds) {
+		broadcastUserDeleted(userId);
+	}
+
+	db.delete(roomActions).where(inArray(roomActions.userId, userIds)).run();
+	db.delete(users).where(inArray(users.id, userIds)).run();
+
+	for (const code of affectedRooms) {
+		roomStateCache.delete(code);
+		const state = loadRoomState(code);
+		broadcastRoom(code, state);
+	}
+
+	return {
+		ok: true,
+		name,
+		deletedUsers: matchingUsers.map(user => ({ id: user.id, name: user.name })),
+		affectedRooms,
+	};
 }
 
 async function readBody<T>(request: Request): Promise<T> {
@@ -481,6 +599,18 @@ const server = Bun.serve({
 
 				if (url.pathname === '/history' && request.method === 'GET') {
 					return json({ games: allHistory() });
+				}
+
+				if (url.pathname === '/admin/delete-room' && request.method === 'POST') {
+					const body = await readBody<{ roomCode?: string }>(request);
+					const code = parseRoomCode(body.roomCode);
+					if (!code) return json({ error: 'Invalid room code' }, { status: 400 });
+					return json(deleteRoomData(code));
+				}
+
+				if (url.pathname === '/admin/delete-user' && request.method === 'POST') {
+					const body = await readBody<{ name?: string }>(request);
+					return json(deleteUserData(body.name));
 				}
 
 				if (parts[0] === 'rooms') {
