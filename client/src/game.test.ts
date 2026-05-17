@@ -108,6 +108,55 @@ function createAlmostWonState(): any {
 	};
 }
 
+function createNoValidPlaysLeftState(): any {
+	const state = createAlmostWonState();
+	const extraCards = [
+		['left-2', 'Y', 2],
+		['left-unknown', 'B', 1],
+		['right-5', 'Y', 5],
+		['right-4', 'B', 4],
+		['right-1', 'B', 1],
+		['discarded-g4', 'G', 4],
+	] as const;
+
+	for (const [id, suit, number] of extraCards) {
+		state.cards[id] = {
+			id,
+			suit,
+			number,
+			hints: {
+				color: null,
+				number: null,
+				notColors: [],
+				notNumbers: [],
+				recentlyHinted: false,
+			},
+		};
+	}
+
+	state.players = [
+		{ id: 'p1', name: 'left', cards: ['left-2', 'left-unknown'] },
+		{ id: 'p2', name: 'right', cards: ['right-5', 'right-4', 'right-1'] },
+	];
+	state.currentTurnPlayerIndex = 0;
+	state.drawDeck = [];
+	state.discardPile = ['discarded-g4'];
+	state.fireworks = {
+		R: ['R1', 'R2', 'R3', 'R4', 'R5'],
+		Y: ['Y1', 'Y2', 'Y3'],
+		G: ['G1', 'G2', 'G3'],
+		B: ['B1', 'B2', 'B3', 'B4', 'B5'],
+		W: ['W1', 'W2', 'W3', 'W4', 'W5'],
+		M: [],
+	};
+	state.hintTokens = 7;
+	state.status = 'active';
+	state.lastRound = null;
+	state.logs = [];
+	state.nextLogId = 1;
+	return state;
+}
+
 describe('HanabiGame', () => {
 	test('initializes a new game with dealt hands and serializable state', () => {
 		const deck = twoPlayerDeck(
@@ -755,6 +804,20 @@ describe('HanabiGame', () => {
 		discardGame.discardCard(discardGame.state.players[0].cards[0]);
 		expect(discardGame.state.players[0].cards).toHaveLength(3);
 		expect(discardGame.state.logs.at(-1)).toMatchObject({ type: 'discard' });
+	});
+
+	test('normal games finish when no firework completion path remains', () => {
+		const game = HanabiGame.fromState(createNoValidPlaysLeftState());
+
+		game.discardCard(game.state.players[0].cards[0]);
+
+		expect(game.state.status).toBe('finished');
+		expect(game.state.logs.at(-1)).toMatchObject({
+			type: 'status',
+			status: 'finished',
+			reason: 'no_valid_plays_left',
+		});
+		expect(() => game.beginPlaySelection()).toThrow('Game is over (finished)');
 	});
 
 	test('perspective view hides own cards and updates known availability by viewer', () => {

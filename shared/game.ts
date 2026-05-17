@@ -15,7 +15,8 @@ type EndReason =
 	| 'all_fireworks_completed'
 	| 'fuse_limit_reached'
 	| 'final_round_complete'
-	| 'indispensable_card_discarded';
+	| 'indispensable_card_discarded'
+	| 'no_valid_plays_left';
 
 export interface CardHints {
 	color: Suit | null;
@@ -985,6 +986,44 @@ export class HanabiGame {
 		return true;
 	}
 
+	private canAnyFireworkAdvance(): boolean {
+		const remaining = createEmptyCountsBySuit();
+
+		for (const cardId of this.state.drawDeck) {
+			const card = this.state.cards[cardId];
+			if (!card) {
+				throw new Error(`Unknown card in drawDeck: ${cardId}`);
+			}
+
+			remaining[card.suit][card.number] += 1;
+		}
+
+		for (const player of this.state.players) {
+			for (const cardId of player.cards) {
+				const card = this.state.cards[cardId];
+				if (!card) {
+					throw new Error(`Unknown card in player hand: ${cardId}`);
+				}
+
+				remaining[card.suit][card.number] += 1;
+			}
+		}
+
+		for (const suit of this.state.settings.activeSuits) {
+			const height = this.state.fireworks[suit].length;
+			if (height >= CARD_NUMBERS.length) {
+				continue;
+			}
+
+			const nextNumber = CARD_NUMBERS[height];
+			if (nextNumber && remaining[suit][nextNumber] > 0) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	private drawCardForPlayer(playerIndex: number): boolean {
 		if (this.state.drawDeck.length === 0) {
 			return false;
@@ -1089,6 +1128,14 @@ export class HanabiGame {
 
 		if (!HanabiGame.isTerminalStatus(this.state.status) && !this.anyPlayerHasLegalAction()) {
 			this.transitionToTerminalState('finished', 'final_round_complete');
+		}
+
+		if (
+			!HanabiGame.isTerminalStatus(this.state.status) &&
+			!this.state.settings.endlessMode &&
+			!this.canAnyFireworkAdvance()
+		) {
+			this.transitionToTerminalState('finished', 'no_valid_plays_left');
 		}
 
 		if (!HanabiGame.isTerminalStatus(this.state.status)) {

@@ -74,6 +74,10 @@ export function renderLogMessage(log: GameLogEntry): ReactNode {
 		return `Final round complete with score ${log.score}`;
 	}
 
+	if (log.reason === 'no_valid_plays_left') {
+		return `No valid plays left with score ${log.score}`;
+	}
+
 	return `Game finished with score ${log.score}`;
 }
 

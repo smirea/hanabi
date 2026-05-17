@@ -77,6 +77,7 @@ The game ends in one of three ways:
 1. **Immediate loss:** The third black fuse token is added to the lid.
 2. **Immediate win:** All fireworks are completed before the deck runs out.
 3. **Last round:** When the last card is drawn, each player (including the player who drew it) takes one final turn. No cards are drawn during this final round.
+4. **Implementation finish:** If no incomplete firework can advance because none of the next required cards are left in player hands or the deck, the game finishes with the current score.
 
 ## Scoring
 
