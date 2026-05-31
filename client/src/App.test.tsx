@@ -206,11 +206,23 @@ describe('App local debug wiring', () => {
 		fireEvent.click(screen.getByTestId('actions-menu'));
 		expect(screen.getByTestId('menu-negative-color-value')).toHaveTextContent('On');
 		expect(screen.getByTestId('menu-negative-number-value')).toHaveTextContent('On');
+		expect(screen.getByTestId('menu-negative-color-toggle')).toHaveAttribute(
+			'aria-pressed',
+			'true',
+		);
+		expect(screen.getByTestId('menu-negative-number-toggle')).toHaveAttribute(
+			'aria-pressed',
+			'true',
+		);
 
 		fireEvent.click(screen.getByTestId('menu-negative-color-toggle'));
 		expect(LS.get(storageKeys.negativeColorHints)).toBe(false);
 		fireEvent.click(screen.getByTestId('actions-menu'));
 		expect(screen.getByTestId('menu-negative-color-value')).toHaveTextContent('Off');
+		expect(screen.getByTestId('menu-negative-color-toggle')).toHaveAttribute(
+			'aria-pressed',
+			'false',
+		);
 
 		fireEvent.click(screen.getByTestId('menu-negative-number-toggle'));
 		expect(LS.get(storageKeys.negativeNumberHints)).toBe(false);
@@ -264,6 +276,7 @@ describe('App local debug wiring', () => {
 
 		fireEvent.click(screen.getByTestId('actions-menu'));
 		expect(screen.getByTestId('menu-tibi-mode-value')).toHaveTextContent('On');
+		expect(screen.getByTestId('menu-tibi-mode-toggle')).toHaveAttribute('aria-pressed', 'true');
 	});
 
 	test('dark mode toggle persists from burger menu and updates the document theme', async () => {

@@ -1460,6 +1460,7 @@ function GameClient({
 							type='button'
 							className='menu-item menu-toggle-item'
 							data-testid='menu-negative-color-toggle'
+							aria-pressed={showNegativeColorHints}
 							onClick={handleNegativeColorHintsToggle}
 						>
 							<span>Negative Color Hints</span>
@@ -1471,6 +1472,7 @@ function GameClient({
 							type='button'
 							className='menu-item menu-toggle-item'
 							data-testid='menu-negative-number-toggle'
+							aria-pressed={showNegativeNumberHints}
 							onClick={handleNegativeNumberHintsToggle}
 						>
 							<span>Negative Number Hints</span>
@@ -1482,6 +1484,7 @@ function GameClient({
 							type='button'
 							className='menu-item menu-toggle-item'
 							data-testid='menu-turn-sound-toggle'
+							aria-pressed={turnSoundEnabled}
 							onClick={handleTurnSoundToggle}
 						>
 							<span>Turn Sound</span>
@@ -1491,6 +1494,7 @@ function GameClient({
 							type='button'
 							className='menu-item menu-toggle-item'
 							data-testid='menu-tibi-mode-toggle'
+							aria-pressed={isTibiMode}
 							onClick={handleTibiModeToggle}
 						>
 							<span>Tibi Mode</span>
@@ -1517,6 +1521,7 @@ function GameClient({
 							type='button'
 							className='menu-item menu-toggle-item'
 							data-testid='menu-local-debug-toggle'
+							aria-pressed={isLocalDebugMode}
 							onClick={handleLocalDebugToggle}
 						>
 							<span>Local Debug</span>

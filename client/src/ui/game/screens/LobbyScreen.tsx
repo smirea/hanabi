@@ -91,6 +91,7 @@ export function LobbyScreen({
 		id: 'extra-suit',
 		label: 'Extra suit (M)',
 		subtitle: 'Adds a 5-card multicolor suit (M); color hints use base suits only.',
+		isOn: settings.includeMulticolor,
 		value: settings.includeMulticolor ? 'On' : 'Off',
 		disabled: false,
 		onClick: () => {
@@ -106,6 +107,7 @@ export function LobbyScreen({
 		id: 'endless',
 		label: 'Endless mode',
 		subtitle: 'Keep playing after the deck runs out.',
+		isOn: settings.endlessMode,
 		value: settings.endlessMode ? 'On' : 'Off',
 		disabled: false,
 		onClick: () => onUpdateSettings({ endlessMode: !settings.endlessMode }),
@@ -202,7 +204,8 @@ export function LobbyScreen({
 									<button
 										key={row.id}
 										type='button'
-										className='lobby-setting-toggle'
+										className={`lobby-setting-toggle ${row.isOn ? 'on' : ''}`}
+										aria-pressed={row.isOn}
 										onClick={row.onClick}
 										disabled={row.disabled}
 										data-testid={`lobby-setting-${row.id}`}
@@ -218,7 +221,11 @@ export function LobbyScreen({
 						) : (
 							<div className='lobby-toggle-list' data-testid='lobby-settings-readonly'>
 								{configRows.map(row => (
-									<div key={row.id} className='lobby-setting-toggle readonly' aria-disabled='true'>
+									<div
+										key={row.id}
+										className={`lobby-setting-toggle readonly ${row.isOn ? 'on' : ''}`}
+										aria-disabled='true'
+									>
 										<span className='lobby-setting-text'>
 											<span className='lobby-setting-label'>{row.label}</span>
 											<span className='lobby-setting-subtitle'>{row.subtitle}</span>

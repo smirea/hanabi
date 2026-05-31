@@ -1049,6 +1049,15 @@ body {
 	cursor: pointer;
 }
 
+.lobby-setting-toggle.on {
+	border-color: rgba(45, 201, 109, 0.45);
+	background:
+		linear-gradient(135deg, rgba(45, 201, 109, 0.18), rgba(45, 212, 191, 0.1)),
+		rgba(255, 255, 255, 0.94);
+	box-shadow: inset 0 0 0 1px rgba(45, 201, 109, 0.08);
+	color: #137a42;
+}
+
 .lobby-setting-toggle:disabled {
 	opacity: 0.5;
 	cursor: default;
@@ -1082,10 +1091,18 @@ body {
 .lobby-setting-value {
 	display: inline-flex;
 	align-items: center;
+	align-self: center;
 	font-size: 0.62rem;
 	font-weight: 900;
 	white-space: nowrap;
-	padding-left: 0.44rem;
+	padding: 0.13rem 0 0.13rem 0.44rem;
+	border-radius: 999px;
+}
+
+.lobby-setting-toggle.on .lobby-setting-value {
+	padding: 0.13rem 0.42rem;
+	background: rgba(45, 201, 109, 0.16);
+	color: #137a42;
 }
 
 .lobby-button.subtle.lobby-quick-toggle {
@@ -2458,6 +2475,22 @@ body {
 	justify-content: space-between;
 }
 
+.menu-toggle-item[aria-pressed='true'] {
+	border-color: rgba(45, 201, 109, 0.45);
+	background:
+		linear-gradient(135deg, rgba(45, 201, 109, 0.18), rgba(45, 212, 191, 0.1)),
+		rgba(255, 255, 255, 0.94);
+	box-shadow: inset 0 0 0 1px rgba(45, 201, 109, 0.08);
+	color: #137a42;
+}
+
+.menu-toggle-item[aria-pressed='true'] span:last-child {
+	border-radius: 999px;
+	background: rgba(45, 201, 109, 0.16);
+	padding: 0.13rem 0.42rem;
+	color: #137a42;
+}
+
 .menu-danger {
 	border-color: rgba(215, 68, 75, 0.38);
 	background: rgba(255, 88, 79, 0.1);
@@ -3758,6 +3791,20 @@ body {
 	color: rgba(240, 244, 255, 0.92);
 }
 
+:root[data-theme='dark'] .lobby-setting-toggle.on {
+	border-color: rgba(45, 201, 109, 0.5);
+	background:
+		linear-gradient(135deg, rgba(45, 201, 109, 0.22), rgba(45, 212, 191, 0.12)),
+		rgba(16, 20, 32, 0.82);
+	box-shadow: inset 0 0 0 1px rgba(45, 201, 109, 0.1);
+	color: rgba(156, 255, 190, 0.95);
+}
+
+:root[data-theme='dark'] .lobby-setting-toggle.on .lobby-setting-value {
+	background: rgba(45, 201, 109, 0.18);
+	color: rgba(156, 255, 190, 0.95);
+}
+
 :root[data-theme='dark'] .lobby-button.primary {
 	border-color: rgba(240, 244, 255, 0.92);
 	background: rgba(240, 244, 255, 0.92);
@@ -4064,6 +4111,20 @@ body {
 	border-color: rgba(90, 112, 168, 0.28);
 	background: rgba(16, 20, 32, 0.86);
 	color: rgba(240, 244, 255, 0.92);
+}
+
+:root[data-theme='dark'] .menu-toggle-item[aria-pressed='true'] {
+	border-color: rgba(45, 201, 109, 0.5);
+	background:
+		linear-gradient(135deg, rgba(45, 201, 109, 0.22), rgba(45, 212, 191, 0.12)),
+		rgba(16, 20, 32, 0.86);
+	box-shadow: inset 0 0 0 1px rgba(45, 201, 109, 0.1);
+	color: rgba(156, 255, 190, 0.95);
+}
+
+:root[data-theme='dark'] .menu-toggle-item[aria-pressed='true'] span:last-child {
+	background: rgba(45, 201, 109, 0.18);
+	color: rgba(156, 255, 190, 0.95);
 }
 
 :root[data-theme='dark'] .menu-danger {

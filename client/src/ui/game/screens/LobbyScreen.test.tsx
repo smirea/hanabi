@@ -63,6 +63,7 @@ describe('LobbyScreen', () => {
 
 		expect(screen.queryByTestId('lobby-setting-short-deck')).not.toBeInTheDocument();
 		expect(screen.queryByTestId('lobby-setting-wild-multicolor')).not.toBeInTheDocument();
+		expect(screen.getByTestId('lobby-setting-extra-suit')).toHaveAttribute('aria-pressed', 'true');
 	});
 
 	test('enabling extra suit defaults to short multicolor with base-color clues', () => {
