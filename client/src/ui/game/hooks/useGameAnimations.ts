@@ -45,6 +45,12 @@ export function useGameAnimations({
 		cardRects: Map<CardId, DOMRect>;
 	} | null>(null);
 
+	type PreparedDrawLayoutAnimation = {
+		animateShift: () => Promise<void>;
+		revealDrawnCard: () => Promise<void>;
+		cleanup: () => void;
+	};
+
 	const resetAnimations = useCallback(() => {
 		animationRunIdRef.current += 1;
 		prevGameStateRef.current = null;
@@ -229,6 +235,147 @@ export function useGameAnimations({
 		node.addEventListener('animationend', onEnd);
 	}, []);
 
+	function prepareDrawLayoutAnimation({
+		drawnCardId,
+		stableCardIds,
+	}: {
+		drawnCardId: CardId;
+		stableCardIds: CardId[];
+	}): PreparedDrawLayoutAnimation | null {
+		const previousRects = prevLayoutSnapshotRef.current?.cardRects ?? null;
+		const nextRects = layoutSnapshotRef.current?.cardRects ?? null;
+		if (!previousRects || !nextRects) {
+			return null;
+		}
+
+		const drawnNode = cardNodeByIdRef.current.get(drawnCardId) ?? null;
+		const originalDrawnOpacity = drawnNode?.style.opacity ?? '';
+		const originalDrawnPointerEvents = drawnNode?.style.pointerEvents ?? '';
+		if (drawnNode) {
+			drawnNode.style.opacity = '0';
+			drawnNode.style.pointerEvents = 'none';
+		}
+
+		const transitions = stableCardIds.flatMap(cardId => {
+			const node = cardNodeByIdRef.current.get(cardId) ?? null;
+			const previousRect = previousRects.get(cardId) ?? null;
+			const nextRect = nextRects.get(cardId) ?? null;
+			if (
+				!node ||
+				!previousRect ||
+				!nextRect ||
+				previousRect.width <= 0 ||
+				previousRect.height <= 0 ||
+				nextRect.width <= 0 ||
+				nextRect.height <= 0
+			) {
+				return [];
+			}
+
+			const dx = previousRect.left - nextRect.left;
+			const dy = previousRect.top - nextRect.top;
+			const scaleX = previousRect.width / nextRect.width;
+			const scaleY = previousRect.height / nextRect.height;
+			if (
+				Math.abs(dx) < 0.5 &&
+				Math.abs(dy) < 0.5 &&
+				Math.abs(scaleX - 1) < 0.01 &&
+				Math.abs(scaleY - 1) < 0.01
+			) {
+				return [];
+			}
+
+			const originalTransform = node.style.transform;
+			const originalTransformOrigin = node.style.transformOrigin;
+			const originalTransition = node.style.transition;
+			const originalWillChange = node.style.willChange;
+			const fromTransform = `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`;
+			node.style.transition = 'none';
+			node.style.transformOrigin = 'top left';
+			node.style.transform = fromTransform;
+			node.style.willChange = 'transform';
+			void node.getBoundingClientRect();
+
+			return [
+				{
+					node,
+					fromTransform,
+					originalTransform,
+					originalTransformOrigin,
+					originalTransition,
+					originalWillChange,
+				},
+			];
+		});
+
+		let cleanedUp = false;
+
+		function cleanup(): void {
+			if (cleanedUp) {
+				return;
+			}
+
+			cleanedUp = true;
+			for (const transition of transitions) {
+				transition.node.style.transform = transition.originalTransform;
+				transition.node.style.transformOrigin = transition.originalTransformOrigin;
+				transition.node.style.transition = transition.originalTransition;
+				transition.node.style.willChange = transition.originalWillChange;
+			}
+
+			if (drawnNode) {
+				drawnNode.style.opacity = originalDrawnOpacity;
+				drawnNode.style.pointerEvents = originalDrawnPointerEvents;
+				drawnNode.style.removeProperty('scale');
+			}
+		}
+
+		return {
+			async animateShift() {
+				await Promise.all(
+					transitions.map(transition => {
+						return new Promise<void>(resolve => {
+							let finished = false;
+							const finish = (): void => {
+								if (finished) {
+									return;
+								}
+
+								finished = true;
+								window.clearTimeout(timeout);
+								transition.node.removeEventListener('transitionend', onEnd);
+								resolve();
+							};
+							const onEnd = (event: TransitionEvent): void => {
+								if (event.propertyName === 'transform') {
+									finish();
+								}
+							};
+							const timeout = window.setTimeout(finish, 680);
+							transition.node.addEventListener('transitionend', onEnd);
+							window.requestAnimationFrame(() => {
+								transition.node.style.transition = 'transform 540ms cubic-bezier(0.16, 1, 0.3, 1)';
+								transition.node.style.transform = 'translate(0, 0) scale(1, 1)';
+							});
+						});
+					}),
+				);
+			},
+			async revealDrawnCard() {
+				if (!drawnNode) {
+					return;
+				}
+
+				await animate(
+					drawnNode,
+					{ opacity: [0, 1], scale: [0.98, 1] },
+					{ duration: 0.18, ease: [0.16, 1, 0.3, 1] },
+				).finished;
+			},
+			cleanup,
+		};
+	}
+
 	function createGhostCardElement({
 		suit,
 		number,
@@ -290,10 +437,12 @@ export function useGameAnimations({
 		drawnCardId,
 		actorId,
 		viewerIdForVisibility,
+		revealDrawnCard,
 	}: {
 		drawnCardId: CardId;
 		actorId: PlayerId;
 		viewerIdForVisibility: PlayerId | null;
+		revealDrawnCard?: () => Promise<void>;
 	}): Promise<void> {
 		const layer = animationLayerRef.current;
 		const deckRect = layoutSnapshotRef.current?.deckRect ?? null;
@@ -317,6 +466,10 @@ export function useGameAnimations({
 
 		const startLeft = deckRect.left + deckRect.width / 2 - destRect.width / 2;
 		const startTop = deckRect.top + deckRect.height / 2 - destRect.height / 2;
+		const startScale = Math.max(
+			0.24,
+			Math.min(0.58, Math.min(deckRect.width / destRect.width, deckRect.height / destRect.height)),
+		);
 
 		ghost.root.style.left = `${startLeft}px`;
 		ghost.root.style.top = `${startTop}px`;
@@ -328,31 +481,22 @@ export function useGameAnimations({
 		const dx = destRect.left - startLeft;
 		const dy = destRect.top - startTop;
 
-		const originalOpacity = destNode.style.opacity;
-		destNode.style.opacity = '0';
-
 		try {
 			await animate(
 				ghost.root,
 				{
-					x: [0, dx * 0.86, dx],
-					y: [0, dy * 0.86, dy],
-					scale: [0.14, 1.08, 1],
-					rotate: [-10, 2, 0],
-					opacity: [0.6, 1, 1],
+					x: [0, dx * 0.42, dx * 0.9, dx],
+					y: [0, dy * 0.36 - 10, dy * 0.92, dy],
+					scale: [startScale, 0.72, 1.03, 1],
+					rotate: [-8, -2, 1.5, 0],
+					opacity: [0.68, 1, 1, 1],
 				},
-				{ duration: 0.5, ease: [0.2, 0.85, 0.2, 1] },
+				{ duration: 0.56, ease: [0.16, 1, 0.3, 1] },
 			).finished;
 
-			await animate(
-				destNode,
-				{ opacity: [0, 1], scale: [0.98, 1] },
-				{ duration: 0.16, ease: [0.2, 0.85, 0.2, 1] },
-			).finished;
+			await revealDrawnCard?.();
 		} finally {
 			ghost.root.remove();
-			destNode.style.opacity = originalOpacity;
-			destNode.style.removeProperty('scale');
 		}
 	}
 
@@ -608,6 +752,13 @@ export function useGameAnimations({
 
 		const deckDelta = activeGameState.drawDeck.length - previous.drawDeck.length;
 		const didDraw = deckDelta === -1 && drawnCardId !== null;
+		const drawLayoutAnimation =
+			didDraw && drawnCardId
+				? prepareDrawLayoutAnimation({
+						drawnCardId,
+						stableCardIds: nextHand.filter(cardId => prevHandSet.has(cardId)),
+					})
+				: null;
 
 		const spentFuseIndex = (() => {
 			const prevRemaining = previous.settings.maxFuseTokens - previous.fuseTokensUsed;
@@ -652,13 +803,18 @@ export function useGameAnimations({
 				}
 
 				if (didDraw && drawnCardId) {
-					await animateDrawCard({
-						drawnCardId,
-						actorId: actionLog.actorId,
-						viewerIdForVisibility: perspective?.viewerId ?? null,
-					});
+					await Promise.all([
+						drawLayoutAnimation?.animateShift(),
+						animateDrawCard({
+							drawnCardId,
+							actorId: actionLog.actorId,
+							viewerIdForVisibility: perspective?.viewerId ?? null,
+							revealDrawnCard: drawLayoutAnimation?.revealDrawnCard,
+						}),
+					]);
 				}
 			} finally {
+				drawLayoutAnimation?.cleanup();
 				if (animationRunIdRef.current === runId) {
 					setIsActionAnimationRunning(false);
 					setTurnLockPlayerId(null);
