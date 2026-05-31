@@ -103,6 +103,28 @@ describe('onlineGame', () => {
 		expect(first.gameState?.players).toEqual(second.gameState?.players);
 	});
 
+	test('seeded game start randomizes player order and first turn', () => {
+		const state = reduceOnlineRoomActions([
+			{ type: 'join', actorId: 'player:1', userId: 1, name: 'Alex' },
+			{ type: 'join', actorId: 'player:2', userId: 2, name: 'Blair' },
+			{ type: 'join', actorId: 'player:3', userId: 3, name: 'Casey' },
+			{ type: 'set-ready', actorId: 'player:1', ready: true },
+			{ type: 'set-ready', actorId: 'player:2', ready: true },
+			{ type: 'set-ready', actorId: 'player:3', ready: true, shuffleSeed: 1234 },
+		]);
+
+		expect(state.phase).toBe('playing');
+		expect(state.gameState?.players.map(player => player.id)).toEqual([
+			'player:2',
+			'player:1',
+			'player:3',
+		]);
+		expect(state.gameState?.currentTurnPlayerIndex).toBe(2);
+		expect(
+			state.gameState?.players[state.gameState.currentTurnPlayerIndex]?.id,
+		).toBe('player:3');
+	});
+
 	test('rejoining a playing room preserves the active player seat', () => {
 		const actions = [
 			{ type: 'join', actorId: 'player:1', userId: 1, name: 'Alex' },

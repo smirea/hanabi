@@ -285,6 +285,23 @@ function isTerminalGame(state: OnlineRoomState): boolean {
 	return status === 'won' || status === 'lost' || status === 'finished';
 }
 
+function createSeededRandom(seed: number): () => number {
+	let state = seed >>> 0 || 1;
+	return () => {
+		state = (state * 1664525 + 1013904223) >>> 0;
+		return state / 0x100000000;
+	};
+}
+
+function shuffleWithRandom<T>(items: T[], random: () => number): T[] {
+	const shuffled = [...items];
+	for (let index = shuffled.length - 1; index > 0; index -= 1) {
+		const swapIndex = Math.floor(random() * (index + 1));
+		[shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+	}
+	return shuffled;
+}
+
 function maybeStartGame(state: OnlineRoomState, shuffleSeed?: number): boolean {
 	if (state.phase !== 'lobby') return false;
 
@@ -294,9 +311,13 @@ function maybeStartGame(state: OnlineRoomState, shuffleSeed?: number): boolean {
 		return false;
 	if (!seated.every(member => member.isReady)) return false;
 
+	const random = shuffleSeed === undefined ? null : createSeededRandom(shuffleSeed);
+	const orderedPlayers = random ? shuffleWithRandom(seated, random) : seated;
+	const startingPlayerIndex = random ? Math.floor(random() * orderedPlayers.length) : 0;
 	const game = new HanabiGame({
-		playerIds: seated.map(member => member.id),
-		playerNames: seated.map(member => member.name),
+		playerIds: orderedPlayers.map(member => member.id),
+		playerNames: orderedPlayers.map(member => member.name),
+		startingPlayerIndex,
 		shuffleSeed,
 		...state.settings,
 	});
