@@ -34,12 +34,24 @@ describe('LobbyDirectory', () => {
 		fireEvent.change(screen.getByTestId('room-directory-join-input'), {
 			target: { value: 'ABCD' },
 		});
+		fireEvent.click(screen.getByTestId('room-directory-join'));
 
 		expect(navigateMock).toHaveBeenCalledWith({
 			to: '/',
 			search: { room: 'ABCD' },
 			hash: '',
 		});
+	});
+
+	test('does not join while typing a complete room code', () => {
+		render(<LobbyDirectory />);
+
+		fireEvent.change(screen.getByTestId('room-directory-join-input'), {
+			target: { value: 'ABCD' },
+		});
+
+		expect(navigateMock).not.toHaveBeenCalled();
+		expect(screen.getByTestId('room-directory-join')).toBeEnabled();
 	});
 
 	test('renders create room button', () => {

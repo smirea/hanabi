@@ -846,6 +846,37 @@ body {
 	letter-spacing: 0.24em;
 }
 
+.lobby-directory-join-form {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 0.42rem;
+}
+
+.lobby-directory-join-btn {
+	min-width: 4rem;
+	min-height: 2.6rem;
+	border-radius: 10px;
+	border: 1px solid var(--gray-600);
+	background: var(--gray-600);
+	color: #fff;
+	font-family: inherit;
+	font-size: 0.72rem;
+	font-weight: 800;
+	cursor: pointer;
+	transition:
+		opacity 0.12s,
+		background 0.12s;
+}
+
+.lobby-directory-join-btn:disabled {
+	cursor: default;
+	opacity: 0.4;
+}
+
+.lobby-directory-join-btn:not(:disabled):active {
+	opacity: 0.8;
+}
+
 .lobby-directory-rooms {
 	display: flex;
 	flex-direction: column;
@@ -3839,6 +3870,12 @@ body {
 }
 
 :root[data-theme='dark'] .lobby-directory-create-btn {
+	border-color: rgba(240, 244, 255, 0.92);
+	background: rgba(240, 244, 255, 0.92);
+	color: #0b0d14;
+}
+
+:root[data-theme='dark'] .lobby-directory-join-btn {
 	border-color: rgba(240, 244, 255, 0.92);
 	background: rgba(240, 244, 255, 0.92);
 	color: #0b0d14;

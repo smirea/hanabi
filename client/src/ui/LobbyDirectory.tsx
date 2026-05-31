@@ -24,6 +24,7 @@ export function LobbyDirectory() {
 			hash: currentHash,
 		});
 	};
+	const joinCode = parseRoomCode(joinInput);
 
 	return (
 		<main className='app lobby-app' data-testid='room-directory-root'>
@@ -69,22 +70,33 @@ export function LobbyDirectory() {
 							<span>or join room</span>
 						</div>
 
-						<input
-							className='lobby-directory-code-input'
-							value={joinInput}
-							onChange={e => {
-								const val = e.target.value;
-								setJoinInput(val);
-								const code = parseRoomCode(val);
-								if (code) goToRoom(code);
+						<form
+							className='lobby-directory-join-form'
+							onSubmit={event => {
+								event.preventDefault();
+								if (joinCode) goToRoom(joinCode);
 							}}
-							placeholder='BWBS'
-							inputMode='text'
-							autoCapitalize='characters'
-							spellCheck={false}
-							maxLength={4}
-							data-testid='room-directory-join-input'
-						/>
+						>
+							<input
+								className='lobby-directory-code-input'
+								value={joinInput}
+								onChange={e => setJoinInput(e.target.value)}
+								placeholder='BWBS'
+								inputMode='text'
+								autoCapitalize='characters'
+								spellCheck={false}
+								maxLength={4}
+								data-testid='room-directory-join-input'
+							/>
+							<button
+								type='submit'
+								className='lobby-directory-join-btn'
+								disabled={!joinCode}
+								data-testid='room-directory-join'
+							>
+								Join
+							</button>
+						</form>
 
 						{directory.length > 0 && (
 							<div className='lobby-directory-rooms' data-testid='room-directory-list'>
