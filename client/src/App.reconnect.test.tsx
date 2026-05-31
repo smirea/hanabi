@@ -22,20 +22,27 @@ import { HanabiGame } from './game';
 import { storageKeys } from './utils/constants';
 import { LS } from './utils/utils';
 
-function createFinishedRoom() {
+function createFinishedRoom({
+	status = 'finished',
+	fuseTokensUsed = 0,
+}: {
+	status?: 'finished' | 'lost' | 'won';
+	fuseTokensUsed?: number;
+} = {}) {
 	const game = new HanabiGame({
 		playerIds: ['player:1', 'player:2'],
 		playerNames: ['Alex', 'Blair'],
 		shuffleSeed: 1234,
 	});
 	const gameState = game.getSnapshot();
-	gameState.status = 'finished';
+	gameState.status = status;
+	gameState.fuseTokensUsed = fuseTokensUsed;
 	gameState.logs.push({
-		id: 'status-finished',
+		id: `status-${status}`,
 		turn: gameState.turn,
 		type: 'status',
-		status: 'finished',
-		reason: 'final_round_complete',
+		status,
+		reason: status === 'lost' ? 'indispensable_card_discarded' : 'final_round_complete',
 		score: game.getScore(),
 	});
 
@@ -91,5 +98,15 @@ describe('App online reconnect state', () => {
 		expect(screen.queryByTestId('endgame-screen')).not.toBeInTheDocument();
 		expect(screen.getByTestId('table-shell')).toBeInTheDocument();
 		expect(sendActionMock).not.toHaveBeenCalled();
+	});
+
+	test('endgame loss shows no lives remaining even for non-fuse defeats', () => {
+		LS.set({ [storageKeys.debugMode]: false });
+		mockRoom = createFinishedRoom({ status: 'lost', fuseTokensUsed: 0 });
+
+		render(<App roomCode='ABCD' />);
+
+		expect(screen.getByTestId('endgame-title')).toHaveTextContent('You lost');
+		expect(screen.getByTestId('endgame-lives-remaining')).toHaveTextContent('Lives0/3');
 	});
 });

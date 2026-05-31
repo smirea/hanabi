@@ -65,7 +65,8 @@ export function EndgameOverlay({
 
 	const scoreBreakdown = perspective.activeSuits.map(suit => perspective.fireworksHeights[suit]);
 	const scoreFormula = `${scoreBreakdown.join('+')} = ${score}`;
-	const remainingLives = Math.max(0, perspective.maxFuseTokens - perspective.fuseTokensUsed);
+	const remainingLives =
+		status === 'lost' ? 0 : Math.max(0, perspective.maxFuseTokens - perspective.fuseTokensUsed);
 
 	const seedKey = `${outcome}:${status}:${score}:${logs[0]?.id ?? 'none'}`;
 
