@@ -11,6 +11,7 @@ import type {
 	UserRecord,
 	UserResponse,
 	CurrentRoomResponse,
+	VersionResponse,
 } from '../utils/types';
 
 const apiBase = '/api';
@@ -22,6 +23,20 @@ export function getStoredUserId(): number | null {
 
 function setStoredUserId(userId: number): void {
 	LS.set({ [storageKeys.serverUserId]: userId });
+}
+
+function formatVersionText(committedAt: string | null): string | null {
+	if (!committedAt) return null;
+
+	const date = new Date(committedAt);
+	if (Number.isNaN(date.getTime())) return null;
+
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	const year = date.getFullYear();
+	const hour = String(date.getHours()).padStart(2, '0');
+	const minute = String(date.getMinutes()).padStart(2, '0');
+	return `version ${month} ${day}, ${year} @ ${hour}:${minute}`;
 }
 
 function createClientKey(): string {
@@ -103,6 +118,37 @@ async function readJson<T>(response: Response): Promise<T> {
 	}
 
 	return payload as T;
+}
+
+export function useAppVersion(enabled = true) {
+	const [versionText, setVersionText] = useState<string | null>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+
+		async function loadVersion() {
+			if (!enabled) {
+				setVersionText(null);
+				return;
+			}
+
+			try {
+				const payload = await readJson<VersionResponse>(
+					await fetch(`${apiBase}/version`, { headers: { Accept: 'application/json' } }),
+				);
+				if (!cancelled) setVersionText(formatVersionText(payload.committedAt));
+			} catch {
+				if (!cancelled) setVersionText(null);
+			}
+		}
+
+		void loadVersion();
+		return () => {
+			cancelled = true;
+		};
+	}, [enabled]);
+
+	return { versionText };
 }
 
 export function useServerUser(name: string, enabled = true) {

@@ -727,6 +727,11 @@ body {
 	align-content: start;
 }
 
+.lobby-directory-header {
+	text-align: center;
+	padding: 0.3rem 0 0.1rem;
+}
+
 .lobby-directory-body {
 	display: flex;
 	flex-direction: column;
@@ -736,12 +741,18 @@ body {
 
 .lobby-directory-title {
 	margin: 0;
-	text-align: center;
 	font-size: 1.6rem;
 	font-weight: 900;
 	letter-spacing: -0.03em;
 	color: var(--gray-600);
-	padding: 0.3rem 0 0.1rem;
+}
+
+.lobby-directory-version {
+	margin: 0.08rem 0 0;
+	font-size: 0.52rem;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	color: color-mix(in srgb, var(--gray-400) 62%, transparent);
 }
 
 .lobby-directory-name-field {

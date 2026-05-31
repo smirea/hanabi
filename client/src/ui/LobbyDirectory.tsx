@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { useRoomDirectory } from '../hooks/useGameServer';
+import { useAppVersion, useRoomDirectory } from '../hooks/useGameServer';
 import { withPersistentSearch } from '../navigation';
 import { sanitizePlayerName } from '../onlineGame';
 import { createRoomCode, parseRoomCode } from '../roomCodes';
@@ -10,6 +10,7 @@ import { useLocalStorage } from '../utils/utils';
 export function LobbyDirectory() {
 	const navigate = useNavigate();
 	const { rooms: directory } = useRoomDirectory();
+	const { versionText } = useAppVersion();
 	const [joinInput, setJoinInput] = useState('');
 	const [playerName, setPlayerName] = useLocalStorage(storageKeys.playerName, '');
 	const currentHash = typeof window === 'undefined' ? '' : window.location.hash.replace(/^#/, '');
@@ -28,7 +29,14 @@ export function LobbyDirectory() {
 		<main className='app lobby-app' data-testid='room-directory-root'>
 			<section className='lobby-shell-body lobby-shell-body-full'>
 				<section className='lobby-card lobby-directory-card'>
-					<h1 className='lobby-directory-title'>Hanabi</h1>
+					<header className='lobby-directory-header'>
+						<h1 className='lobby-directory-title'>Hanabi</h1>
+						{versionText && (
+							<p className='lobby-directory-version' data-testid='room-directory-version'>
+								{versionText}
+							</p>
+						)}
+					</header>
 
 					<div className='lobby-directory-body'>
 						<div className='lobby-directory-name-field'>

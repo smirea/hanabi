@@ -117,6 +117,10 @@ export interface CurrentRoomResponse {
 	roomCode: string | null;
 }
 
+export interface VersionResponse {
+	committedAt: string | null;
+}
+
 export interface UserResponse {
 	user: UserRecord;
 }

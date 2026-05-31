@@ -17,6 +17,7 @@ export type {
 	RoomViewState,
 	UserRecord,
 	UserResponse,
+	VersionResponse,
 } from '../../../shared/onlineGame';
 
 export type StorageKey = (typeof storageKeys)[keyof typeof storageKeys];

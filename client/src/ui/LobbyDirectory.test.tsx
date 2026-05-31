@@ -9,6 +9,7 @@ void mock.module('@tanstack/react-router', () => ({
 }));
 
 void mock.module('../hooks/useGameServer', () => ({
+	useAppVersion: () => ({ versionText: 'version 05 31, 2026 @ 12:34' }),
 	useRoomDirectory: () => ({ rooms: [], reloadDirectory: async () => {} }),
 }));
 
@@ -44,5 +45,12 @@ describe('LobbyDirectory', () => {
 	test('renders create room button', () => {
 		render(<LobbyDirectory />);
 		expect(screen.getByTestId('room-directory-create')).toBeInTheDocument();
+	});
+
+	test('renders the faint server version under the title', () => {
+		render(<LobbyDirectory />);
+		expect(screen.getByTestId('room-directory-version')).toHaveTextContent(
+			'version 05 31, 2026 @ 12:34',
+		);
 	});
 });

@@ -18,6 +18,7 @@ import {
 	type OnlineRoomState,
 	type RoomResponse,
 	type UserRecord,
+	type VersionResponse,
 } from '../../shared/onlineGame';
 import type { HanabiState } from '../../shared/game';
 
@@ -28,6 +29,12 @@ const rootDirectory = join(import.meta.dir, '..', '..');
 const databasePath = env.DATABASE_URL ?? join(rootDirectory, '.data', 'hanabi.sqlite');
 const serveClient = env.SERVE_CLIENT === '1' || env.SERVE_CLIENT === 'true';
 const clientDistDirectory = join(rootDirectory, 'client', 'dist');
+const githubRepository = env.GITHUB_REPOSITORY || 'smirea/hanabi';
+const githubBranch = env.GITHUB_REF_NAME || env.GITHUB_BRANCH || 'master';
+const githubCommitUrl =
+	env.GITHUB_COMMIT_API_URL ??
+	`https://api.github.com/repos/${githubRepository}/commits/${githubBranch}`;
+const versionCacheMs = 60_000;
 mkdirSync(dirname(databasePath), { recursive: true });
 
 const sqlite = new Database(databasePath, { create: true });
@@ -101,6 +108,7 @@ type RoomClient = {
 };
 const roomClients = new Map<string, Set<RoomClient>>();
 const roomStateCache = new Map<string, OnlineRoomState>();
+let versionCache: { loadedAt: number; payload: VersionResponse } | null = null;
 
 class HttpError extends Error {
 	constructor(
@@ -117,6 +125,39 @@ function nowIso() {
 
 function json(data: unknown, init?: ResponseInit) {
 	return Response.json(data, init);
+}
+
+async function loadVersion(): Promise<VersionResponse> {
+	const now = Date.now();
+	if (versionCache && now - versionCache.loadedAt < versionCacheMs) {
+		return versionCache.payload;
+	}
+
+	try {
+		const headers: HeadersInit = {
+			Accept: 'application/vnd.github+json',
+			'User-Agent': 'hanabi-version',
+		};
+		if (env.GITHUB_TOKEN) {
+			headers.Authorization = `Bearer ${env.GITHUB_TOKEN}`;
+		}
+
+		const response = await fetch(githubCommitUrl, { headers });
+		if (!response.ok) {
+			throw new Error(`GitHub returned ${response.status}`);
+		}
+
+		const payload = (await response.json()) as {
+			commit?: { committer?: { date?: string }; author?: { date?: string } };
+		};
+		const committedAt = payload.commit?.committer?.date ?? payload.commit?.author?.date ?? null;
+		const version = { committedAt };
+		versionCache = { loadedAt: now, payload: version };
+		return version;
+	} catch (error) {
+		console.warn('Unable to load version from GitHub', error);
+		return versionCache?.payload ?? { committedAt: null };
+	}
 }
 
 function apiPathname(pathname: string): string {
@@ -617,6 +658,9 @@ const server = Bun.serve({
 
 				if (request.method === 'OPTIONS') return new Response(null, { status: 204 });
 				if (url.pathname === '/status') return json({ ok: true });
+				if (url.pathname === '/version' && request.method === 'GET') {
+					return json(await loadVersion());
+				}
 
 				if (url.pathname === '/users' && request.method === 'POST') {
 					const body = await readBody<{
