@@ -38,6 +38,7 @@ export function EndgameOverlay({
 	perspective,
 	discardCounts,
 	finalHands,
+	handSize,
 	players,
 	viewerId,
 	statsByPlayerId,
@@ -53,6 +54,7 @@ export function EndgameOverlay({
 	perspective: HanabiPerspectiveState;
 	discardCounts: Map<string, number>;
 	finalHands: Array<{ id: PlayerId; name: string; cards: PerspectiveCard[] }>;
+	handSize: number;
 	players: Array<{ id: PlayerId; name: string }>;
 	viewerId: PlayerId;
 	statsByPlayerId: Map<
@@ -147,6 +149,7 @@ export function EndgameOverlay({
 
 		return counts;
 	}, [perspective.players]);
+	const finalHandSlotCount = Math.max(1, handSize, ...finalHands.map(hand => hand.cards.length));
 
 	return (
 		<aside
@@ -323,45 +326,6 @@ export function EndgameOverlay({
 						</section>
 					) : (
 						<section className='endgame-summary' data-testid='endgame-summary'>
-							<section className='endgame-final-hands' data-testid='endgame-final-hands'>
-								<h3 className='endgame-section-title'>Final Hands</h3>
-								<div className='endgame-final-hand-list'>
-									{finalHands.map(hand => {
-										const isViewer = hand.id === viewerId;
-										return (
-											<article
-												key={hand.id}
-												className='endgame-final-hand'
-												data-testid={`endgame-final-hand-${hand.id}`}
-											>
-												<header className='endgame-final-hand-header'>
-													<span>{hand.name}</span>
-													{isViewer ? <span className='you-tag'>you</span> : null}
-												</header>
-												<div
-													className='endgame-final-hand-cards'
-													style={
-														{
-															'--hand-size': String(Math.max(hand.cards.length, 1)),
-														} as CSSProperties
-													}
-												>
-													{hand.cards.map((card, cardIndex) => (
-														<CardView
-															key={card.id}
-															card={card}
-															showNegativeColorHints
-															showNegativeNumberHints
-															isDisabled
-															testId={`endgame-final-card-${hand.id}-${cardIndex}`}
-														/>
-													))}
-												</div>
-											</article>
-										);
-									})}
-								</div>
-							</section>
 							<section className='endgame-stats' data-testid='endgame-stats'>
 								<table className='endgame-table' data-testid='endgame-stats-table'>
 									<colgroup>
@@ -424,6 +388,46 @@ export function EndgameOverlay({
 										})}
 									</tbody>
 								</table>
+							</section>
+							<section className='endgame-final-hands' data-testid='endgame-final-hands'>
+								<h3 className='endgame-section-title'>Final Hands</h3>
+								<div className='endgame-final-hand-list'>
+									{finalHands.map(hand => {
+										const isViewer = hand.id === viewerId;
+										return (
+											<article
+												key={hand.id}
+												className='endgame-final-hand'
+												data-testid={`endgame-final-hand-${hand.id}`}
+											>
+												<header className='endgame-final-hand-header'>
+													<span>{hand.name}</span>
+													{isViewer ? <span className='you-tag'>you</span> : null}
+												</header>
+												<div
+													className='endgame-final-hand-cards'
+													style={
+														{
+															'--hand-size': String(finalHandSlotCount),
+														} as CSSProperties
+													}
+													data-testid={`endgame-final-hand-cards-${hand.id}`}
+												>
+													{hand.cards.map((card, cardIndex) => (
+														<CardView
+															key={card.id}
+															card={card}
+															showNegativeColorHints
+															showNegativeNumberHints
+															isDisabled
+															testId={`endgame-final-card-${hand.id}-${cardIndex}`}
+														/>
+													))}
+												</div>
+											</article>
+										);
+									})}
+								</div>
 							</section>
 						</section>
 					)}

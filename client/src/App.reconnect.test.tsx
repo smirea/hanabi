@@ -121,6 +121,7 @@ describe('App online reconnect state', () => {
 	test('endgame summary reveals final hands with viewer hand hints', () => {
 		LS.set({ [storageKeys.debugMode]: false });
 		const room = createFinishedRoom();
+		room.gameState.players[1].cards = room.gameState.players[1].cards.slice(0, 4);
 		mockRoom = room;
 
 		render(<App roomCode='ABCD' />);
@@ -128,8 +129,19 @@ describe('App online reconnect state', () => {
 		const firstCardId = room.gameState.players[0].cards[0];
 		const firstCard = room.gameState.cards[firstCardId];
 		const finalCard = screen.getByTestId('endgame-final-card-player:1-0');
+		const summaryChildren = Array.from(screen.getByTestId('endgame-summary').children);
 
+		expect(summaryChildren).toEqual([
+			screen.getByTestId('endgame-stats'),
+			screen.getByTestId('endgame-final-hands'),
+		]);
 		expect(screen.getByTestId('endgame-final-hands')).toBeInTheDocument();
+		expect(
+			screen.getByTestId('endgame-final-hand-cards-player:1').style.getPropertyValue('--hand-size'),
+		).toBe('5');
+		expect(
+			screen.getByTestId('endgame-final-hand-cards-player:2').style.getPropertyValue('--hand-size'),
+		).toBe('5');
 		expect(finalCard.querySelector('.card-face-value')).toHaveTextContent(String(firstCard.number));
 		expect(finalCard.querySelector('.badge.number')).toHaveTextContent(
 			String(firstCard.hints.number),

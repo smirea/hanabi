@@ -1626,6 +1626,7 @@ function GameClient({
 					perspective={perspective}
 					discardCounts={discardCounts}
 					finalHands={finalHands}
+					handSize={activeGameState.settings.handSize}
 					players={activeGameState.players}
 					viewerId={perspective.viewerId}
 					statsByPlayerId={endgameStatsByPlayerId}
