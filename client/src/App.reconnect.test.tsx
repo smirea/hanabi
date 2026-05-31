@@ -26,13 +26,16 @@ import { LS } from './utils/utils';
 function createFinishedRoom({
 	status = 'finished',
 	fuseTokensUsed = 0,
+	includeMulticolor = false,
 }: {
 	status?: 'finished' | 'lost' | 'won';
 	fuseTokensUsed?: number;
+	includeMulticolor?: boolean;
 } = {}) {
 	const game = new HanabiGame({
 		playerIds: ['player:1', 'player:2'],
 		playerNames: ['Alex', 'Blair'],
+		includeMulticolor,
 		shuffleSeed: 1234,
 	});
 	const gameState = game.getSnapshot();
@@ -65,9 +68,9 @@ function createFinishedRoom({
 			{ id: 'player:2', userId: 2, name: 'Blair', isTv: false, isReady: false },
 		],
 		settings: {
-			includeMulticolor: false,
-			multicolorShortDeck: false,
-			multicolorWildHints: false,
+			includeMulticolor,
+			multicolorShortDeck: includeMulticolor,
+			multicolorWildHints: includeMulticolor,
 			endlessMode: false,
 		},
 		gameState,
@@ -147,5 +150,14 @@ describe('App online reconnect state', () => {
 			String(firstCard.hints.number),
 		);
 		expect(finalCard.querySelectorAll('.badge.not-color')).toHaveLength(2);
+	});
+
+	test('endgame uses compact fireworks when all six suits are active', () => {
+		LS.set({ [storageKeys.debugMode]: false });
+		mockRoom = createFinishedRoom({ includeMulticolor: true });
+
+		render(<App roomCode='ABCD' />);
+
+		expect(screen.getByTestId('endgame-fireworks-grid')).toHaveClass('compact');
 	});
 });

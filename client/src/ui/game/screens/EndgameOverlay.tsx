@@ -150,6 +150,8 @@ export function EndgameOverlay({
 		return counts;
 	}, [perspective.players]);
 	const finalHandSlotCount = Math.max(1, handSize, ...finalHands.map(hand => hand.cards.length));
+	const isCompactFireworks = perspective.activeSuits.length >= 6;
+	const fireworksClassName = `fireworks endgame-fireworks${isCompactFireworks ? ' compact' : ''}`;
 
 	return (
 		<aside
@@ -252,7 +254,7 @@ export function EndgameOverlay({
 
 				<section className='endgame-board' data-testid='endgame-board'>
 					<section
-						className='fireworks endgame-fireworks'
+						className={fireworksClassName}
 						style={{ '--suit-count': String(perspective.activeSuits.length) } as CSSProperties}
 						data-testid='endgame-fireworks-grid'
 					>

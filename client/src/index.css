@@ -2936,10 +2936,37 @@ body {
 
 .endgame-fireworks {
 	border-top: 1px solid var(--gray-200);
+	min-width: 0;
 }
 
 :root[data-theme='dark'] .endgame-fireworks {
 	border-top-color: rgba(90, 112, 168, 0.22);
+}
+
+.endgame-fireworks .tower {
+	min-width: 0;
+}
+
+.endgame-fireworks.compact .tower {
+	padding-inline: 0.08rem;
+}
+
+.endgame-fireworks.compact .peg {
+	min-width: 0;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 0.1rem;
+	padding: 0 0.1rem 0 0.16rem;
+}
+
+.endgame-fireworks.compact .peg-pips {
+	width: 1.52rem;
+	gap: 0.04rem;
+}
+
+.endgame-fireworks.compact .peg-pip {
+	width: 0.32rem;
+	height: 0.32rem;
+	border-width: 1.15px;
 }
 
 .endgame-panel {
