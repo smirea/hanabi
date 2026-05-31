@@ -981,6 +981,46 @@ describe('HanabiGame', () => {
 		});
 	});
 
+	test('endless mode continues after a misplay when perfection is still possible', () => {
+		const game = new HanabiGame({
+			playerNames: ['A', 'B'],
+			endlessMode: true,
+			deck: twoPlayerDeck(
+				[card('R', 2), card('Y', 1), card('G', 1), card('B', 1), card('W', 1)],
+				[card('R', 1), card('Y', 2), card('G', 2), card('B', 2), card('W', 2)],
+				[
+					card('R', 2),
+					card('R', 3),
+					card('R', 4),
+					card('R', 5),
+					card('Y', 3),
+					card('Y', 4),
+					card('Y', 5),
+					card('G', 3),
+					card('G', 4),
+					card('G', 5),
+					card('B', 3),
+					card('B', 4),
+					card('B', 5),
+					card('W', 3),
+					card('W', 4),
+					card('W', 5),
+				],
+			),
+		});
+
+		game.playCard(game.state.players[0].cards[0]);
+
+		expect(game.state.status).toBe('active');
+		expect(game.state.fuseTokensUsed).toBe(1);
+		expect(game.state.players[0].cards).toHaveLength(5);
+		expect(game.state.drawDeck).toHaveLength(15);
+		expect(game.state.logs.at(-1)).toMatchObject({
+			type: 'play',
+			success: false,
+		});
+	});
+
 	test('logs keep sequential ids and expected turn stamps across actions', () => {
 		const game = new HanabiGame({
 			playerNames: ['A', 'B'],
