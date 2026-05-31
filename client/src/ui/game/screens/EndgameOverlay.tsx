@@ -14,22 +14,12 @@ import { CardView } from '../components/CardView';
 import { PegPips, getPegPipStates } from '../components/PegPips';
 import { getLogBadge, renderLogMessage } from '../utils/logFormatting';
 
-type ScoreFlavorKind =
-	| 'horrible'
-	| 'mediocre'
-	| 'honorable'
-	| 'excellent'
-	| 'amazing'
-	| 'legendary'
-	| 'mythic'
-	| 'celestial'
-	| 'transcendent'
-	| 'sublime'
-	| 'prismatic';
+type ScoreFlavorKind = 'poo' | 'shovel' | 'donkey' | 'chariot' | 'crown' | 'eyebrow' | 'rocket';
 
 interface ScoreFlavor {
 	kind: ScoreFlavorKind;
 	label: string;
+	image: string;
 }
 
 function hashSeed(input: string): number {
@@ -52,20 +42,16 @@ function mulberry32(seed: number): () => number {
 }
 
 const BASE_SCORE_FLAVORS: Array<ScoreFlavor & { minScore: number }> = [
-	{ minScore: 25, kind: 'legendary', label: 'Legendary' },
-	{ minScore: 21, kind: 'amazing', label: 'Amazing' },
-	{ minScore: 16, kind: 'excellent', label: 'Excellent' },
-	{ minScore: 11, kind: 'honorable', label: 'Honorable attempt' },
-	{ minScore: 6, kind: 'mediocre', label: 'Mediocre' },
-	{ minScore: 0, kind: 'horrible', label: 'Horrible' },
+	{ minScore: 21, kind: 'crown', label: 'Crowned somehow', image: '/score-badges/crown.png' },
+	{ minScore: 16, kind: 'chariot', label: 'Chariot chaos', image: '/score-badges/chariot.png' },
+	{ minScore: 11, kind: 'donkey', label: 'Donkey mode', image: '/score-badges/donkey.png' },
+	{ minScore: 6, kind: 'shovel', label: 'Shovel duty', image: '/score-badges/shovel.png' },
+	{ minScore: 0, kind: 'poo', label: 'Poo crew', image: '/score-badges/poo.png' },
 ];
 
 const EXTENDED_SCORE_FLAVORS: Array<ScoreFlavor & { minScore: number }> = [
-	{ minScore: 45, kind: 'prismatic', label: 'Prismatic' },
-	{ minScore: 40, kind: 'sublime', label: 'Sublime' },
-	{ minScore: 35, kind: 'transcendent', label: 'Transcendent' },
-	{ minScore: 30, kind: 'celestial', label: 'Celestial' },
-	{ minScore: 26, kind: 'mythic', label: 'Mythic' },
+	{ minScore: 31, kind: 'rocket', label: 'Starship nonsense', image: '/score-badges/rocket.png' },
+	{ minScore: 26, kind: 'eyebrow', label: 'Elon eyebrow', image: '/score-badges/eyebrow.png' },
 ];
 
 function getScoreFlavor(score: number, maxScore: number): ScoreFlavor {
@@ -81,7 +67,7 @@ function getScoreFlavor(score: number, maxScore: number): ScoreFlavor {
 		return baseFlavor;
 	}
 
-	return { kind: 'horrible', label: 'Horrible' };
+	return { kind: 'poo', label: 'Poo crew', image: '/score-badges/poo.png' };
 }
 
 function ScoreFlavorBadge({
@@ -101,28 +87,7 @@ function ScoreFlavorBadge({
 			className={`score-flavor-badge ${flavor.kind} ${isLarge ? 'large' : ''}`}
 			data-testid={isLarge ? 'endgame-score-reveal-badge' : 'endgame-score-flavor'}
 		>
-			<svg className='score-flavor-svg' viewBox='0 0 64 64' aria-hidden>
-				<path
-					className='score-flavor-ribbon left'
-					d='M23 42 L18 62 L31 53 Z'
-					vectorEffect='non-scaling-stroke'
-				/>
-				<path
-					className='score-flavor-ribbon right'
-					d='M41 42 L46 62 L33 53 Z'
-					vectorEffect='non-scaling-stroke'
-				/>
-				<circle className='score-flavor-medal' cx='32' cy='29' r='22' />
-				<path
-					className='score-flavor-shine'
-					d='M19 30 C20 20 26 14 36 12'
-					vectorEffect='non-scaling-stroke'
-				/>
-				<path
-					className='score-flavor-star'
-					d='M32 15.5 L36.2 24 L45.6 25.3 L38.8 31.9 L40.4 41.1 L32 36.8 L23.6 41.1 L25.2 31.9 L18.4 25.3 L27.8 24 Z'
-				/>
-			</svg>
+			<img className='score-flavor-image' src={flavor.image} alt='' aria-hidden />
 			<span className='score-flavor-text'>{label}</span>
 		</span>
 	);

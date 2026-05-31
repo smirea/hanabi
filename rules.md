@@ -85,18 +85,14 @@ Add the highest value card in each completed firework. The maximum score is 25 f
 
 ### Score Scale (Optional Flavor)
 
-- 0-5: horrible
-- 6-10: mediocre
-- 11-15: honorable attempt
-- 16-20: excellent
-- 21-24: amazing
-- 25: legendary
+- 0-5: poo crew
+- 6-10: shovel duty
+- 11-15: donkey mode
+- 16-20: chariot chaos
+- 21-25: crowned somehow
 - If variants raise the maximum score above 25, continue the flavor scale:
-  - 26-29: mythic
-  - 30-34: celestial
-  - 35-39: transcendent
-  - 40-44: sublime
-  - 45+: prismatic
+  - 26-30: Elon eyebrow
+  - 31+: Starship nonsense
 
 ## Expansions and Variants
 
