@@ -1,5 +1,5 @@
 import { Fire, LightbulbFilament } from '@phosphor-icons/react';
-import { useMemo, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
 	type GameLogEntry,
 	type HanabiPerspectiveState,
@@ -13,6 +13,19 @@ import { suitColors } from '../../../utils/constants';
 import { CardView } from '../components/CardView';
 import { PegPips, getPegPipStates } from '../components/PegPips';
 import { getLogBadge, renderLogMessage } from '../utils/logFormatting';
+
+type ScoreFlavorKind =
+	| 'horrible'
+	| 'mediocre'
+	| 'honorable'
+	| 'excellent'
+	| 'amazing'
+	| 'legendary';
+
+interface ScoreFlavor {
+	kind: ScoreFlavorKind;
+	label: string;
+}
 
 function hashSeed(input: string): number {
 	let hash = 5381;
@@ -31,6 +44,59 @@ function mulberry32(seed: number): () => number {
 		t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
 		return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 	};
+}
+
+function getScoreFlavor(score: number): ScoreFlavor {
+	if (score >= 25) return { kind: 'legendary', label: 'Legendary' };
+	if (score >= 21) return { kind: 'amazing', label: 'Amazing' };
+	if (score >= 16) return { kind: 'excellent', label: 'Excellent' };
+	if (score >= 11) return { kind: 'honorable', label: 'Honorable attempt' };
+	if (score >= 6) return { kind: 'mediocre', label: 'Mediocre' };
+	return { kind: 'horrible', label: 'Horrible' };
+}
+
+function ScoreFlavorBadge({
+	flavor,
+	outcome,
+	isLarge = false,
+}: {
+	flavor: ScoreFlavor;
+	outcome: 'win' | 'lose';
+	isLarge?: boolean;
+}) {
+	const resultLabel = outcome === 'win' ? 'winner' : 'loser';
+	const label = `${flavor.label} ${resultLabel}`;
+
+	return (
+		<span
+			className={`score-flavor-badge ${flavor.kind} ${isLarge ? 'large' : ''}`}
+			data-testid={isLarge ? 'endgame-score-reveal-badge' : 'endgame-score-flavor'}
+		>
+			<svg className='score-flavor-svg' viewBox='0 0 64 64' aria-hidden>
+				<path
+					className='score-flavor-ribbon left'
+					d='M23 42 L18 62 L31 53 Z'
+					vectorEffect='non-scaling-stroke'
+				/>
+				<path
+					className='score-flavor-ribbon right'
+					d='M41 42 L46 62 L33 53 Z'
+					vectorEffect='non-scaling-stroke'
+				/>
+				<circle className='score-flavor-medal' cx='32' cy='29' r='22' />
+				<path
+					className='score-flavor-shine'
+					d='M19 30 C20 20 26 14 36 12'
+					vectorEffect='non-scaling-stroke'
+				/>
+				<path
+					className='score-flavor-star'
+					d='M32 15.5 L36.2 24 L45.6 25.3 L38.8 31.9 L40.4 41.1 L32 36.8 L23.6 41.1 L25.2 31.9 L18.4 25.3 L27.8 24 Z'
+				/>
+			</svg>
+			<span className='score-flavor-text'>{label}</span>
+		</span>
+	);
 }
 
 export function EndgameOverlay({
@@ -70,6 +136,11 @@ export function EndgameOverlay({
 	onBackToGame: () => void;
 }) {
 	const title = status === 'won' ? 'You win' : status === 'lost' ? 'You lost' : 'Game over';
+	const scoreFlavor = getScoreFlavor(score);
+	const [scoreRevealState, setScoreRevealState] = useState<'visible' | 'exiting' | 'hidden'>(
+		reduceMotion ? 'hidden' : 'visible',
+	);
+	const scoreRevealTimers = useRef<number[]>([]);
 
 	const scoreBreakdown = perspective.activeSuits
 		.filter(suit => !isBlackSuit(suit))
@@ -162,6 +233,37 @@ export function EndgameOverlay({
 	const isCompactFireworks = perspective.activeSuits.length >= 6;
 	const fireworksClassName = `fireworks endgame-fireworks${isCompactFireworks ? ' compact' : ''}`;
 
+	function clearScoreRevealTimers(): void {
+		for (const timer of scoreRevealTimers.current) {
+			window.clearTimeout(timer);
+		}
+		scoreRevealTimers.current = [];
+	}
+
+	function dismissScoreReveal(): void {
+		if (scoreRevealState !== 'visible') {
+			return;
+		}
+
+		clearScoreRevealTimers();
+		setScoreRevealState('exiting');
+		scoreRevealTimers.current.push(window.setTimeout(() => setScoreRevealState('hidden'), 420));
+	}
+
+	useEffect(() => {
+		if (reduceMotion) {
+			setScoreRevealState('hidden');
+			return;
+		}
+
+		setScoreRevealState('visible');
+		clearScoreRevealTimers();
+		scoreRevealTimers.current.push(window.setTimeout(() => setScoreRevealState('exiting'), 2400));
+		scoreRevealTimers.current.push(window.setTimeout(() => setScoreRevealState('hidden'), 2820));
+
+		return clearScoreRevealTimers;
+	}, [reduceMotion, seedKey]);
+
 	return (
 		<aside
 			className={`endgame-overlay ${outcome}`}
@@ -235,13 +337,31 @@ export function EndgameOverlay({
 				)}
 			</div>
 
+			{scoreRevealState !== 'hidden' && (
+				<button
+					type='button'
+					className={`endgame-score-reveal ${outcome} ${scoreRevealState === 'exiting' ? 'exit' : ''}`}
+					onClick={dismissScoreReveal}
+					data-testid='endgame-score-reveal'
+					aria-label='Dismiss score reveal'
+				>
+					<span className='endgame-score-reveal-kicker'>{title}</span>
+					<span className='endgame-score-reveal-score' data-testid='endgame-score-reveal-score'>
+						{score}
+					</span>
+					<ScoreFlavorBadge flavor={scoreFlavor} outcome={outcome} isLarge />
+					<span className='endgame-score-reveal-formula'>{scoreFormula}</span>
+				</button>
+			)}
+
 			<section className='endgame-shell'>
 				<header className='endgame-header'>
 					<h2 className='endgame-title' data-testid='endgame-title'>
 						{title}
 					</h2>
 					<p className='endgame-score' data-testid='endgame-score'>
-						{scoreFormula}
+						<span>{scoreFormula}</span>
+						<ScoreFlavorBadge flavor={scoreFlavor} outcome={outcome} />
 					</p>
 					<div className='endgame-resources' data-testid='endgame-resources'>
 						<div className='endgame-resource' data-testid='endgame-hints-remaining'>

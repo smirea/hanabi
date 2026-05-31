@@ -19,7 +19,7 @@ void mock.module('./hooks/useGameServer', () => ({
 }));
 
 import App from './App';
-import { HanabiGame } from './game';
+import { BASE_SUITS, CARD_NUMBERS, HanabiGame, scoreHanabiState, type HanabiState } from './game';
 import { storageKeys } from './utils/constants';
 import { LS } from './utils/utils';
 
@@ -27,10 +27,12 @@ function createFinishedRoom({
 	status = 'finished',
 	fuseTokensUsed = 0,
 	includeMulticolor = false,
+	completeFireworks = false,
 }: {
 	status?: 'finished' | 'lost' | 'won';
 	fuseTokensUsed?: number;
 	includeMulticolor?: boolean;
+	completeFireworks?: boolean;
 } = {}) {
 	const game = new HanabiGame({
 		playerIds: ['player:1', 'player:2'],
@@ -39,6 +41,9 @@ function createFinishedRoom({
 		shuffleSeed: 1234,
 	});
 	const gameState = game.getSnapshot();
+	if (completeFireworks) {
+		completeBaseFireworks(gameState);
+	}
 	const viewerCardId = gameState.players[0]?.cards[0];
 	if (viewerCardId) {
 		const viewerCard = gameState.cards[viewerCardId];
@@ -54,7 +59,7 @@ function createFinishedRoom({
 		type: 'status',
 		status,
 		reason: status === 'lost' ? 'indispensable_card_discarded' : 'final_round_complete',
-		score: game.getScore(),
+		score: scoreHanabiState(gameState),
 	});
 
 	return {
@@ -75,6 +80,25 @@ function createFinishedRoom({
 		},
 		gameState,
 	};
+}
+
+function completeBaseFireworks(gameState: HanabiState): void {
+	const usedCardIds = new Set<string>();
+
+	for (const suit of BASE_SUITS) {
+		for (const number of CARD_NUMBERS) {
+			const cardId = Object.values(gameState.cards).find(card => {
+				return card.suit === suit && card.number === number && !usedCardIds.has(card.id);
+			})?.id;
+
+			if (!cardId) {
+				throw new Error(`Missing ${suit}${number}`);
+			}
+
+			usedCardIds.add(cardId);
+			gameState.fireworks[suit].push(cardId);
+		}
+	}
 }
 
 describe('App online reconnect state', () => {
@@ -119,6 +143,36 @@ describe('App online reconnect state', () => {
 
 		expect(screen.getByTestId('endgame-title')).toHaveTextContent('You lost');
 		expect(screen.getByTestId('endgame-lives-remaining')).toHaveTextContent('Lives0/3');
+	});
+
+	test('endgame shows the score flavor badge and dismissible reveal', () => {
+		LS.set({ [storageKeys.debugMode]: false });
+		mockRoom = createFinishedRoom({ status: 'lost', fuseTokensUsed: 0 });
+
+		render(<App roomCode='ABCD' />);
+
+		expect(screen.getByTestId('endgame-score-flavor')).toHaveTextContent('Horrible loser');
+		expect(screen.getByTestId('endgame-score-reveal-score')).toHaveTextContent('0');
+		expect(screen.getByTestId('endgame-score-reveal-badge')).toHaveTextContent(
+			'Horrible loser',
+		);
+
+		fireEvent.click(screen.getByTestId('endgame-score-reveal'));
+
+		expect(screen.getByTestId('endgame-score-reveal')).toHaveClass('exit');
+	});
+
+	test('endgame score flavor labels perfect wins as legendary winners', () => {
+		LS.set({ [storageKeys.debugMode]: false });
+		mockRoom = createFinishedRoom({ status: 'won', completeFireworks: true });
+
+		render(<App roomCode='ABCD' />);
+
+		expect(screen.getByTestId('endgame-score')).toHaveTextContent('25');
+		expect(screen.getByTestId('endgame-score-flavor')).toHaveTextContent('Legendary winner');
+		expect(screen.getByTestId('endgame-score-reveal-badge')).toHaveTextContent(
+			'Legendary winner',
+		);
 	});
 
 	test('endgame summary reveals final hands with viewer hand hints', () => {
