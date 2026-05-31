@@ -90,4 +90,22 @@ describe('LobbyScreen', () => {
 			multicolorWildHints: true,
 		});
 	});
+
+	test('labels one-life deck-exhaustion mode as sudden death', () => {
+		render(
+			<LobbyScreen
+				{...createProps({
+					includeMulticolor: false,
+					multicolorShortDeck: false,
+					multicolorWildHints: false,
+					endlessMode: false,
+				})}
+			/>,
+		);
+
+		expect(screen.getByTestId('lobby-setting-endless')).toHaveTextContent('Sudden Death');
+		expect(screen.getByTestId('lobby-setting-endless')).toHaveTextContent(
+			'One life only; keep playing after the deck runs out.',
+		);
+	});
 });

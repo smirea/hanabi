@@ -700,7 +700,7 @@ describe('HanabiGame', () => {
 		});
 	});
 
-	test('endless mode still stays active when deck empties', () => {
+	test('sudden death starts with one life and stays active when deck empties', () => {
 		const game = new HanabiGame({
 			playerNames: ['A', 'B'],
 			endlessMode: true,
@@ -710,6 +710,11 @@ describe('HanabiGame', () => {
 				[card('G', 5)],
 			),
 		});
+
+		expect(game.state.settings.maxFuseTokens).toBe(1);
+		const legacySnapshot = game.getSnapshot();
+		legacySnapshot.settings.maxFuseTokens = 3;
+		expect(HanabiGame.fromState(legacySnapshot).state.settings.maxFuseTokens).toBe(1);
 
 		game.playCard(game.state.players[0].cards[0]);
 		expect(game.state.drawDeck).toHaveLength(0);
@@ -931,7 +936,7 @@ describe('HanabiGame', () => {
 		expect(game.state.hintTokens).toBe(hintTokensBefore);
 	});
 
-	test('endless mode loses immediately when discarding an indispensable card', () => {
+	test('sudden death loses immediately when discarding an indispensable card', () => {
 		const tail = [
 			card('R', 2),
 			card('R', 3),
@@ -981,7 +986,7 @@ describe('HanabiGame', () => {
 		});
 	});
 
-	test('endless mode continues after a misplay when perfection is still possible', () => {
+	test('sudden death loses after one misplay even when perfection is still possible', () => {
 		const game = new HanabiGame({
 			playerNames: ['A', 'B'],
 			endlessMode: true,
@@ -1011,13 +1016,19 @@ describe('HanabiGame', () => {
 
 		game.playCard(game.state.players[0].cards[0]);
 
-		expect(game.state.status).toBe('active');
+		expect(game.state.status).toBe('lost');
 		expect(game.state.fuseTokensUsed).toBe(1);
-		expect(game.state.players[0].cards).toHaveLength(5);
-		expect(game.state.drawDeck).toHaveLength(15);
-		expect(game.state.logs.at(-1)).toMatchObject({
+		expect(game.state.settings.maxFuseTokens).toBe(1);
+		expect(game.state.players[0].cards).toHaveLength(4);
+		expect(game.state.drawDeck).toHaveLength(16);
+		expect(game.state.logs.at(-2)).toMatchObject({
 			type: 'play',
 			success: false,
+		});
+		expect(game.state.logs.at(-1)).toMatchObject({
+			type: 'status',
+			status: 'lost',
+			reason: 'fuse_limit_reached',
 		});
 	});
 

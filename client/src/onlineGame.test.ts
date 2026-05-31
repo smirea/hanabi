@@ -88,6 +88,19 @@ describe('onlineGame', () => {
 		expect(state.gameState?.players.map(player => player.id)).toEqual(['player:1', 'player:2']);
 	});
 
+	test('sudden death games start with one life', () => {
+		const state = createState({
+			members: PLAYERS.slice(0, 2),
+			settings: { ...cloneLobbySettings(), endlessMode: true },
+		});
+
+		expect(ready(state, 'player:1')).toBeTrue();
+		expect(ready(state, 'player:2')).toBeTrue();
+
+		expect(state.phase).toBe('playing');
+		expect(state.gameState?.settings.maxFuseTokens).toBe(1);
+	});
+
 	test('ready consensus can replay the same seeded initial game from the action log', () => {
 		const actions = [
 			{ type: 'join', actorId: 'player:1', userId: 1, name: 'Alex' },

@@ -18,7 +18,7 @@ function formatDate(value: string) {
 function formatSettings(settings: { includeMulticolor: boolean; endlessMode: boolean }) {
 	const parts = [];
 	if (settings.includeMulticolor) parts.push('Multicolor');
-	if (settings.endlessMode) parts.push('Endless');
+	if (settings.endlessMode) parts.push('Sudden Death');
 	return parts.length ? parts.join(', ') : 'Standard';
 }
 

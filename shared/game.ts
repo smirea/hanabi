@@ -752,7 +752,7 @@ export class HanabiGame {
 		const multicolorShortDeck = includeMulticolor;
 		const endlessMode = input?.endlessMode ?? false;
 		const maxHintTokens = input?.maxHintTokens ?? 8;
-		const maxFuseTokens = input?.maxFuseTokens ?? 3;
+		const maxFuseTokens = endlessMode ? 1 : (input?.maxFuseTokens ?? 3);
 		const handSize = playerNames.length <= 3 ? 5 : 4;
 		const activeSuits = includeMulticolor ? [...ALL_SUITS] : [...BASE_SUITS];
 		const deckSeed = input?.deck
@@ -1244,6 +1244,7 @@ export class HanabiGame {
 	private static normalizeRestoredState(state: HanabiState): HanabiState {
 		const cloned = deepClone(state);
 		cloned.settings.multicolorWildHints = cloned.settings.includeMulticolor;
+		if (cloned.settings.endlessMode) cloned.settings.maxFuseTokens = 1;
 
 		if (cloned.status === 'last_round') {
 			cloned.status = 'active';

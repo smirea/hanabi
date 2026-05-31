@@ -105,8 +105,8 @@ export function LobbyScreen({
 	} as const;
 	const endlessRow = {
 		id: 'endless',
-		label: 'Endless mode',
-		subtitle: 'Keep playing after the deck runs out.',
+		label: 'Sudden Death',
+		subtitle: 'One life only; keep playing after the deck runs out.',
 		isOn: settings.endlessMode,
 		value: settings.endlessMode ? 'On' : 'Off',
 		disabled: false,

@@ -103,8 +103,10 @@ Use these options to enable or customize the multicolor suit.
 - You cannot call "multicolor" for color clues.
 - To clue a multicolor card, call a base color (white/red/blue/yellow/green); multicolor cards count as matching that color for clues.
 
-### Variant 2: Endless Mode
+### Variant 2: Sudden Death
 
-- The game does not end after the last card is drawn. It continues until the team is defeated (3 fuse tokens used, or an indispensable card is discarded) or victorious (all fireworks completed).
+- The game does not end after the last card is drawn.
+- The team has only 1 fuse token.
+- The game continues until the team is defeated (the fuse token is used, or an indispensable card is discarded) or victorious (all fireworks completed).
 - Score scale is not used; the goal is perfection.
 - This variant can be combined with one other variant.
