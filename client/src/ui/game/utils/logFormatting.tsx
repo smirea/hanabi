@@ -9,8 +9,8 @@ export function renderLogMessage(log: GameLogEntry): ReactNode {
 			if (log.number === null) return `${log.actorName} gave a number hint to ${log.targetName}`;
 			return (
 				<>
-					{log.actorName} hinted {touchedCount}x <LogHintChipNumber number={log.number} /> to{' '}
-					{log.targetName}
+					{log.actorName} {log.free ? 'bonus hinted' : 'hinted'} {touchedCount}x{' '}
+					<LogHintChipNumber number={log.number} /> to {log.targetName}
 				</>
 			);
 		}
@@ -18,8 +18,8 @@ export function renderLogMessage(log: GameLogEntry): ReactNode {
 		if (log.suit === null) return `${log.actorName} gave a color hint to ${log.targetName}`;
 		return (
 			<>
-				{log.actorName} hinted {touchedCount}x <LogHintChipSuit suit={log.suit} /> to{' '}
-				{log.targetName}
+				{log.actorName} {log.free ? 'bonus hinted' : 'hinted'} {touchedCount}x{' '}
+				<LogHintChipSuit suit={log.suit} /> to {log.targetName}
 			</>
 		);
 	}
@@ -62,6 +62,45 @@ export function renderLogMessage(log: GameLogEntry): ReactNode {
 		return `${log.actorName} drew a card (${log.remainingDeck} left)`;
 	}
 
+	if (log.type === 'bonus') {
+		if (log.skipped) {
+			return `${log.actorName} revealed a bonus with no effect`;
+		}
+
+		if (log.effect === 'gain-hint') {
+			return log.gainedHint
+				? `${log.actorName} gained a bonus hint`
+				: `${log.actorName} revealed a bonus hint at max`;
+		}
+
+		if (log.effect === 'recover-fuse-and-gain-hint') {
+			if (log.recoveredFuse && log.gainedHint) {
+				return `${log.actorName} recovered a fuse and gained a hint`;
+			}
+			if (log.recoveredFuse) return `${log.actorName} recovered a fuse`;
+			if (log.gainedHint) return `${log.actorName} gained a bonus hint`;
+			return `${log.actorName} revealed a recovery bonus at max`;
+		}
+
+		if (log.effect === 'shuffle-discard' && log.suit && log.number) {
+			return (
+				<>
+					{log.actorName} shuffled <LogCardChip suit={log.suit} number={log.number} /> back
+				</>
+			);
+		}
+
+		if (log.effect === 'play-discard' && log.suit && log.number) {
+			return (
+				<>
+					{log.actorName} replayed <LogCardChip suit={log.suit} number={log.number} />
+				</>
+			);
+		}
+
+		return `${log.actorName} resolved a bonus`;
+	}
+
 	if (log.status === 'won') {
 		return `Game won with score ${log.score}`;
 	}
@@ -86,5 +125,6 @@ export function getLogBadge(log: GameLogEntry): string {
 	if (log.type === 'play') return 'Play';
 	if (log.type === 'discard') return 'Discard';
 	if (log.type === 'draw') return 'Draw';
+	if (log.type === 'bonus') return 'Bonus';
 	return 'Status';
 }

@@ -19,6 +19,20 @@ type EndReason =
 	| 'indispensable_card_discarded'
 	| 'no_valid_plays_left';
 
+export type FlamboyantBonus =
+	| 'gain-hint'
+	| 'recover-fuse-and-gain-hint'
+	| 'free-color-hint'
+	| 'free-number-hint'
+	| 'shuffle-discard'
+	| 'play-discard';
+
+export interface PendingFlamboyantBonus {
+	effect: FlamboyantBonus;
+	actorId: PlayerId;
+	actorName: string;
+}
+
 export interface CardHints {
 	color: Suit | null;
 	number: CardNumber | null;
@@ -52,6 +66,7 @@ interface HintLog {
 	suit: Suit | null;
 	number: CardNumber | null;
 	touchedCardIds: CardId[];
+	free?: boolean;
 }
 
 interface PlayLog {
@@ -99,7 +114,24 @@ interface StatusLog {
 	score: number;
 }
 
-export type GameLogEntry = HintLog | PlayLog | DiscardLog | DrawLog | StatusLog;
+interface BonusLog {
+	id: string;
+	turn: number;
+	type: 'bonus';
+	actorId: PlayerId;
+	actorName: string;
+	effect: FlamboyantBonus;
+	cardId: CardId | null;
+	suit: Suit | null;
+	number: CardNumber | null;
+	targetId: PlayerId | null;
+	targetName: string | null;
+	gainedHint: boolean;
+	recoveredFuse: boolean;
+	skipped: boolean;
+}
+
+export type GameLogEntry = HintLog | PlayLog | DiscardLog | DrawLog | StatusLog | BonusLog;
 
 export interface GameUiState {
 	pendingAction: PendingAction;
@@ -113,6 +145,7 @@ export interface GameUiState {
 export interface GameSettings {
 	includeMulticolor: boolean;
 	includeBlack: boolean;
+	includeFlamboyants: boolean;
 	multicolorShortDeck: boolean;
 	multicolorWildHints: boolean;
 	endlessMode: boolean;
@@ -142,6 +175,9 @@ export interface HanabiState {
 	turn: number;
 	nextLogId: number;
 	settings: GameSettings;
+	bonusTileDeck: FlamboyantBonus[];
+	bonusTileDiscard: FlamboyantBonus[];
+	pendingBonus: PendingFlamboyantBonus | null;
 }
 
 interface CardSeed {
@@ -154,6 +190,7 @@ interface NewGameInput {
 	playerIds?: string[];
 	includeMulticolor?: boolean;
 	includeBlack?: boolean;
+	includeFlamboyants?: boolean;
 	multicolorShortDeck?: boolean;
 	multicolorWildHints?: boolean;
 	endlessMode?: boolean;
@@ -161,6 +198,7 @@ interface NewGameInput {
 	maxFuseTokens?: number;
 	startingPlayerIndex?: number;
 	deck?: CardSeed[];
+	bonusTiles?: FlamboyantBonus[];
 	shuffleSeed?: number;
 }
 
@@ -179,6 +217,15 @@ const BLACK_CARD_COPIES: Record<CardNumber, number> = {
 	4: 2,
 	5: 3,
 };
+
+const FLAMBOYANT_BONUSES: readonly FlamboyantBonus[] = [
+	'gain-hint',
+	'recover-fuse-and-gain-hint',
+	'free-color-hint',
+	'free-number-hint',
+	'shuffle-discard',
+	'play-discard',
+];
 
 export interface PerspectiveCard {
 	id: CardId;
@@ -217,6 +264,8 @@ export interface HanabiPerspectiveState {
 	fireworksHeights: Record<Suit, number>;
 	knownUnavailableCounts: PerspectiveCountsBySuit;
 	knownRemainingCounts: PerspectiveCountsBySuit;
+	bonusTileDeckCount: number;
+	pendingBonus: PendingFlamboyantBonus | null;
 }
 
 export function isBlackSuit(suit: Suit): boolean {
@@ -439,11 +488,14 @@ export class HanabiGame {
 			fireworksHeights,
 			knownUnavailableCounts,
 			knownRemainingCounts,
+			bonusTileDeckCount: this.state.bonusTileDeck.length,
+			pendingBonus: this.state.pendingBonus ? deepClone(this.state.pendingBonus) : null,
 		};
 	}
 
 	public beginPlaySelection(): void {
 		this.assertTurnCanBePlayed();
+		this.assertNoPendingBonus();
 		const currentPlayer = this.state.players[this.state.currentTurnPlayerIndex];
 		if (currentPlayer.cards.length === 0) {
 			throw new Error('Cannot play with no cards in hand');
@@ -457,6 +509,7 @@ export class HanabiGame {
 
 	public beginDiscardSelection(): void {
 		this.assertTurnCanBePlayed();
+		this.assertNoPendingBonus();
 		const currentPlayer = this.state.players[this.state.currentTurnPlayerIndex];
 		if (currentPlayer.cards.length === 0) {
 			throw new Error('Cannot discard with no cards in hand');
@@ -470,6 +523,7 @@ export class HanabiGame {
 
 	public beginColorHintSelection(): void {
 		this.assertTurnCanBePlayed();
+		this.assertNoPendingBonus();
 		if (this.state.hintTokens <= 0) {
 			throw new Error('Cannot give a hint with zero hint tokens');
 		}
@@ -482,6 +536,7 @@ export class HanabiGame {
 
 	public beginNumberHintSelection(): void {
 		this.assertTurnCanBePlayed();
+		this.assertNoPendingBonus();
 		if (this.state.hintTokens <= 0) {
 			throw new Error('Cannot give a hint with zero hint tokens');
 		}
@@ -498,6 +553,7 @@ export class HanabiGame {
 
 	public selectCard(cardId: CardId): void {
 		this.assertTurnCanBePlayed();
+		this.assertNoPendingBonus();
 		const pendingAction = this.state.ui.pendingAction;
 		if (pendingAction !== 'play' && pendingAction !== 'discard') {
 			throw new Error('Card selection is only available for play or discard actions');
@@ -514,6 +570,7 @@ export class HanabiGame {
 
 	public selectHintTarget(playerId: PlayerId): void {
 		this.assertTurnCanBePlayed();
+		this.assertNoPendingBonus();
 		const pendingAction = this.state.ui.pendingAction;
 		if (pendingAction !== 'hint-color' && pendingAction !== 'hint-number') {
 			throw new Error('Hint target selection is only available for hint actions');
@@ -535,6 +592,7 @@ export class HanabiGame {
 
 	public selectHintColor(suit: Suit): void {
 		this.assertTurnCanBePlayed();
+		this.assertNoPendingBonus();
 		if (this.state.ui.pendingAction !== 'hint-color') {
 			throw new Error('Color selection is only available for color hints');
 		}
@@ -557,6 +615,7 @@ export class HanabiGame {
 
 	public selectHintNumber(number: CardNumber): void {
 		this.assertTurnCanBePlayed();
+		this.assertNoPendingBonus();
 		if (this.state.ui.pendingAction !== 'hint-number') {
 			throw new Error('Number selection is only available for number hints');
 		}
@@ -608,6 +667,7 @@ export class HanabiGame {
 
 	public playCard(cardId: CardId): void {
 		this.assertTurnCanBePlayed();
+		this.assertNoPendingBonus();
 
 		const currentPlayer = this.state.players[this.state.currentTurnPlayerIndex];
 		const cardIndex = currentPlayer.cards.indexOf(cardId);
@@ -627,6 +687,7 @@ export class HanabiGame {
 			this.state.fireworks[card.suit].push(cardId);
 			if (
 				isFireworkCompletionCard(card.suit, card.number) &&
+				!this.shouldUseFlamboyantBonus(card) &&
 				this.state.hintTokens < this.state.settings.maxHintTokens
 			) {
 				this.state.hintTokens += 1;
@@ -657,17 +718,19 @@ export class HanabiGame {
 			return;
 		}
 
-		const deckEmptiedOnDraw = this.drawCardForPlayer(this.state.currentTurnPlayerIndex);
-		if (deckEmptiedOnDraw && !this.state.settings.endlessMode && this.state.status === 'active') {
-			this.state.status = 'last_round';
-			this.state.lastRound = { turnsRemaining: this.state.players.length };
+		if (success && this.shouldUseFlamboyantBonus(card)) {
+			this.revealAndResolveFlamboyantBonus(currentPlayer);
+			if (this.state.pendingBonus) {
+				return;
+			}
 		}
 
-		this.finalizeAction({ enteredLastRound: deckEmptiedOnDraw });
+		this.finishActionAfterBonus();
 	}
 
 	public discardCard(cardId: CardId): void {
 		this.assertTurnCanBePlayed();
+		this.assertNoPendingBonus();
 
 		const currentPlayer = this.state.players[this.state.currentTurnPlayerIndex];
 		const cardIndex = currentPlayer.cards.indexOf(cardId);
@@ -691,16 +754,119 @@ export class HanabiGame {
 			return;
 		}
 
-		const deckEmptiedOnDraw = this.drawCardForPlayer(this.state.currentTurnPlayerIndex);
-		if (deckEmptiedOnDraw && !this.state.settings.endlessMode && this.state.status === 'active') {
-			this.state.status = 'last_round';
-			this.state.lastRound = { turnsRemaining: this.state.players.length };
-		}
-
-		this.finalizeAction({ enteredLastRound: deckEmptiedOnDraw });
+		this.finishActionAfterBonus();
 	}
 
 	public giveColorHint(targetPlayerId: PlayerId, suit: Suit): void {
+		if (this.state.pendingBonus) {
+			throw new Error('Resolve the bonus tile before taking another action');
+		}
+
+		this.applyColorHint(targetPlayerId, suit, {
+			spendHintToken: true,
+			free: false,
+			finishTurn: true,
+		});
+	}
+
+	public giveNumberHint(targetPlayerId: PlayerId, number: CardNumber): void {
+		if (this.state.pendingBonus) {
+			throw new Error('Resolve the bonus tile before taking another action');
+		}
+
+		this.applyNumberHint(targetPlayerId, number, {
+			spendHintToken: true,
+			free: false,
+			finishTurn: true,
+		});
+	}
+
+	public resolveFlamboyantColorHint(targetPlayerId: PlayerId, suit: Suit): void {
+		this.getPendingBonusOrThrow('free-color-hint');
+		this.applyColorHint(targetPlayerId, suit, {
+			spendHintToken: false,
+			free: true,
+			finishTurn: false,
+		});
+		this.state.pendingBonus = null;
+		this.finishActionAfterBonus();
+	}
+
+	public resolveFlamboyantNumberHint(targetPlayerId: PlayerId, number: CardNumber): void {
+		this.getPendingBonusOrThrow('free-number-hint');
+		this.applyNumberHint(targetPlayerId, number, {
+			spendHintToken: false,
+			free: true,
+			finishTurn: false,
+		});
+		this.state.pendingBonus = null;
+		this.finishActionAfterBonus();
+	}
+
+	public resolveFlamboyantShuffleDiscard(cardId: CardId): void {
+		const pending = this.getPendingBonusOrThrow('shuffle-discard');
+		const card = this.removeCardFromDiscardOrThrow(cardId);
+		const insertAt = this.getDeterministicDeckInsertIndex(cardId);
+		this.state.drawDeck.splice(insertAt, 0, cardId);
+		this.appendBonusLog({
+			actorId: pending.actorId,
+			actorName: pending.actorName,
+			effect: 'shuffle-discard',
+			card,
+		});
+		this.state.pendingBonus = null;
+		this.finishActionAfterBonus();
+	}
+
+	public resolveFlamboyantPlayDiscard(cardId: CardId): void {
+		const pending = this.getPendingBonusOrThrow('play-discard');
+		const card = this.getCardOrThrow(cardId);
+		if (!this.state.discardPile.includes(cardId)) {
+			throw new Error('Bonus card must be in the discard pile');
+		}
+
+		if (!this.canCardPlayOnFirework(card)) {
+			throw new Error('Bonus card is not currently playable');
+		}
+
+		this.removeCardFromDiscardOrThrow(cardId);
+		this.state.fireworks[card.suit].push(cardId);
+		this.appendBonusLog({
+			actorId: pending.actorId,
+			actorName: pending.actorName,
+			effect: 'play-discard',
+			card,
+		});
+		this.state.pendingBonus = null;
+
+		if (this.areAllFireworksComplete()) {
+			this.transitionToTerminalState('won', 'all_fireworks_completed');
+			this.finalizeAction();
+			return;
+		}
+
+		if (this.shouldUseFlamboyantBonus(card)) {
+			this.revealAndResolveFlamboyantBonus({
+				id: pending.actorId,
+				name: pending.actorName,
+			});
+			if (this.state.pendingBonus) {
+				return;
+			}
+		}
+
+		this.finishActionAfterBonus();
+	}
+
+	private applyColorHint(
+		targetPlayerId: PlayerId,
+		suit: Suit,
+		{
+			spendHintToken,
+			free,
+			finishTurn,
+		}: { spendHintToken: boolean; free: boolean; finishTurn: boolean },
+	): void {
 		this.assertTurnCanBePlayed();
 
 		if (!this.state.settings.activeSuits.includes(suit)) {
@@ -717,7 +883,7 @@ export class HanabiGame {
 
 		const currentPlayer = this.state.players[this.state.currentTurnPlayerIndex];
 		const targetPlayer = this.getHintTargetPlayerOrThrow(targetPlayerId);
-		if (this.state.hintTokens <= 0) {
+		if (spendHintToken && this.state.hintTokens <= 0) {
 			throw new Error('Cannot give a hint with zero hint tokens');
 		}
 
@@ -750,7 +916,9 @@ export class HanabiGame {
 		}
 
 		this.clearRecentHints();
-		this.state.hintTokens -= 1;
+		if (spendHintToken) {
+			this.state.hintTokens -= 1;
+		}
 
 		for (const cardId of targetPlayer.cards) {
 			const card = this.getCardOrThrow(cardId);
@@ -767,16 +935,26 @@ export class HanabiGame {
 			}
 		}
 
-		this.appendHintLog(currentPlayer, targetPlayer, 'color', touchedCardIds, suit, null);
-		this.finalizeAction();
+		this.appendHintLog(currentPlayer, targetPlayer, 'color', touchedCardIds, suit, null, free);
+		if (finishTurn) {
+			this.finalizeAction();
+		}
 	}
 
-	public giveNumberHint(targetPlayerId: PlayerId, number: CardNumber): void {
+	private applyNumberHint(
+		targetPlayerId: PlayerId,
+		number: CardNumber,
+		{
+			spendHintToken,
+			free,
+			finishTurn,
+		}: { spendHintToken: boolean; free: boolean; finishTurn: boolean },
+	): void {
 		this.assertTurnCanBePlayed();
 
 		const currentPlayer = this.state.players[this.state.currentTurnPlayerIndex];
 		const targetPlayer = this.getHintTargetPlayerOrThrow(targetPlayerId);
-		if (this.state.hintTokens <= 0) {
+		if (spendHintToken && this.state.hintTokens <= 0) {
 			throw new Error('Cannot give a hint with zero hint tokens');
 		}
 
@@ -803,7 +981,9 @@ export class HanabiGame {
 		}
 
 		this.clearRecentHints();
-		this.state.hintTokens -= 1;
+		if (spendHintToken) {
+			this.state.hintTokens -= 1;
+		}
 
 		for (const cardId of targetPlayer.cards) {
 			const card = this.getCardOrThrow(cardId);
@@ -816,8 +996,10 @@ export class HanabiGame {
 			}
 		}
 
-		this.appendHintLog(currentPlayer, targetPlayer, 'number', touchedCardIds, null, number);
-		this.finalizeAction();
+		this.appendHintLog(currentPlayer, targetPlayer, 'number', touchedCardIds, null, number, free);
+		if (finishTurn) {
+			this.finalizeAction();
+		}
 	}
 
 	private static createInitialState(input: NewGameInput | undefined): HanabiState {
@@ -825,6 +1007,7 @@ export class HanabiGame {
 		const playerIds = input?.playerIds ?? playerNames.map((_, index) => `p${index + 1}`);
 		const includeMulticolor = Boolean(input?.includeMulticolor);
 		const includeBlack = Boolean(input?.includeBlack);
+		const includeFlamboyants = Boolean(input?.includeFlamboyants);
 		const multicolorWildHints = includeMulticolor;
 		const multicolorShortDeck = includeMulticolor;
 		const endlessMode = input?.endlessMode ?? false;
@@ -837,7 +1020,14 @@ export class HanabiGame {
 			: HanabiGame.buildDeck(includeMulticolor, multicolorShortDeck, includeBlack);
 		const shuffledDeck = input?.deck
 			? deckSeed
-			: HanabiGame.shuffleDeck(deckSeed, input?.shuffleSeed);
+			: HanabiGame.shuffleItems(deckSeed, input?.shuffleSeed);
+		const bonusShuffleSeed =
+			input?.shuffleSeed === undefined ? undefined : input.shuffleSeed ^ 0x9e3779b9;
+		const bonusTileDeck = includeFlamboyants
+			? (input?.bonusTiles
+					? deepClone(input.bonusTiles)
+					: HanabiGame.shuffleItems([...FLAMBOYANT_BONUSES], bonusShuffleSeed))
+			: [];
 
 		const cards: Record<CardId, Card> = {};
 		const drawDeck: CardId[] = [];
@@ -902,6 +1092,7 @@ export class HanabiGame {
 			settings: {
 				includeMulticolor,
 				includeBlack,
+				includeFlamboyants,
 				multicolorShortDeck,
 				multicolorWildHints,
 				endlessMode,
@@ -910,6 +1101,9 @@ export class HanabiGame {
 				maxFuseTokens,
 				handSize,
 			},
+			bonusTileDeck,
+			bonusTileDiscard: [],
+			pendingBonus: null,
 		};
 	}
 
@@ -933,8 +1127,8 @@ export class HanabiGame {
 		return deck;
 	}
 
-	private static shuffleDeck(deck: CardSeed[], seed: number | undefined): CardSeed[] {
-		const shuffled = [...deck];
+	private static shuffleItems<T>(items: T[], seed: number | undefined): T[] {
+		const shuffled = [...items];
 		const random =
 			seed === undefined
 				? Math.random
@@ -957,6 +1151,12 @@ export class HanabiGame {
 	private assertTurnCanBePlayed(): void {
 		if (HanabiGame.isTerminalStatus(this.state.status)) {
 			throw new Error(`Game is over (${this.state.status})`);
+		}
+	}
+
+	private assertNoPendingBonus(): void {
+		if (this.state.pendingBonus) {
+			throw new Error('Resolve the bonus tile before taking another action');
 		}
 	}
 
@@ -1053,6 +1253,123 @@ export class HanabiGame {
 		}
 
 		return this.state.settings.includeMulticolor && cardSuit === 'M' && hintSuit !== 'M';
+	}
+
+	private shouldUseFlamboyantBonus(card: Card): boolean {
+		return (
+			this.state.settings.includeFlamboyants &&
+			card.number === 5 &&
+			!isBlackSuit(card.suit) &&
+			this.state.bonusTileDeck.length > 0
+		);
+	}
+
+	private revealAndResolveFlamboyantBonus(actor: Pick<Player, 'id' | 'name'>): void {
+		const effect = this.state.bonusTileDeck.shift();
+		if (!effect) {
+			return;
+		}
+
+		this.state.bonusTileDiscard.push(effect);
+
+		if (effect === 'gain-hint') {
+			const gainedHint = this.gainHintToken();
+			this.appendBonusLog({ actorId: actor.id, actorName: actor.name, effect, gainedHint });
+			return;
+		}
+
+		if (effect === 'recover-fuse-and-gain-hint') {
+			const recoveredFuse = this.state.fuseTokensUsed > 0;
+			if (recoveredFuse) {
+				this.state.fuseTokensUsed -= 1;
+			}
+
+			const gainedHint = this.gainHintToken();
+			this.appendBonusLog({
+				actorId: actor.id,
+				actorName: actor.name,
+				effect,
+				gainedHint,
+				recoveredFuse,
+			});
+			return;
+		}
+
+		if (effect === 'shuffle-discard') {
+			if (this.state.discardPile.length === 0) {
+				this.appendBonusLog({ actorId: actor.id, actorName: actor.name, effect, skipped: true });
+				return;
+			}
+		}
+
+		if (effect === 'play-discard' && this.getPlayableDiscardCardIds().length === 0) {
+			this.appendBonusLog({ actorId: actor.id, actorName: actor.name, effect, skipped: true });
+			return;
+		}
+
+		this.state.pendingBonus = {
+			effect,
+			actorId: actor.id,
+			actorName: actor.name,
+		};
+	}
+
+	private gainHintToken(): boolean {
+		if (this.state.hintTokens >= this.state.settings.maxHintTokens) {
+			return false;
+		}
+
+		this.state.hintTokens += 1;
+		return true;
+	}
+
+	private getPendingBonusOrThrow(effect: FlamboyantBonus): PendingFlamboyantBonus {
+		const pending = this.state.pendingBonus;
+		if (!pending || pending.effect !== effect) {
+			throw new Error(`Expected pending bonus ${effect}`);
+		}
+
+		return pending;
+	}
+
+	private removeCardFromDiscardOrThrow(cardId: CardId): Card {
+		const discardIndex = this.state.discardPile.indexOf(cardId);
+		if (discardIndex === -1) {
+			throw new Error('Bonus card must be in the discard pile');
+		}
+
+		this.state.discardPile.splice(discardIndex, 1);
+		return this.getCardOrThrow(cardId);
+	}
+
+	private getDeterministicDeckInsertIndex(cardId: CardId): number {
+		let hash = this.state.turn + this.state.nextLogId;
+		for (let index = 0; index < cardId.length; index += 1) {
+			hash = (Math.imul(hash, 31) + cardId.charCodeAt(index)) >>> 0;
+		}
+
+		return hash % (this.state.drawDeck.length + 1);
+	}
+
+	private canCardPlayOnFirework(card: Card): boolean {
+		return getNextFireworkNumber(card.suit, this.state.fireworks[card.suit].length) === card.number;
+	}
+
+	private getPlayableDiscardCardIds(): CardId[] {
+		return this.state.discardPile.filter(cardId => {
+			const card = this.getCardOrThrow(cardId);
+			return this.canCardPlayOnFirework(card);
+		});
+	}
+
+	private finishActionAfterBonus(): void {
+		const deckEmptiedOnDraw = this.drawCardForPlayer(this.state.currentTurnPlayerIndex);
+		if (deckEmptiedOnDraw && !this.state.settings.endlessMode && this.state.status === 'active') {
+			this.state.status = 'last_round';
+			this.state.lastRound = { turnsRemaining: this.state.players.length };
+		}
+
+		this.finalizeAction({ enteredLastRound: deckEmptiedOnDraw });
 	}
 
 	private isPerfectionStillPossible(): boolean {
@@ -1263,6 +1580,7 @@ export class HanabiGame {
 		touchedCardIds: CardId[],
 		suit: Suit | null,
 		number: CardNumber | null,
+		free = false,
 	): void {
 		this.state.logs.push({
 			id: this.nextLogId(),
@@ -1276,6 +1594,7 @@ export class HanabiGame {
 			suit,
 			number,
 			touchedCardIds: [...touchedCardIds],
+			...(free ? { free } : {}),
 		});
 	}
 
@@ -1309,6 +1628,43 @@ export class HanabiGame {
 		});
 	}
 
+	private appendBonusLog({
+		actorId,
+		actorName,
+		effect,
+		card = null,
+		target = null,
+		gainedHint = false,
+		recoveredFuse = false,
+		skipped = false,
+	}: {
+		actorId: PlayerId;
+		actorName: string;
+		effect: FlamboyantBonus;
+		card?: Card | null;
+		target?: Player | null;
+		gainedHint?: boolean;
+		recoveredFuse?: boolean;
+		skipped?: boolean;
+	}): void {
+		this.state.logs.push({
+			id: this.nextLogId(),
+			turn: this.state.turn,
+			type: 'bonus',
+			actorId,
+			actorName,
+			effect,
+			cardId: card?.id ?? null,
+			suit: card?.suit ?? null,
+			number: card?.number ?? null,
+			targetId: target?.id ?? null,
+			targetName: target?.name ?? null,
+			gainedHint,
+			recoveredFuse,
+			skipped,
+		});
+	}
+
 	private appendStatusLog(status: TerminalGameStatus, reason: EndReason): void {
 		this.state.logs.push({
 			id: this.nextLogId(),
@@ -1324,12 +1680,16 @@ export class HanabiGame {
 		const cloned = deepClone(state);
 		cloned.fireworks.K ??= [];
 		cloned.settings.includeBlack = Boolean(cloned.settings.includeBlack);
+		cloned.settings.includeFlamboyants = Boolean(cloned.settings.includeFlamboyants);
 		cloned.settings.multicolorWildHints = cloned.settings.includeMulticolor;
 		if (cloned.settings.endlessMode) cloned.settings.maxFuseTokens = 1;
 		cloned.settings.activeSuits = getActiveSuits(
 			cloned.settings.includeMulticolor,
 			cloned.settings.includeBlack,
 		);
+		cloned.bonusTileDeck ??= [];
+		cloned.bonusTileDiscard ??= [];
+		cloned.pendingBonus ??= null;
 
 		if (cloned.status === 'last_round') {
 			cloned.status = 'active';

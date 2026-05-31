@@ -10,6 +10,7 @@ import {
 	type PlayerId,
 	type Suit,
 	getFireworkCardNumbers,
+	getNextFireworkNumber,
 	isFireworkCardPlayed,
 } from '../../game';
 import { useDebugScreensController } from '../../debugScreens';
@@ -22,6 +23,7 @@ import { CardView } from './components/CardView';
 import { DeckCount } from './components/DeckCount';
 import { LastActionTicker } from './components/LastActionTicker';
 import { PegPips, getPegPipStates } from './components/PegPips';
+import { SuitSymbol } from './components/SuitSymbol';
 import { EndgameOverlay } from './screens/EndgameOverlay';
 import { LobbyScreen } from './screens/LobbyScreen';
 import { LobbyWaitingForSnapshot } from './screens/LobbyWaitingForSnapshot';
@@ -54,6 +56,10 @@ const DISCONNECTED_ROOM_VIEW_STATE: RoomViewState = {
 
 function isTerminalStatus(status: HanabiPerspectiveState['status']): boolean {
 	return status === 'won' || status === 'lost' || status === 'finished';
+}
+
+function isBonusHintEffect(effect: string): boolean {
+	return effect === 'free-color-hint' || effect === 'free-number-hint';
 }
 
 async function writeToClipboard(text: string): Promise<void> {
@@ -618,8 +624,36 @@ function GameClient({
 			return;
 		}
 
+		if (action.type === 'hint-number') {
+			commitLocal(() => {
+				debugGame.giveNumberHint(action.targetPlayerId, action.number);
+			});
+			return;
+		}
+
+		if (action.type === 'bonus-hint-color') {
+			commitLocal(() => {
+				debugGame.resolveFlamboyantColorHint(action.targetPlayerId, action.suit);
+			});
+			return;
+		}
+
+		if (action.type === 'bonus-hint-number') {
+			commitLocal(() => {
+				debugGame.resolveFlamboyantNumberHint(action.targetPlayerId, action.number);
+			});
+			return;
+		}
+
+		if (action.type === 'bonus-shuffle-discard') {
+			commitLocal(() => {
+				debugGame.resolveFlamboyantShuffleDiscard(action.cardId);
+			});
+			return;
+		}
+
 		commitLocal(() => {
-			debugGame.giveNumberHint(action.targetPlayerId, action.number);
+			debugGame.resolveFlamboyantPlayDiscard(action.cardId);
 		});
 	}
 
@@ -644,11 +678,94 @@ function GameClient({
 		onAction(resolved.action);
 	}
 
+	function isDiscardCardPlayable(cardId: CardId): boolean {
+		if (!activeGameState) {
+			return false;
+		}
+
+		const card = activeGameState.cards[cardId];
+		if (!card) {
+			return false;
+		}
+
+		return (
+			getNextFireworkNumber(card.suit, activeGameState.fireworks[card.suit].length) ===
+			card.number
+		);
+	}
+
+	function resolveBonusCardSelection({
+		state,
+		actorId,
+		playerId,
+		cardId,
+	}: {
+		state: HanabiState;
+		actorId: PlayerId;
+		playerId: PlayerId;
+		cardId: CardId;
+	}): GameAction | 'wild-color-picker' | null {
+		const pendingBonus = state.pendingBonus;
+		if (!pendingBonus || pendingBonus.actorId !== actorId || playerId === actorId) {
+			return null;
+		}
+
+		const card = state.cards[cardId];
+		if (!card) {
+			return null;
+		}
+
+		if (pendingBonus.effect === 'free-color-hint') {
+			if (card.suit === 'M') {
+				return 'wild-color-picker';
+			}
+
+			if (card.suit === 'K') {
+				return null;
+			}
+
+			return {
+				type: 'bonus-hint-color',
+				actorId,
+				targetPlayerId: playerId,
+				suit: card.suit,
+			};
+		}
+
+		if (pendingBonus.effect === 'free-number-hint') {
+			return {
+				type: 'bonus-hint-number',
+				actorId,
+				targetPlayerId: playerId,
+				number: card.number,
+			};
+		}
+
+		return null;
+	}
+
 	function handleCardSelect(playerId: PlayerId, cardId: CardId): void {
 		if (isLocalDebugMode) {
 			setIsMenuOpen(false);
 			const actorId = debugGame.state.players[debugGame.state.currentTurnPlayerIndex]?.id;
 			if (!actorId) {
+				return;
+			}
+
+			if (debugGame.state.pendingBonus) {
+				const resolved = resolveBonusCardSelection({
+					state: debugGame.state,
+					actorId,
+					playerId,
+					cardId,
+				});
+				if (resolved === 'wild-color-picker') {
+					setWildColorHintTargetPlayerId(playerId);
+					return;
+				}
+				if (resolved) {
+					commitLocalAction(resolved);
+				}
 				return;
 			}
 
@@ -666,11 +783,33 @@ function GameClient({
 			return;
 		}
 
-		if (!activeGameState || !onlineSelfPlayerId || !pendingAction) {
+		if (!activeGameState || !onlineSelfPlayerId) {
 			return;
 		}
 
 		const actorId = onlineSelfPlayerId;
+		if (activeGameState.pendingBonus) {
+			const resolved = resolveBonusCardSelection({
+				state: activeGameState,
+				actorId,
+				playerId,
+				cardId,
+			});
+			if (resolved === 'wild-color-picker') {
+				setWildColorHintTargetPlayerId(playerId);
+				return;
+			}
+			if (resolved) {
+				sendOnlineGameAction(resolved);
+				clearActionDraft();
+			}
+			return;
+		}
+
+		if (!pendingAction) {
+			return;
+		}
+
 		const resolved = resolveCardSelectionAction({
 			state: activeGameState,
 			actorId,
@@ -713,6 +852,17 @@ function GameClient({
 				return;
 			}
 
+			if (debugGame.state.pendingBonus?.effect === 'free-color-hint') {
+				commitLocalAction({
+					type: 'bonus-hint-color',
+					actorId,
+					targetPlayerId,
+					suit,
+				});
+				clearHintDraft();
+				return;
+			}
+
 			const resolved = resolveDirectColorHintAction({
 				state: debugGame.state,
 				actorId,
@@ -734,6 +884,17 @@ function GameClient({
 		}
 
 		if (!activeGameState || !onlineSelfPlayerId) {
+			return;
+		}
+
+		if (activeGameState.pendingBonus?.effect === 'free-color-hint') {
+			sendOnlineGameAction({
+				type: 'bonus-hint-color',
+				actorId: onlineSelfPlayerId,
+				targetPlayerId,
+				suit,
+			});
+			clearActionDraft();
 			return;
 		}
 
@@ -1113,13 +1274,30 @@ function GameClient({
 	const selectedAction: PendingCardAction = isLocalDebugMode
 		? debugGame.state.ui.pendingAction
 		: pendingAction;
+	const pendingBonus = perspective.pendingBonus;
 	const viewerHandCount =
 		perspective.players.find(player => player.id === perspective.viewerId)?.cards.length ?? 0;
 	const viewerHasCards = viewerHandCount > 0;
-	const discardDisabled = gameOver || !canAct || !viewerHasCards;
-	const colorHintDisabled = gameOver || !canAct || perspective.hintTokens <= 0;
-	const numberHintDisabled = gameOver || !canAct || perspective.hintTokens <= 0;
-	const playDisabled = gameOver || !canAct || !viewerHasCards;
+	const normalActionBlocked = Boolean(pendingBonus);
+	const discardDisabled = gameOver || normalActionBlocked || !canAct || !viewerHasCards;
+	const colorHintDisabled =
+		gameOver || normalActionBlocked || !canAct || perspective.hintTokens <= 0;
+	const numberHintDisabled =
+		gameOver || normalActionBlocked || !canAct || perspective.hintTokens <= 0;
+	const playDisabled = gameOver || normalActionBlocked || !canAct || !viewerHasCards;
+	const bonusDiscardChoices =
+		pendingBonus && activeGameState
+			? [...activeGameState.discardPile]
+					.reverse()
+					.map(cardId => {
+						const card = activeGameState.cards[cardId];
+						if (!card) {
+							return null;
+						}
+						return { cardId, card, playable: isDiscardCardPlayable(cardId) };
+					})
+					.filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+			: [];
 
 	function toggleEndgameLog(): void {
 		setEndgamePanel(current => (current === 'log' ? 'summary' : 'log'));
@@ -1130,6 +1308,39 @@ function GameClient({
 		setDismissedEndgameKey(endgameKey);
 		setIsMenuOpen(false);
 		closeLogDrawer();
+		clearActionDraft();
+	}
+
+	function handleBonusDiscardChoice(cardId: CardId): void {
+		if (!pendingBonus) {
+			return;
+		}
+
+		const actionType =
+			pendingBonus.effect === 'shuffle-discard'
+				? 'bonus-shuffle-discard'
+				: pendingBonus.effect === 'play-discard'
+					? 'bonus-play-discard'
+					: null;
+		if (!actionType) {
+			return;
+		}
+
+		if (isLocalDebugMode) {
+			const actorId = debugGame.state.players[debugGame.state.currentTurnPlayerIndex]?.id;
+			if (!actorId) {
+				return;
+			}
+
+			commitLocalAction({ type: actionType, actorId, cardId });
+			return;
+		}
+
+		if (!onlineSelfPlayerId) {
+			return;
+		}
+
+		sendOnlineGameAction({ type: actionType, actorId: onlineSelfPlayerId, cardId });
 		clearActionDraft();
 	}
 
@@ -1396,6 +1607,54 @@ function GameClient({
 					</div>
 				</section>
 			</section>
+
+			{pendingBonus && (
+				<aside className='bonus-panel' data-testid='bonus-panel'>
+					<div className='bonus-panel-header'>
+						<span className='bonus-panel-kicker'>Bonus</span>
+						<span className='bonus-panel-title'>
+							{pendingBonus.effect === 'free-color-hint'
+								? 'Free Color'
+								: pendingBonus.effect === 'free-number-hint'
+									? 'Free Number'
+									: pendingBonus.effect === 'shuffle-discard'
+										? 'Shuffle Back'
+										: 'Play Discard'}
+						</span>
+					</div>
+
+					{isBonusHintEffect(pendingBonus.effect) ? (
+						<p className='bonus-panel-copy' data-testid='bonus-hint-prompt'>
+							{canAct ? 'Tap a teammate card.' : `Waiting for ${pendingBonus.actorName}.`}
+						</p>
+					) : (
+						<div className='bonus-discard-grid' data-testid='bonus-discard-grid'>
+							{bonusDiscardChoices.map(({ cardId, card, playable }) => {
+								const disabled = !canAct || (pendingBonus.effect === 'play-discard' && !playable);
+								return (
+									<button
+										key={cardId}
+										type='button'
+										className='bonus-discard-choice'
+										style={
+											{
+												'--bonus-card-color': suitColors[card.suit],
+											} as CSSProperties
+										}
+										onClick={() => handleBonusDiscardChoice(cardId)}
+										disabled={disabled}
+										aria-label={`${pendingBonus.effect === 'play-discard' ? 'Play' : 'Shuffle'} ${suitNames[card.suit]} ${card.number}`}
+										data-testid={`bonus-discard-${cardId}`}
+									>
+										<span className='bonus-discard-number'>{card.number}</span>
+										<SuitSymbol suit={card.suit} size={14} className='bonus-discard-suit' />
+									</button>
+								);
+							})}
+						</div>
+					)}
+				</aside>
+			)}
 
 			{wildColorHintTargetPlayerId && (
 				<aside className='wild-color-picker' data-testid='wild-color-picker'>

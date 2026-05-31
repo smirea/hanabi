@@ -14,6 +14,7 @@ export const MAX_SEATED_PLAYER_COUNT = 5;
 export interface LobbySettings {
 	includeMulticolor: boolean;
 	includeBlack: boolean;
+	includeFlamboyants: boolean;
 	multicolorShortDeck: boolean;
 	multicolorWildHints: boolean;
 	endlessMode: boolean;
@@ -22,6 +23,7 @@ export interface LobbySettings {
 export const DEFAULT_LOBBY_SETTINGS: LobbySettings = {
 	includeMulticolor: false,
 	includeBlack: false,
+	includeFlamboyants: false,
 	multicolorShortDeck: false,
 	multicolorWildHints: false,
 	endlessMode: false,
@@ -38,7 +40,16 @@ export type GameAction =
 			actorId: GamePlayerId;
 			targetPlayerId: GamePlayerId;
 			number: CardNumber;
-	  };
+	  }
+	| { type: 'bonus-hint-color'; actorId: GamePlayerId; targetPlayerId: GamePlayerId; suit: Suit }
+	| {
+			type: 'bonus-hint-number';
+			actorId: GamePlayerId;
+			targetPlayerId: GamePlayerId;
+			number: CardNumber;
+	  }
+	| { type: 'bonus-shuffle-discard'; actorId: GamePlayerId; cardId: string }
+	| { type: 'bonus-play-discard'; actorId: GamePlayerId; cardId: string };
 
 export interface RoomMember {
 	id: GamePlayerId;
@@ -154,6 +165,7 @@ export function normalizeSettings(input: Partial<LobbySettings> | undefined): Lo
 	return {
 		includeMulticolor,
 		includeBlack: Boolean(input?.includeBlack),
+		includeFlamboyants: Boolean(input?.includeFlamboyants),
 		multicolorShortDeck: includeMulticolor,
 		multicolorWildHints: includeMulticolor,
 		endlessMode: Boolean(input?.endlessMode),
@@ -164,6 +176,7 @@ function areLobbySettingsEqual(left: LobbySettings, right: LobbySettings): boole
 	return (
 		left.includeMulticolor === right.includeMulticolor &&
 		left.includeBlack === right.includeBlack &&
+		left.includeFlamboyants === right.includeFlamboyants &&
 		left.multicolorShortDeck === right.multicolorShortDeck &&
 		left.multicolorWildHints === right.multicolorWildHints &&
 		left.endlessMode === right.endlessMode
@@ -279,6 +292,14 @@ export function applyGameAction(game: HanabiGame, action: GameAction): void {
 			return game.giveColorHint(action.targetPlayerId, action.suit);
 		case 'hint-number':
 			return game.giveNumberHint(action.targetPlayerId, action.number);
+		case 'bonus-hint-color':
+			return game.resolveFlamboyantColorHint(action.targetPlayerId, action.suit);
+		case 'bonus-hint-number':
+			return game.resolveFlamboyantNumberHint(action.targetPlayerId, action.number);
+		case 'bonus-shuffle-discard':
+			return game.resolveFlamboyantShuffleDiscard(action.cardId);
+		case 'bonus-play-discard':
+			return game.resolveFlamboyantPlayDiscard(action.cardId);
 		default:
 			throw new Error(`Unhandled action: ${JSON.stringify(action)}`);
 	}

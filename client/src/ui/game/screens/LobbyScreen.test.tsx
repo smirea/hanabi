@@ -38,6 +38,7 @@ describe('LobbyScreen', () => {
 				{...createProps({
 					includeMulticolor: false,
 					includeBlack: false,
+					includeFlamboyants: false,
 					multicolorShortDeck: false,
 					multicolorWildHints: false,
 					endlessMode: false,
@@ -56,6 +57,7 @@ describe('LobbyScreen', () => {
 				{...createProps({
 					includeMulticolor: true,
 					includeBlack: false,
+					includeFlamboyants: false,
 					multicolorShortDeck: false,
 					multicolorWildHints: true,
 					endlessMode: false,
@@ -76,6 +78,7 @@ describe('LobbyScreen', () => {
 					{
 						includeMulticolor: false,
 						includeBlack: false,
+						includeFlamboyants: false,
 						multicolorShortDeck: false,
 						multicolorWildHints: false,
 						endlessMode: false,
@@ -100,6 +103,7 @@ describe('LobbyScreen', () => {
 				{...createProps({
 					includeMulticolor: false,
 					includeBlack: false,
+					includeFlamboyants: false,
 					multicolorShortDeck: false,
 					multicolorWildHints: false,
 					endlessMode: false,
@@ -121,6 +125,7 @@ describe('LobbyScreen', () => {
 					{
 						includeMulticolor: false,
 						includeBlack: false,
+						includeFlamboyants: false,
 						multicolorShortDeck: false,
 						multicolorWildHints: false,
 						endlessMode: false,
@@ -133,5 +138,28 @@ describe('LobbyScreen', () => {
 		fireEvent.click(screen.getByTestId('lobby-setting-black-powder'));
 
 		expect(onUpdateSettings).toHaveBeenCalledWith({ includeBlack: true });
+	});
+
+	test('toggles 5 flamboyants from the lobby', () => {
+		const onUpdateSettings = mock(() => {});
+		render(
+			<LobbyScreen
+				{...createProps(
+					{
+						includeMulticolor: false,
+						includeBlack: false,
+						includeFlamboyants: false,
+						multicolorShortDeck: false,
+						multicolorWildHints: false,
+						endlessMode: false,
+					},
+					onUpdateSettings,
+				)}
+			/>,
+		);
+
+		fireEvent.click(screen.getByTestId('lobby-setting-flamboyants'));
+
+		expect(onUpdateSettings).toHaveBeenCalledWith({ includeFlamboyants: true });
 	});
 });

@@ -101,6 +101,20 @@ describe('onlineGame', () => {
 		expect(state.gameState?.settings.maxFuseTokens).toBe(1);
 	});
 
+	test('5 flamboyants games start with a bonus tile stack', () => {
+		const state = createState({
+			members: PLAYERS.slice(0, 2),
+			settings: { ...cloneLobbySettings(), includeFlamboyants: true },
+		});
+
+		expect(ready(state, 'player:1')).toBeTrue();
+		expect(ready(state, 'player:2')).toBeTrue();
+
+		expect(state.phase).toBe('playing');
+		expect(state.gameState?.settings.includeFlamboyants).toBeTrue();
+		expect(state.gameState?.bonusTileDeck).toHaveLength(6);
+	});
+
 	test('ready consensus can replay the same seeded initial game from the action log', () => {
 		const actions = [
 			{ type: 'join', actorId: 'player:1', userId: 1, name: 'Alex' },

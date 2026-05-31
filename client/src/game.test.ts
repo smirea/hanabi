@@ -98,6 +98,7 @@ function createAlmostWonState(): any {
 		settings: {
 			includeMulticolor: false,
 			includeBlack: false,
+			includeFlamboyants: false,
 			multicolorShortDeck: false,
 			multicolorWildHints: false,
 			endlessMode: false,
@@ -156,6 +157,42 @@ function createNoValidPlaysLeftState(): any {
 	state.logs = [];
 	state.nextLogId = 1;
 	return state;
+}
+
+function addFireworkCard(state: any, suit: DeckSuit, number: DeckNumber): string {
+	const id = `played-${suit}-${number}`;
+	state.cards[id] = {
+		id,
+		suit,
+		number,
+		hints: {
+			color: null,
+			number: null,
+			notColors: [],
+			notNumbers: [],
+			recentlyHinted: false,
+		},
+	};
+	state.fireworks[suit].push(id);
+	return id;
+}
+
+function createFlamboyantFiveGame(bonusTiles: any[]): HanabiGame {
+	const game = new HanabiGame({
+		playerNames: ['A', 'B'],
+		includeFlamboyants: true,
+		bonusTiles,
+		deck: twoPlayerDeck(
+			[card('R', 5), card('Y', 1), card('G', 1), card('B', 1), card('W', 1)],
+			[card('R', 1), card('Y', 2), card('G', 2), card('B', 2), card('W', 2)],
+		),
+	});
+
+	for (const number of [1, 2, 3, 4] as const) {
+		addFireworkCard(game.state, 'R', number);
+	}
+	game.state.hintTokens = 6;
+	return game;
 }
 
 describe('HanabiGame', () => {
@@ -698,6 +735,119 @@ describe('HanabiGame', () => {
 		expect(maxHintGame.state.logs.find(entry => entry.type === 'play')).toMatchObject({
 			type: 'play',
 			gainedHint: false,
+		});
+	});
+
+	test('5 flamboyants resolves immediate recovery bonuses instead of the normal five bonus', () => {
+		const game = createFlamboyantFiveGame(['recover-fuse-and-gain-hint']);
+		game.state.fuseTokensUsed = 1;
+
+		game.playCard(game.state.players[0].cards[0]);
+
+		expect(game.state.hintTokens).toBe(7);
+		expect(game.state.fuseTokensUsed).toBe(0);
+		expect(game.state.bonusTileDiscard).toEqual(['recover-fuse-and-gain-hint']);
+		expect(game.state.pendingBonus).toBeNull();
+		expect(game.state.logs.at(-2)).toMatchObject({
+			type: 'play',
+			gainedHint: false,
+		});
+		expect(game.state.logs.at(-1)).toMatchObject({
+			type: 'bonus',
+			effect: 'recover-fuse-and-gain-hint',
+			gainedHint: true,
+			recoveredFuse: true,
+		});
+	});
+
+	test('5 flamboyants pauses for a free number hint and then finishes the turn', () => {
+		const game = createFlamboyantFiveGame(['free-number-hint']);
+
+		game.playCard(game.state.players[0].cards[0]);
+
+		expect(game.state.pendingBonus).toMatchObject({
+			effect: 'free-number-hint',
+			actorId: 'p1',
+		});
+		expect(game.state.currentTurnPlayerIndex).toBe(0);
+		expect(game.state.players[0].cards).toHaveLength(4);
+
+		game.resolveFlamboyantNumberHint('p2', 1);
+
+		expect(game.state.pendingBonus).toBeNull();
+		expect(game.state.hintTokens).toBe(6);
+		expect(game.state.currentTurnPlayerIndex).toBe(1);
+		expect(game.state.logs.at(-1)).toMatchObject({
+			type: 'hint',
+			free: true,
+			hintType: 'number',
+			number: 1,
+		});
+	});
+
+	test('5 flamboyants can play a fitting card from the discard pile', () => {
+		const game = createFlamboyantFiveGame(['play-discard']);
+		const playableDiscardId = 'discard-g1';
+		game.state.cards[playableDiscardId] = {
+			id: playableDiscardId,
+			suit: 'G',
+			number: 1,
+			hints: {
+				color: null,
+				number: null,
+				notColors: [],
+				notNumbers: [],
+				recentlyHinted: false,
+			},
+		};
+		game.state.discardPile.push(playableDiscardId);
+
+		game.playCard(game.state.players[0].cards[0]);
+		expect(game.state.pendingBonus).toMatchObject({ effect: 'play-discard' });
+
+		game.resolveFlamboyantPlayDiscard(playableDiscardId);
+
+		expect(game.state.pendingBonus).toBeNull();
+		expect(game.state.discardPile).not.toContain(playableDiscardId);
+		expect(game.state.fireworks.G).toContain(playableDiscardId);
+		expect(game.state.currentTurnPlayerIndex).toBe(1);
+		expect(game.state.logs.at(-1)).toMatchObject({
+			type: 'bonus',
+			effect: 'play-discard',
+			cardId: playableDiscardId,
+		});
+	});
+
+	test('5 flamboyants can shuffle a discard back into the deck', () => {
+		const game = createFlamboyantFiveGame(['shuffle-discard']);
+		const discardId = 'discard-y1';
+		game.state.cards[discardId] = {
+			id: discardId,
+			suit: 'Y',
+			number: 1,
+			hints: {
+				color: null,
+				number: null,
+				notColors: [],
+				notNumbers: [],
+				recentlyHinted: false,
+			},
+		};
+		game.state.discardPile.push(discardId);
+
+		game.playCard(game.state.players[0].cards[0]);
+		expect(game.state.pendingBonus).toMatchObject({ effect: 'shuffle-discard' });
+
+		game.resolveFlamboyantShuffleDiscard(discardId);
+
+		expect(game.state.pendingBonus).toBeNull();
+		expect(game.state.discardPile).not.toContain(discardId);
+		expect(game.state.players[0].cards).toContain(discardId);
+		expect(game.state.currentTurnPlayerIndex).toBe(1);
+		expect(game.state.logs.at(-1)).toMatchObject({
+			type: 'bonus',
+			effect: 'shuffle-discard',
+			cardId: discardId,
 		});
 	});
 

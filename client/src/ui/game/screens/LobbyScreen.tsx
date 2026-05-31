@@ -121,7 +121,16 @@ export function LobbyScreen({
 		disabled: false,
 		onClick: () => onUpdateSettings({ includeBlack: !settings.includeBlack }),
 	} as const;
-	const configRows = [extraSuitRow, blackPowderRow, endlessRow];
+	const flamboyantsRow = {
+		id: 'flamboyants',
+		label: '5 Flamboyants',
+		subtitle: 'Playing a 5 reveals a one-use bonus tile.',
+		isOn: settings.includeFlamboyants,
+		value: settings.includeFlamboyants ? 'On' : 'Off',
+		disabled: false,
+		onClick: () => onUpdateSettings({ includeFlamboyants: !settings.includeFlamboyants }),
+	} as const;
+	const configRows = [extraSuitRow, blackPowderRow, flamboyantsRow, endlessRow];
 
 	return (
 		<main className='app lobby-app' data-testid='lobby-root'>

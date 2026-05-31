@@ -17,6 +17,8 @@ void mock.module('./hooks/useGameServer', () => ({
 			],
 			settings: {
 				includeMulticolor: false,
+				includeBlack: false,
+				includeFlamboyants: false,
 				multicolorShortDeck: false,
 				multicolorWildHints: false,
 				endlessMode: false,
@@ -32,6 +34,7 @@ void mock.module('./hooks/useGameServer', () => ({
 }));
 
 import App from './App';
+import { HanabiGame, type CardNumber, type FlamboyantBonus, type Suit } from './game';
 import { storageKeys } from './utils/constants';
 import { LS } from './utils/utils';
 
@@ -115,6 +118,82 @@ function findTeammateCardIndexWithNumberOverOne(playerId: string): number {
 	}
 
 	throw new Error(`Could not find a guaranteed misplay card for ${playerId}`);
+}
+
+function seedCard(suit: Suit, number: CardNumber): { suit: Suit; number: CardNumber } {
+	return { suit, number };
+}
+
+function twoPlayerDeck(
+	p1: { suit: Suit; number: CardNumber }[],
+	p2: { suit: Suit; number: CardNumber }[],
+) {
+	const deck: { suit: Suit; number: CardNumber }[] = [];
+	for (let index = 0; index < 5; index += 1) {
+		deck.push(p1[index], p2[index]);
+	}
+	return deck;
+}
+
+function addPlayedCard(game: HanabiGame, suit: Suit, number: CardNumber): void {
+	const id = `played-${suit}-${number}`;
+	game.state.cards[id] = {
+		id,
+		suit,
+		number,
+		hints: {
+			color: null,
+			number: null,
+			notColors: [],
+			notNumbers: [],
+			recentlyHinted: false,
+		},
+	};
+	game.state.fireworks[suit].push(id);
+}
+
+function createPendingFlamboyantState(effect: FlamboyantBonus) {
+	const game = new HanabiGame({
+		playerNames: ['A', 'B'],
+		includeFlamboyants: true,
+		bonusTiles: [effect],
+		deck: twoPlayerDeck(
+			[
+				seedCard('R', 5),
+				seedCard('Y', 1),
+				seedCard('G', 1),
+				seedCard('B', 1),
+				seedCard('W', 1),
+			],
+			[
+				seedCard('R', 1),
+				seedCard('Y', 2),
+				seedCard('G', 2),
+				seedCard('B', 2),
+				seedCard('W', 2),
+			],
+		),
+	});
+
+	for (const number of [1, 2, 3, 4] as const) {
+		addPlayedCard(game, 'R', number);
+	}
+
+	game.state.cards['discard-g1'] = {
+		id: 'discard-g1',
+		suit: 'G',
+		number: 1,
+		hints: {
+			color: null,
+			number: null,
+			notColors: [],
+			notNumbers: [],
+			recentlyHinted: false,
+		},
+	};
+	game.state.discardPile.push('discard-g1');
+	game.playCard(game.state.players[0].cards[0]);
+	return game.getSnapshot();
 }
 
 afterEach(() => {
@@ -203,6 +282,29 @@ describe('App local debug wiring', () => {
 		expect(LS.get(storageKeys.debugMode)).toBe(false);
 		expect(screen.getByTestId('lobby-root')).toBeInTheDocument();
 		expect(screen.queryByTestId('actions-play')).not.toBeInTheDocument();
+	});
+
+	test('loaded debug state can resolve a 5 flamboyants discard bonus from the panel', async () => {
+		const originalPrompt = window.prompt;
+		window.prompt = mock(() => JSON.stringify(createPendingFlamboyantState('play-discard')));
+
+		try {
+			render(<App roomCode={ROOM_CODE} />);
+
+			fireEvent.click(screen.getByTestId('actions-menu'));
+			fireEvent.click(screen.getByTestId('menu-debug-load-state'));
+
+			await waitFor(() => expect(screen.getByTestId('bonus-panel')).toHaveTextContent('Play Discard'));
+			const discardButton = screen.getByTestId('bonus-discard-discard-g1');
+			expect(discardButton).toBeEnabled();
+
+			fireEvent.click(discardButton);
+
+			await waitFor(() => expect(screen.queryByTestId('bonus-panel')).not.toBeInTheDocument());
+			expect(screen.getByTestId('player-turn-p2')).toBeInTheDocument();
+		} finally {
+			window.prompt = originalPrompt;
+		}
 	});
 
 	test('negative hint toggles default to on and persist in local storage', () => {
