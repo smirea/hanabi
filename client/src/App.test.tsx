@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 void mock.module('./hooks/useGameServer', () => ({
+	useAppVersion: () => ({ versionText: 'version 05 31, 2026 @ 12:34' }),
 	useOnlineRoom: () => ({
 		room: {
 			status: 'connected',
@@ -192,6 +193,10 @@ describe('App local debug wiring', () => {
 		render(<App roomCode={ROOM_CODE} />);
 
 		fireEvent.click(screen.getByTestId('actions-menu'));
+		expect(screen.getByTestId('menu-version')).toHaveTextContent('version 05 31, 2026 @ 12:34');
+		expect(screen.getByTestId('menu-panel').lastElementChild).toBe(
+			screen.getByTestId('menu-version'),
+		);
 		expect(screen.getByTestId('menu-local-debug-value')).toHaveTextContent('On');
 
 		fireEvent.click(screen.getByTestId('menu-local-debug-toggle'));

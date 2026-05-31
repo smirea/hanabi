@@ -12,6 +12,7 @@ void mock.module('@tanstack/react-router', () => ({
 }));
 
 void mock.module('../hooks/useGameServer', () => ({
+	useAppVersion: () => ({ versionText: 'version 05 31, 2026 @ 12:34' }),
 	useOnlineRoom: () => ({
 		room: {
 			status: 'connected',

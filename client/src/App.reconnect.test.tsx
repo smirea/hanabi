@@ -6,6 +6,7 @@ const sendActionMock = mock(async () => null);
 let mockRoom: unknown = null;
 
 void mock.module('./hooks/useGameServer', () => ({
+	useAppVersion: () => ({ versionText: 'version 05 31, 2026 @ 12:34' }),
 	useOnlineRoom: () => ({
 		room: mockRoom,
 		user: { id: 1, name: 'Alex' },

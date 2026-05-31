@@ -2469,6 +2469,16 @@ body {
 	align-items: center;
 }
 
+.menu-version {
+	padding: 0.18rem 0.38rem 0.12rem;
+	color: rgba(95, 109, 135, 0.58);
+	font-size: 0.52rem;
+	font-weight: 700;
+	letter-spacing: 0.03em;
+	line-height: 1.2;
+	text-align: center;
+}
+
 .menu-toggle-item {
 	display: flex;
 	align-items: center;
@@ -4125,6 +4135,10 @@ body {
 :root[data-theme='dark'] .menu-toggle-item[aria-pressed='true'] span:last-child {
 	background: rgba(45, 201, 109, 0.18);
 	color: rgba(156, 255, 190, 0.95);
+}
+
+:root[data-theme='dark'] .menu-version {
+	color: rgba(176, 196, 240, 0.54);
 }
 
 :root[data-theme='dark'] .menu-danger {

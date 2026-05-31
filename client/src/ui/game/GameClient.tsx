@@ -13,7 +13,7 @@ import {
 } from '../../game';
 import { useDebugScreensController } from '../../debugScreens';
 import { cloneLobbySettings, playerIdForUser, sanitizePlayerName } from '../../onlineGame';
-import { useOnlineRoom } from '../../hooks/useGameServer';
+import { useAppVersion, useOnlineRoom } from '../../hooks/useGameServer';
 import { storageKeys, suitColors, suitNames } from '../../utils/constants';
 import { useLocalStorage } from '../../utils/utils';
 import type { GameAction, LobbySettings, RoomViewState } from '../../utils/types';
@@ -137,6 +137,7 @@ function GameClient({
 	);
 	const [isTibiMode, setIsTibiMode] = useLocalStorage(storageKeys.tibiMode, false);
 	const [storedTvMode, setStoredTvMode] = useLocalStorage(storageKeys.tvMode, false);
+	const { versionText } = useAppVersion();
 	const logListRef = useRef<HTMLDivElement | null>(null);
 	const logDrawerTokenRef = useRef(0);
 	const logDrawerCloseTimeoutRef = useRef<number | null>(null);
@@ -1434,7 +1435,11 @@ function GameClient({
 					onClick={closeMenu}
 				/>
 
-				<aside className={`menu-panel ${isMenuOpen ? 'open' : ''}`} aria-hidden={!isMenuOpen}>
+				<aside
+					className={`menu-panel ${isMenuOpen ? 'open' : ''}`}
+					aria-hidden={!isMenuOpen}
+					data-testid='menu-panel'
+				>
 					<button
 						type='button'
 						className={`menu-item menu-danger ${isLeaveGameArmed ? 'armed' : ''}`}
@@ -1554,6 +1559,12 @@ function GameClient({
 					>
 						View on GitHub
 					</a>
+
+					{versionText && (
+						<div className='menu-version' data-testid='menu-version'>
+							{versionText}
+						</div>
+					)}
 				</aside>
 			</>
 
