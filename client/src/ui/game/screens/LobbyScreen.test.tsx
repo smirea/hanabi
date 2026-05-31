@@ -162,4 +162,33 @@ describe('LobbyScreen', () => {
 
 		expect(onUpdateSettings).toHaveBeenCalledWith({ includeFlamboyants: true });
 	});
+
+	test('opens the rules drawer and switches expansion tabs', () => {
+		render(
+			<LobbyScreen
+				{...createProps({
+					includeMulticolor: false,
+					includeBlack: false,
+					includeFlamboyants: false,
+					multicolorShortDeck: false,
+					multicolorWildHints: false,
+					endlessMode: false,
+				})}
+			/>,
+		);
+
+		fireEvent.click(screen.getByTestId('lobby-rules'));
+
+		expect(screen.getByTestId('rules-drawer')).toBeInTheDocument();
+		expect(screen.getByTestId('rules-content')).toHaveTextContent('Base Game');
+
+		fireEvent.click(screen.getByTestId('rules-tab-black-powder'));
+
+		expect(screen.getByTestId('rules-content')).toHaveTextContent('Black Powder');
+		expect(screen.getByTestId('rules-content')).toHaveTextContent('built in reverse');
+
+		fireEvent.click(screen.getByTestId('rules-close'));
+
+		expect(screen.queryByTestId('rules-drawer')).not.toBeInTheDocument();
+	});
 });

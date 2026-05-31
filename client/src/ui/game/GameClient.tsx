@@ -23,6 +23,7 @@ import { CardView } from './components/CardView';
 import { DeckCount } from './components/DeckCount';
 import { LastActionTicker } from './components/LastActionTicker';
 import { PegPips, getPegPipStates } from './components/PegPips';
+import { RulesDrawer } from './components/RulesDrawer';
 import { SuitSymbol } from './components/SuitSymbol';
 import { EndgameOverlay } from './screens/EndgameOverlay';
 import { LobbyScreen } from './screens/LobbyScreen';
@@ -116,6 +117,7 @@ function GameClient({
 	const [debugGameState, setDebugGameState] = useState(() => debugGame.getSnapshot());
 	const [isLogDrawerOpen, setIsLogDrawerOpen] = useState(false);
 	const [isLogDrawerMounted, setIsLogDrawerMounted] = useState(false);
+	const [isRulesDrawerOpen, setIsRulesDrawerOpen] = useState(false);
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const [isLeaveGameArmed, setIsLeaveGameArmed] = useState(false);
 	const [endgamePanel, setEndgamePanel] = useState<'summary' | 'log'>('summary');
@@ -962,6 +964,14 @@ function GameClient({
 		}, 280);
 	}
 
+	function openRulesDrawer(): void {
+		setIsRulesDrawerOpen(true);
+		setIsMenuOpen(false);
+		setIsLeaveGameArmed(false);
+		closeLogDrawer();
+		clearActionDraft();
+	}
+
 	function toggleMenu(): void {
 		if (isLogDrawerMounted) {
 			closeLogDrawer();
@@ -1709,6 +1719,15 @@ function GameClient({
 						{isLeaveGameArmed ? 'Are you sure?' : 'Leave game'}
 					</button>
 
+					<button
+						type='button'
+						className='menu-item'
+						data-testid='menu-rules'
+						onClick={openRulesDrawer}
+					>
+						Rules
+					</button>
+
 					<section className='menu-section' aria-label='Configuration'>
 						<div className='menu-section-title'>Config</div>
 						<button
@@ -1870,6 +1889,8 @@ function GameClient({
 					</aside>
 				</>
 			)}
+
+			<RulesDrawer isOpen={isRulesDrawerOpen} onClose={() => setIsRulesDrawerOpen(false)} />
 
 			<div
 				className='animation-layer'

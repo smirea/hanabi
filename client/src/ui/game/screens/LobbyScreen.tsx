@@ -1,7 +1,8 @@
-import { Moon, SignOut, Sun } from '@phosphor-icons/react';
+import { BookOpen, Moon, SignOut, Sun } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import { MAX_PLAYER_NAME_LENGTH } from '../../../utils/constants';
 import type { LobbySettings, RoomMemberView } from '../../../utils/types';
+import { RulesDrawer } from '../components/RulesDrawer';
 
 export function LobbyScreen({
 	roomId,
@@ -49,6 +50,7 @@ export function LobbyScreen({
 	const selfMember = effectiveMembers.find(member => member.id === selfPlayerId) ?? null;
 	const selfReady = Boolean(selfMember?.isReady);
 	const [isConfigMenuOpen, setIsConfigMenuOpen] = useState(false);
+	const [isRulesDrawerOpen, setIsRulesDrawerOpen] = useState(false);
 	const configMenuRef = useRef<HTMLDivElement | null>(null);
 
 	useEffect(() => {
@@ -215,7 +217,18 @@ export function LobbyScreen({
 					</section>
 
 					<section className='lobby-settings'>
-						<h2 className='lobby-section-title'>Configuration</h2>
+						<div className='lobby-section-heading'>
+							<h2 className='lobby-section-title'>Configuration</h2>
+							<button
+								type='button'
+								className='lobby-rules-button'
+								onClick={() => setIsRulesDrawerOpen(true)}
+								data-testid='lobby-rules'
+							>
+								<BookOpen size={14} weight='bold' aria-hidden />
+								Rules
+							</button>
+						</div>
 						{phase === 'lobby' ? (
 							<div className='lobby-toggle-list'>
 								{configRows.map(row => (
@@ -330,6 +343,7 @@ export function LobbyScreen({
 					</section>
 				</section>
 			</section>
+			<RulesDrawer isOpen={isRulesDrawerOpen} onClose={() => setIsRulesDrawerOpen(false)} />
 		</main>
 	);
 }

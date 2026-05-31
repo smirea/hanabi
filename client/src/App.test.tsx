@@ -284,6 +284,21 @@ describe('App local debug wiring', () => {
 		expect(screen.queryByTestId('actions-play')).not.toBeInTheDocument();
 	});
 
+	test('burger menu opens the shared rules drawer', () => {
+		render(<App roomCode={ROOM_CODE} />);
+
+		fireEvent.click(screen.getByTestId('actions-menu'));
+		fireEvent.click(screen.getByTestId('menu-rules'));
+
+		expect(screen.getByTestId('menu-panel')).toHaveAttribute('aria-hidden', 'true');
+		expect(screen.getByTestId('rules-drawer')).toBeInTheDocument();
+
+		fireEvent.click(screen.getByTestId('rules-tab-flamboyants'));
+
+		expect(screen.getByTestId('rules-content')).toHaveTextContent('5 Flamboyants');
+		expect(screen.getByTestId('rules-content')).toHaveTextContent('six one-use bonus tiles');
+	});
+
 	test('loaded debug state can resolve a 5 flamboyants discard bonus from the panel', async () => {
 		const originalPrompt = window.prompt;
 		window.prompt = mock(() => JSON.stringify(createPendingFlamboyantState('play-discard')));
