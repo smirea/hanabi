@@ -13,6 +13,7 @@ export const MAX_SEATED_PLAYER_COUNT = 5;
 
 export interface LobbySettings {
 	includeMulticolor: boolean;
+	includeBlack: boolean;
 	multicolorShortDeck: boolean;
 	multicolorWildHints: boolean;
 	endlessMode: boolean;
@@ -20,6 +21,7 @@ export interface LobbySettings {
 
 export const DEFAULT_LOBBY_SETTINGS: LobbySettings = {
 	includeMulticolor: false,
+	includeBlack: false,
 	multicolorShortDeck: false,
 	multicolorWildHints: false,
 	endlessMode: false,
@@ -151,6 +153,7 @@ export function normalizeSettings(input: Partial<LobbySettings> | undefined): Lo
 	const includeMulticolor = Boolean(input?.includeMulticolor);
 	return {
 		includeMulticolor,
+		includeBlack: Boolean(input?.includeBlack),
 		multicolorShortDeck: includeMulticolor,
 		multicolorWildHints: includeMulticolor,
 		endlessMode: Boolean(input?.endlessMode),
@@ -160,6 +163,7 @@ export function normalizeSettings(input: Partial<LobbySettings> | undefined): Lo
 function areLobbySettingsEqual(left: LobbySettings, right: LobbySettings): boolean {
 	return (
 		left.includeMulticolor === right.includeMulticolor &&
+		left.includeBlack === right.includeBlack &&
 		left.multicolorShortDeck === right.multicolorShortDeck &&
 		left.multicolorWildHints === right.multicolorWildHints &&
 		left.endlessMode === right.endlessMode

@@ -37,6 +37,7 @@ describe('LobbyScreen', () => {
 			<LobbyScreen
 				{...createProps({
 					includeMulticolor: false,
+					includeBlack: false,
 					multicolorShortDeck: false,
 					multicolorWildHints: false,
 					endlessMode: false,
@@ -54,6 +55,7 @@ describe('LobbyScreen', () => {
 			<LobbyScreen
 				{...createProps({
 					includeMulticolor: true,
+					includeBlack: false,
 					multicolorShortDeck: false,
 					multicolorWildHints: true,
 					endlessMode: false,
@@ -73,6 +75,7 @@ describe('LobbyScreen', () => {
 				{...createProps(
 					{
 						includeMulticolor: false,
+						includeBlack: false,
 						multicolorShortDeck: false,
 						multicolorWildHints: false,
 						endlessMode: false,
@@ -96,6 +99,7 @@ describe('LobbyScreen', () => {
 			<LobbyScreen
 				{...createProps({
 					includeMulticolor: false,
+					includeBlack: false,
 					multicolorShortDeck: false,
 					multicolorWildHints: false,
 					endlessMode: false,
@@ -107,5 +111,27 @@ describe('LobbyScreen', () => {
 		expect(screen.getByTestId('lobby-setting-endless')).toHaveTextContent(
 			'One life only; keep playing after the deck runs out.',
 		);
+	});
+
+	test('toggles black powder from the lobby', () => {
+		const onUpdateSettings = mock(() => {});
+		render(
+			<LobbyScreen
+				{...createProps(
+					{
+						includeMulticolor: false,
+						includeBlack: false,
+						multicolorShortDeck: false,
+						multicolorWildHints: false,
+						endlessMode: false,
+					},
+					onUpdateSettings,
+				)}
+			/>,
+		);
+
+		fireEvent.click(screen.getByTestId('lobby-setting-black-powder'));
+
+		expect(onUpdateSettings).toHaveBeenCalledWith({ includeBlack: true });
 	});
 });

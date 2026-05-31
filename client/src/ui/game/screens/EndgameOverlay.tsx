@@ -1,11 +1,13 @@
 import { Fire, LightbulbFilament } from '@phosphor-icons/react';
 import { useMemo, type CSSProperties } from 'react';
 import {
-	CARD_NUMBERS,
 	type GameLogEntry,
 	type HanabiPerspectiveState,
 	type PerspectiveCard,
 	type PlayerId,
+	getFireworkCardNumbers,
+	isBlackSuit,
+	isFireworkCardPlayed,
 } from '../../../game';
 import { suitColors } from '../../../utils/constants';
 import { CardView } from '../components/CardView';
@@ -69,8 +71,15 @@ export function EndgameOverlay({
 }) {
 	const title = status === 'won' ? 'You win' : status === 'lost' ? 'You lost' : 'Game over';
 
-	const scoreBreakdown = perspective.activeSuits.map(suit => perspective.fireworksHeights[suit]);
-	const scoreFormula = `${scoreBreakdown.join('+')} = ${score}`;
+	const scoreBreakdown = perspective.activeSuits
+		.filter(suit => !isBlackSuit(suit))
+		.map(suit => perspective.fireworksHeights[suit]);
+	const blackPenalty = perspective.activeSuits.includes('K')
+		? 5 - perspective.fireworksHeights.K
+		: 0;
+	const scoreBase = scoreBreakdown.length > 0 ? scoreBreakdown.join('+') : '0';
+	const scoreFormula =
+		blackPenalty > 0 ? `${scoreBase} - ${blackPenalty} = ${score}` : `${scoreBase} = ${score}`;
 	const remainingLives =
 		status === 'lost' ? 0 : Math.max(0, perspective.maxFuseTokens - perspective.fuseTokensUsed);
 
@@ -268,17 +277,17 @@ export function EndgameOverlay({
 									data-testid={`endgame-tower-${suit}`}
 								>
 									<div className='tower-stack'>
-										{CARD_NUMBERS.map(num => {
-											const isLit = num <= height;
+										{getFireworkCardNumbers(suit).map(num => {
+											const isLit = isFireworkCardPlayed(suit, num, height);
 											const remaining = perspective.knownRemainingCounts[suit][num];
 											const knownUnavailable = perspective.knownUnavailableCounts[suit][num];
 											const cardKey = `${suit}-${num}`;
 											const totalCopies = remaining + knownUnavailable;
 											const discarded = discardCounts.get(cardKey) ?? 0;
 											const visibleInHands = visibleOtherHandCounts.get(cardKey) ?? 0;
-											const played = num <= height ? 1 : 0;
+											const played = isLit ? 1 : 0;
 											const pipTotal = remaining + visibleInHands + discarded + played;
-											const blocked = num > height && discarded >= totalCopies;
+											const blocked = !isLit && discarded >= totalCopies;
 											const pipStates = getPegPipStates(
 												'default',
 												remaining,

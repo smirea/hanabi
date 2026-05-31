@@ -20,7 +20,7 @@ import {
 	type UserRecord,
 	type VersionResponse,
 } from '../../shared/onlineGame';
-import type { HanabiState } from '../../shared/game';
+import { scoreHanabiState, type HanabiState } from '../../shared/game';
 
 const apiPort = Number(env.API_PORT ?? 3001);
 if (Number.isNaN(apiPort)) throw new Error('API_PORT must be a valid number');
@@ -202,7 +202,7 @@ function terminalStatus(status: HanabiState['status']) {
 }
 
 function scoreGame(game: HanabiState): number {
-	return Object.values(game.fireworks).reduce((score, pile) => score + pile.length, 0);
+	return scoreHanabiState(game);
 }
 
 function readAction(row: RoomActionRow): OnlineRoomAction | null {

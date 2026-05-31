@@ -1,4 +1,4 @@
-import { Drop, Fire, Heart, Leaf, Rainbow, Sun, type IconProps } from '@phosphor-icons/react';
+import { Bomb, Drop, Fire, Heart, Leaf, Rainbow, Sun, type IconProps } from '@phosphor-icons/react';
 import type { ComponentType } from 'react';
 import type { Suit } from '../../../game';
 
@@ -9,6 +9,7 @@ const suitIcons: Record<Suit, ComponentType<IconProps>> = {
 	B: Drop,
 	W: Fire,
 	M: Rainbow,
+	K: Bomb,
 };
 
 export function SuitSymbol({

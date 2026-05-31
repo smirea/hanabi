@@ -1,7 +1,8 @@
-export const SUITS = ['R', 'Y', 'G', 'B', 'W', 'M'] as const;
+export const SUITS = ['R', 'Y', 'G', 'B', 'W', 'M', 'K'] as const;
 const ALL_SUITS = SUITS;
 export const BASE_SUITS = ['R', 'Y', 'G', 'B', 'W'] as const;
 export const CARD_NUMBERS = [1, 2, 3, 4, 5] as const;
+const BLACK_FIREWORK_NUMBERS = [5, 4, 3, 2, 1] as const;
 
 export type Suit = (typeof ALL_SUITS)[number];
 export type CardNumber = (typeof CARD_NUMBERS)[number];
@@ -111,6 +112,7 @@ export interface GameUiState {
 
 export interface GameSettings {
 	includeMulticolor: boolean;
+	includeBlack: boolean;
 	multicolorShortDeck: boolean;
 	multicolorWildHints: boolean;
 	endlessMode: boolean;
@@ -151,6 +153,7 @@ interface NewGameInput {
 	playerNames?: string[];
 	playerIds?: string[];
 	includeMulticolor?: boolean;
+	includeBlack?: boolean;
 	multicolorShortDeck?: boolean;
 	multicolorWildHints?: boolean;
 	endlessMode?: boolean;
@@ -167,6 +170,14 @@ const CARD_COPIES: Record<CardNumber, number> = {
 	3: 2,
 	4: 2,
 	5: 1,
+};
+
+const BLACK_CARD_COPIES: Record<CardNumber, number> = {
+	1: 1,
+	2: 2,
+	3: 2,
+	4: 2,
+	5: 3,
 };
 
 export interface PerspectiveCard {
@@ -208,6 +219,62 @@ export interface HanabiPerspectiveState {
 	knownRemainingCounts: PerspectiveCountsBySuit;
 }
 
+export function isBlackSuit(suit: Suit): boolean {
+	return suit === 'K';
+}
+
+export function getFireworkCardNumbers(suit: Suit): readonly CardNumber[] {
+	return isBlackSuit(suit) ? BLACK_FIREWORK_NUMBERS : CARD_NUMBERS;
+}
+
+export function getNextFireworkNumber(suit: Suit, height: number): CardNumber | null {
+	return getFireworkCardNumbers(suit)[height] ?? null;
+}
+
+export function isFireworkCardPlayed(suit: Suit, number: CardNumber, height: number): boolean {
+	return getFireworkCardNumbers(suit).slice(0, height).includes(number);
+}
+
+export function isFireworkCompletionCard(suit: Suit, number: CardNumber): boolean {
+	const order = getFireworkCardNumbers(suit);
+	return number === order[order.length - 1];
+}
+
+export function getCardCopies(
+	suit: Suit,
+	number: CardNumber,
+	multicolorShortDeck: boolean,
+): number {
+	if (suit === 'M' && multicolorShortDeck) {
+		return 1;
+	}
+
+	if (isBlackSuit(suit)) {
+		return BLACK_CARD_COPIES[number];
+	}
+
+	return CARD_COPIES[number];
+}
+
+export function scoreHanabiState(state: Pick<HanabiState, 'fireworks' | 'settings'>): number {
+	const rawScore = state.settings.activeSuits.reduce((sum, suit) => {
+		return isBlackSuit(suit) ? sum : sum + state.fireworks[suit].length;
+	}, 0);
+	const blackPenalty = state.settings.activeSuits.includes('K')
+		? CARD_NUMBERS.length - state.fireworks.K.length
+		: 0;
+
+	return Math.max(0, rawScore - blackPenalty);
+}
+
+function getActiveSuits(includeMulticolor: boolean, includeBlack: boolean): Suit[] {
+	return [
+		...BASE_SUITS,
+		...(includeMulticolor ? (['M'] as const) : []),
+		...(includeBlack ? (['K'] as const) : []),
+	];
+}
+
 function deepClone<T>(value: T): T {
 	return structuredClone(value);
 }
@@ -231,6 +298,7 @@ function createEmptyCountsBySuit(): PerspectiveCountsBySuit {
 		B: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
 		W: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
 		M: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+		K: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
 	};
 }
 
@@ -282,10 +350,7 @@ export class HanabiGame {
 	}
 
 	public getScore(): number {
-		return this.state.settings.activeSuits.reduce(
-			(sum, suit) => sum + this.state.fireworks[suit].length,
-			0,
-		);
+		return scoreHanabiState(this.state);
 	}
 
 	public getPerspectiveState(viewerId: PlayerId): HanabiPerspectiveState {
@@ -482,6 +547,10 @@ export class HanabiGame {
 			throw new Error('Cannot call multicolor color hints');
 		}
 
+		if (isBlackSuit(suit)) {
+			throw new Error('Cannot call black color hints');
+		}
+
 		this.state.ui.selectedHintSuit = suit;
 		this.recomputeHintHighlights();
 	}
@@ -550,13 +619,16 @@ export class HanabiGame {
 		this.clearRecentHints();
 		currentPlayer.cards.splice(cardIndex, 1);
 
-		const expectedNumber = this.state.fireworks[card.suit].length + 1;
+		const expectedNumber = getNextFireworkNumber(card.suit, this.state.fireworks[card.suit].length);
 		const success = card.number === expectedNumber;
 		let gainedHint = false;
 
 		if (success) {
 			this.state.fireworks[card.suit].push(cardId);
-			if (card.number === 5 && this.state.hintTokens < this.state.settings.maxHintTokens) {
+			if (
+				isFireworkCompletionCard(card.suit, card.number) &&
+				this.state.hintTokens < this.state.settings.maxHintTokens
+			) {
 				this.state.hintTokens += 1;
 				gainedHint = true;
 			}
@@ -637,6 +709,10 @@ export class HanabiGame {
 
 		if (suit === 'M') {
 			throw new Error('Cannot call multicolor color hints');
+		}
+
+		if (isBlackSuit(suit)) {
+			throw new Error('Cannot call black color hints');
 		}
 
 		const currentPlayer = this.state.players[this.state.currentTurnPlayerIndex];
@@ -748,16 +824,17 @@ export class HanabiGame {
 		const playerNames = input?.playerNames ?? ['Player 1', 'Player 2'];
 		const playerIds = input?.playerIds ?? playerNames.map((_, index) => `p${index + 1}`);
 		const includeMulticolor = Boolean(input?.includeMulticolor);
+		const includeBlack = Boolean(input?.includeBlack);
 		const multicolorWildHints = includeMulticolor;
 		const multicolorShortDeck = includeMulticolor;
 		const endlessMode = input?.endlessMode ?? false;
 		const maxHintTokens = input?.maxHintTokens ?? 8;
 		const maxFuseTokens = endlessMode ? 1 : (input?.maxFuseTokens ?? 3);
 		const handSize = playerNames.length <= 3 ? 5 : 4;
-		const activeSuits = includeMulticolor ? [...ALL_SUITS] : [...BASE_SUITS];
+		const activeSuits = getActiveSuits(includeMulticolor, includeBlack);
 		const deckSeed = input?.deck
 			? deepClone(input.deck)
-			: HanabiGame.buildDeck(includeMulticolor, multicolorShortDeck);
+			: HanabiGame.buildDeck(includeMulticolor, multicolorShortDeck, includeBlack);
 		const shuffledDeck = input?.deck
 			? deckSeed
 			: HanabiGame.shuffleDeck(deckSeed, input?.shuffleSeed);
@@ -812,6 +889,7 @@ export class HanabiGame {
 				B: [],
 				W: [],
 				M: [],
+				K: [],
 			},
 			hintTokens: maxHintTokens,
 			fuseTokensUsed: 0,
@@ -823,6 +901,7 @@ export class HanabiGame {
 			nextLogId: 1,
 			settings: {
 				includeMulticolor,
+				includeBlack,
 				multicolorShortDeck,
 				multicolorWildHints,
 				endlessMode,
@@ -834,13 +913,17 @@ export class HanabiGame {
 		};
 	}
 
-	private static buildDeck(includeMulticolor: boolean, multicolorShortDeck: boolean): CardSeed[] {
-		const suits = includeMulticolor ? ALL_SUITS : BASE_SUITS;
+	private static buildDeck(
+		includeMulticolor: boolean,
+		multicolorShortDeck: boolean,
+		includeBlack: boolean,
+	): CardSeed[] {
+		const suits = getActiveSuits(includeMulticolor, includeBlack);
 		const deck: CardSeed[] = [];
 
 		for (const suit of suits) {
 			for (const number of CARD_NUMBERS) {
-				const copies = suit === 'M' && multicolorShortDeck ? 1 : CARD_COPIES[number];
+				const copies = getCardCopies(suit, number, multicolorShortDeck);
 				for (let copy = 0; copy < copies; copy += 1) {
 					deck.push({ suit, number });
 				}
@@ -878,11 +961,7 @@ export class HanabiGame {
 	}
 
 	private getCopiesPerCard(suit: Suit, number: CardNumber): number {
-		if (suit === 'M' && this.state.settings.multicolorShortDeck) {
-			return 1;
-		}
-
-		return CARD_COPIES[number];
+		return getCardCopies(suit, number, this.state.settings.multicolorShortDeck);
 	}
 
 	private static isTerminalStatus(status: GameStatus): status is TerminalGameStatus {
@@ -965,6 +1044,10 @@ export class HanabiGame {
 	}
 
 	private doesCardMatchColorHint(cardSuit: Suit, hintSuit: Suit): boolean {
+		if (isBlackSuit(cardSuit) || isBlackSuit(hintSuit)) {
+			return false;
+		}
+
 		if (cardSuit === hintSuit) {
 			return true;
 		}
@@ -997,11 +1080,7 @@ export class HanabiGame {
 
 		for (const suit of this.state.settings.activeSuits) {
 			const height = this.state.fireworks[suit].length;
-			for (const number of CARD_NUMBERS) {
-				if (number <= height) {
-					continue;
-				}
-
+			for (const number of getFireworkCardNumbers(suit).slice(height)) {
 				if (remaining[suit][number] <= 0) {
 					return false;
 				}
@@ -1040,7 +1119,7 @@ export class HanabiGame {
 				continue;
 			}
 
-			const nextNumber = CARD_NUMBERS[height];
+			const nextNumber = getNextFireworkNumber(suit, height);
 			if (nextNumber && remaining[suit][nextNumber] > 0) {
 				return true;
 			}
@@ -1243,8 +1322,14 @@ export class HanabiGame {
 
 	private static normalizeRestoredState(state: HanabiState): HanabiState {
 		const cloned = deepClone(state);
+		cloned.fireworks.K ??= [];
+		cloned.settings.includeBlack = Boolean(cloned.settings.includeBlack);
 		cloned.settings.multicolorWildHints = cloned.settings.includeMulticolor;
 		if (cloned.settings.endlessMode) cloned.settings.maxFuseTokens = 1;
+		cloned.settings.activeSuits = getActiveSuits(
+			cloned.settings.includeMulticolor,
+			cloned.settings.includeBlack,
+		);
 
 		if (cloned.status === 'last_round') {
 			cloned.status = 'active';

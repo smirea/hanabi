@@ -31,6 +31,7 @@ export const suitColors: Record<Suit, string> = {
 	B: '#4f8eff',
 	W: '#ff7e2e',
 	M: '#8b5cf6',
+	K: '#1f232d',
 };
 
 export const suitBadgeForeground: Record<Suit, string> = {
@@ -40,6 +41,7 @@ export const suitBadgeForeground: Record<Suit, string> = {
 	B: '#fff',
 	W: '#101114',
 	M: '#fff',
+	K: '#fff',
 };
 
 export const suitNames: Record<Suit, string> = {
@@ -49,4 +51,5 @@ export const suitNames: Record<Suit, string> = {
 	B: 'blue',
 	W: 'orange',
 	M: 'multicolor',
+	K: 'black',
 };

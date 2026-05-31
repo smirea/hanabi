@@ -2,7 +2,6 @@ import { CardsThree, Fire, LightbulbFilament, X } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
 	BASE_SUITS,
-	CARD_NUMBERS,
 	HanabiGame,
 	type CardId,
 	type HanabiState,
@@ -10,6 +9,8 @@ import {
 	type PerspectiveCard,
 	type PlayerId,
 	type Suit,
+	getFireworkCardNumbers,
+	isFireworkCardPlayed,
 } from '../../game';
 import { useDebugScreensController } from '../../debugScreens';
 import { cloneLobbySettings, playerIdForUser, sanitizePlayerName } from '../../onlineGame';
@@ -1206,19 +1207,19 @@ function GameClient({
 							data-testid={`tower-${suit}`}
 						>
 							<div className='tower-stack'>
-								{CARD_NUMBERS.map(num => {
-									const isLit = num <= height;
+								{getFireworkCardNumbers(suit).map(num => {
+									const isLit = isFireworkCardPlayed(suit, num, height);
 									const remaining = perspective.knownRemainingCounts[suit][num];
 									const knownUnavailable = perspective.knownUnavailableCounts[suit][num];
 									const cardKey = `${suit}-${num}`;
 									const totalCopies = remaining + knownUnavailable;
 									const discarded = discardCounts.get(cardKey) ?? 0;
 									const visibleInHands = visibleOtherHandCounts.get(cardKey) ?? 0;
-									const played = num <= height ? 1 : 0;
+									const played = isLit ? 1 : 0;
 									const pipTotal = isTibiMode
 										? remaining + visibleInHands + discarded
 										: remaining + visibleInHands + discarded + played;
-									const blocked = num > height && discarded >= totalCopies;
+									const blocked = !isLit && discarded >= totalCopies;
 									const pipStates = getPegPipStates(
 										isTibiMode ? 'tibi' : 'default',
 										remaining,

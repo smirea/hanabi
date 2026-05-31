@@ -112,7 +112,16 @@ export function LobbyScreen({
 		disabled: false,
 		onClick: () => onUpdateSettings({ endlessMode: !settings.endlessMode }),
 	} as const;
-	const configRows = [extraSuitRow, endlessRow];
+	const blackPowderRow = {
+		id: 'black-powder',
+		label: 'Black Powder',
+		subtitle: 'Adds colorless black cards built in reverse: 5 to 1.',
+		isOn: settings.includeBlack,
+		value: settings.includeBlack ? 'On' : 'Off',
+		disabled: false,
+		onClick: () => onUpdateSettings({ includeBlack: !settings.includeBlack }),
+	} as const;
+	const configRows = [extraSuitRow, blackPowderRow, endlessRow];
 
 	return (
 		<main className='app lobby-app' data-testid='lobby-root'>

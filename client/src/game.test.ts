@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { HanabiGame } from './game';
 
-type DeckSuit = 'R' | 'Y' | 'G' | 'B' | 'W' | 'M';
+type DeckSuit = 'R' | 'Y' | 'G' | 'B' | 'W' | 'M' | 'K';
 type DeckNumber = 1 | 2 | 3 | 4 | 5;
 type DeckCard = {
 	suit: DeckSuit;
@@ -97,6 +97,7 @@ function createAlmostWonState(): any {
 		nextLogId: 1,
 		settings: {
 			includeMulticolor: false,
+			includeBlack: false,
 			multicolorShortDeck: false,
 			multicolorWildHints: false,
 			endlessMode: false,
@@ -934,6 +935,85 @@ describe('HanabiGame', () => {
 			'Hint would provide no new information',
 		);
 		expect(game.state.hintTokens).toBe(hintTokensBefore);
+	});
+
+	test('black powder adds a reversed colorless firework', () => {
+		const game = new HanabiGame({
+			playerNames: ['A', 'B'],
+			includeBlack: true,
+			deck: twoPlayerDeck(
+				[card('K', 5), card('K', 4), card('K', 3), card('K', 2), card('K', 1)],
+				[card('R', 1), card('Y', 1), card('G', 1), card('B', 1), card('W', 1)],
+			),
+		});
+
+		const blackCards = Object.values(game.state.cards).filter(entry => entry.suit === 'K');
+		expect(blackCards).toHaveLength(5);
+		expect(game.state.settings.activeSuits).toContain('K');
+
+		game.playCard(game.state.players[0].cards[0]);
+		expect(game.state.fireworks.K.map(cardId => game.state.cards[cardId].number)).toEqual([5]);
+
+		game.state.currentTurnPlayerIndex = 0;
+		const blackFour = game.state.players[0].cards.find(
+			cardId => game.state.cards[cardId].number === 4,
+		);
+		expect(blackFour).toBeDefined();
+		game.playCard(blackFour!);
+
+		expect(game.state.fireworks.K.map(cardId => game.state.cards[cardId].number)).toEqual([
+			5, 4,
+		]);
+		expect(game.getScore()).toBe(0);
+	});
+
+	test('black powder generated deck uses reversed card counts', () => {
+		const game = new HanabiGame({
+			playerNames: ['A', 'B'],
+			includeBlack: true,
+			shuffleSeed: 22,
+		});
+
+		const blackCounts = new Map<number, number>();
+		for (const entry of Object.values(game.state.cards)) {
+			if (entry.suit === 'K') {
+				blackCounts.set(entry.number, (blackCounts.get(entry.number) ?? 0) + 1);
+			}
+		}
+
+		expect(Object.values(game.state.cards).filter(entry => entry.suit === 'K')).toHaveLength(10);
+		expect(blackCounts).toEqual(
+			new Map([
+				[1, 1],
+				[2, 2],
+				[3, 2],
+				[4, 2],
+				[5, 3],
+			]),
+		);
+	});
+
+	test('black cards are not touched by color hints', () => {
+		const game = new HanabiGame({
+			playerNames: ['A', 'B'],
+			includeBlack: true,
+			deck: twoPlayerDeck(
+				[card('W', 1), card('W', 2), card('W', 3), card('W', 4), card('W', 5)],
+				[card('K', 5), card('R', 1), card('K', 4), card('Y', 1), card('G', 1)],
+			),
+		});
+
+		game.giveColorHint('p2', 'R');
+		const targetCards = game.state.players[1].cards;
+		const blackCardIds = targetCards.filter(cardId => game.state.cards[cardId].suit === 'K');
+
+		for (const cardId of blackCardIds) {
+			expect(game.state.cards[cardId].hints.color).toBeNull();
+			expect(game.state.cards[cardId].hints.notColors).toEqual(['R']);
+			expect(game.state.cards[cardId].hints.recentlyHinted).toBeFalse();
+		}
+
+		expect(() => game.giveColorHint('p2', 'K')).toThrow('Cannot call black color hints');
 	});
 
 	test('sudden death loses immediately when discarding an indispensable card', () => {

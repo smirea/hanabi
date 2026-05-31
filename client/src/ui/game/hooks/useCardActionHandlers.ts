@@ -76,6 +76,10 @@ export function resolveCardSelectionAction({
 			return { kind: 'wild-color-picker', targetPlayerId: playerId };
 		}
 
+		if (selectedCard.suit === 'K') {
+			return { kind: 'noop' };
+		}
+
 		const { redundant, touchedCardIds } = isRedundantHint(state, playerId, {
 			hintType: 'color',
 			suit: selectedCard.suit,
@@ -134,7 +138,7 @@ export function resolveDirectColorHintAction({
 	targetPlayerId: PlayerId;
 	suit: Suit;
 }): ResolvedDirectColorHint {
-	if (suit === 'M') {
+	if (suit === 'M' || suit === 'K') {
 		return { kind: 'noop' };
 	}
 

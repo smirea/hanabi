@@ -5,6 +5,10 @@ function doesCardMatchColorHint(
 	cardSuit: Suit,
 	hintSuit: Suit,
 ): boolean {
+	if (cardSuit === 'K' || hintSuit === 'K') {
+		return false;
+	}
+
 	if (cardSuit === hintSuit) {
 		return true;
 	}

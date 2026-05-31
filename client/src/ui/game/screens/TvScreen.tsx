@@ -1,6 +1,15 @@
 import { CardsThree, Fire, LightbulbFilament } from '@phosphor-icons/react';
 import { useMemo, type CSSProperties } from 'react';
-import { CARD_NUMBERS, type HanabiState, type PerspectiveCard, type Suit } from '../../../game';
+import {
+	CARD_NUMBERS,
+	type HanabiState,
+	type PerspectiveCard,
+	type Suit,
+	getCardCopies,
+	getFireworkCardNumbers,
+	isFireworkCardPlayed,
+	scoreHanabiState,
+} from '../../../game';
 import { suitColors } from '../../../utils/constants';
 import { CardView } from '../components/CardView';
 import { PegPips, getPegPipStates } from '../components/PegPips';
@@ -28,18 +37,10 @@ export function TvScreen({
 		{ length: gameState.settings.maxFuseTokens },
 		(_, index) => index < remainingFuses,
 	);
-	const score = activeSuits.reduce((sum, suit) => sum + gameState.fireworks[suit].length, 0);
+	const score = scoreHanabiState(gameState);
 	const orderedLogs = [...gameState.logs].reverse();
 
 	const { knownUnavailableCounts, knownRemainingCounts } = useMemo(() => {
-		const copiesByNumber: Record<number, number> = {
-			1: 3,
-			2: 2,
-			3: 2,
-			4: 2,
-			5: 1,
-		};
-
 		const createEmptyCounts = (): Record<Suit, Record<number, number>> => {
 			const counts = {} as Record<Suit, Record<number, number>>;
 			for (const suit of activeSuits) {
@@ -76,10 +77,11 @@ export function TvScreen({
 		const remaining = createEmptyCounts();
 		for (const suit of activeSuits) {
 			for (const number of CARD_NUMBERS) {
-				const totalCopies =
-					suit === 'M' && gameState.settings.multicolorShortDeck
-						? 1
-						: (copiesByNumber[number] ?? 0);
+				const totalCopies = getCardCopies(
+					suit,
+					number,
+					gameState.settings.multicolorShortDeck,
+				);
 				remaining[suit][number] = Math.max(0, totalCopies - (unavailable[suit][number] ?? 0));
 			}
 		}
@@ -209,16 +211,16 @@ export function TvScreen({
 								data-testid={`tv-tower-${suit}`}
 							>
 								<div className='tower-stack'>
-									{CARD_NUMBERS.map(num => {
-										const isLit = num <= height;
+									{getFireworkCardNumbers(suit).map(num => {
+										const isLit = isFireworkCardPlayed(suit, num, height);
 										const remaining = knownRemainingCounts[suit]?.[num] ?? 0;
 										const knownUnavailable = knownUnavailableCounts[suit]?.[num] ?? 0;
 										const cardKey = `${suit}-${num}`;
 										const totalCopies = remaining + knownUnavailable;
 										const discarded = discardCounts.get(cardKey) ?? 0;
-										const played = num <= height ? 1 : 0;
+										const played = isLit ? 1 : 0;
 										const pipTotal = remaining + played + discarded;
-										const blocked = num > height && discarded >= totalCopies;
+										const blocked = !isLit && discarded >= totalCopies;
 										const pipStates = getPegPipStates(
 											'default',
 											remaining,
