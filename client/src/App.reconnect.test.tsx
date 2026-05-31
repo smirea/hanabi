@@ -19,7 +19,12 @@ void mock.module('./hooks/useGameServer', () => ({
 }));
 
 import App from './App';
-import { BASE_SUITS, CARD_NUMBERS, HanabiGame, scoreHanabiState, type HanabiState } from './game';
+import {
+	HanabiGame,
+	getFireworkCardNumbers,
+	scoreHanabiState,
+	type HanabiState,
+} from './game';
 import { storageKeys } from './utils/constants';
 import { LS } from './utils/utils';
 
@@ -42,7 +47,7 @@ function createFinishedRoom({
 	});
 	const gameState = game.getSnapshot();
 	if (completeFireworks) {
-		completeBaseFireworks(gameState);
+		completeActiveFireworks(gameState);
 	}
 	const viewerCardId = gameState.players[0]?.cards[0];
 	if (viewerCardId) {
@@ -82,11 +87,11 @@ function createFinishedRoom({
 	};
 }
 
-function completeBaseFireworks(gameState: HanabiState): void {
+function completeActiveFireworks(gameState: HanabiState): void {
 	const usedCardIds = new Set<string>();
 
-	for (const suit of BASE_SUITS) {
-		for (const number of CARD_NUMBERS) {
+	for (const suit of gameState.settings.activeSuits) {
+		for (const number of getFireworkCardNumbers(suit)) {
 			const cardId = Object.values(gameState.cards).find(card => {
 				return card.suit === suit && card.number === number && !usedCardIds.has(card.id);
 			})?.id;
@@ -172,6 +177,23 @@ describe('App online reconnect state', () => {
 		expect(screen.getByTestId('endgame-score-flavor')).toHaveTextContent('Legendary winner');
 		expect(screen.getByTestId('endgame-score-reveal-badge')).toHaveTextContent(
 			'Legendary winner',
+		);
+	});
+
+	test('endgame score flavor extends when variants raise the max score', () => {
+		LS.set({ [storageKeys.debugMode]: false });
+		mockRoom = createFinishedRoom({
+			status: 'won',
+			includeMulticolor: true,
+			completeFireworks: true,
+		});
+
+		render(<App roomCode='ABCD' />);
+
+		expect(screen.getByTestId('endgame-score')).toHaveTextContent('30');
+		expect(screen.getByTestId('endgame-score-flavor')).toHaveTextContent('Celestial winner');
+		expect(screen.getByTestId('endgame-score-reveal-badge')).toHaveTextContent(
+			'Celestial winner',
 		);
 	});
 

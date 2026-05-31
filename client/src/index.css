@@ -3259,6 +3259,40 @@ body {
 	--score-flavor-color: #dc4f8f;
 }
 
+.score-flavor-badge.mythic {
+	--score-flavor-color: #8b5cf6;
+}
+
+.score-flavor-badge.celestial {
+	--score-flavor-color: #2563eb;
+}
+
+.score-flavor-badge.transcendent {
+	--score-flavor-color: #06b6d4;
+}
+
+.score-flavor-badge.sublime {
+	--score-flavor-color: #ec4899;
+}
+
+.score-flavor-badge.prismatic {
+	--score-flavor-color: #e11d48;
+}
+
+.score-flavor-badge.mythic,
+.score-flavor-badge.celestial,
+.score-flavor-badge.transcendent,
+.score-flavor-badge.sublime,
+.score-flavor-badge.prismatic {
+	background:
+		linear-gradient(
+			135deg,
+			color-mix(in srgb, var(--score-flavor-color) 18%, rgba(255, 255, 255, 0.96)),
+			color-mix(in srgb, var(--score-flavor-color) 8%, rgba(255, 255, 255, 0.92))
+		),
+		color-mix(in srgb, var(--score-flavor-color) 12%, rgba(255, 255, 255, 0.9));
+}
+
 .score-flavor-svg {
 	width: 1.34rem;
 	height: 1.34rem;

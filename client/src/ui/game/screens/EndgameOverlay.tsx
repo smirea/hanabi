@@ -20,7 +20,12 @@ type ScoreFlavorKind =
 	| 'honorable'
 	| 'excellent'
 	| 'amazing'
-	| 'legendary';
+	| 'legendary'
+	| 'mythic'
+	| 'celestial'
+	| 'transcendent'
+	| 'sublime'
+	| 'prismatic';
 
 interface ScoreFlavor {
 	kind: ScoreFlavorKind;
@@ -46,12 +51,36 @@ function mulberry32(seed: number): () => number {
 	};
 }
 
-function getScoreFlavor(score: number): ScoreFlavor {
-	if (score >= 25) return { kind: 'legendary', label: 'Legendary' };
-	if (score >= 21) return { kind: 'amazing', label: 'Amazing' };
-	if (score >= 16) return { kind: 'excellent', label: 'Excellent' };
-	if (score >= 11) return { kind: 'honorable', label: 'Honorable attempt' };
-	if (score >= 6) return { kind: 'mediocre', label: 'Mediocre' };
+const BASE_SCORE_FLAVORS: Array<ScoreFlavor & { minScore: number }> = [
+	{ minScore: 25, kind: 'legendary', label: 'Legendary' },
+	{ minScore: 21, kind: 'amazing', label: 'Amazing' },
+	{ minScore: 16, kind: 'excellent', label: 'Excellent' },
+	{ minScore: 11, kind: 'honorable', label: 'Honorable attempt' },
+	{ minScore: 6, kind: 'mediocre', label: 'Mediocre' },
+	{ minScore: 0, kind: 'horrible', label: 'Horrible' },
+];
+
+const EXTENDED_SCORE_FLAVORS: Array<ScoreFlavor & { minScore: number }> = [
+	{ minScore: 45, kind: 'prismatic', label: 'Prismatic' },
+	{ minScore: 40, kind: 'sublime', label: 'Sublime' },
+	{ minScore: 35, kind: 'transcendent', label: 'Transcendent' },
+	{ minScore: 30, kind: 'celestial', label: 'Celestial' },
+	{ minScore: 26, kind: 'mythic', label: 'Mythic' },
+];
+
+function getScoreFlavor(score: number, maxScore: number): ScoreFlavor {
+	if (maxScore > 25) {
+		const extendedFlavor = EXTENDED_SCORE_FLAVORS.find(flavor => score >= flavor.minScore);
+		if (extendedFlavor) {
+			return extendedFlavor;
+		}
+	}
+
+	const baseFlavor = BASE_SCORE_FLAVORS.find(flavor => score >= flavor.minScore);
+	if (baseFlavor) {
+		return baseFlavor;
+	}
+
 	return { kind: 'horrible', label: 'Horrible' };
 }
 
@@ -136,7 +165,10 @@ export function EndgameOverlay({
 	onBackToGame: () => void;
 }) {
 	const title = status === 'won' ? 'You win' : status === 'lost' ? 'You lost' : 'Game over';
-	const scoreFlavor = getScoreFlavor(score);
+	const maxScore = perspective.activeSuits.reduce((total, suit) => {
+		return isBlackSuit(suit) ? total : total + getFireworkCardNumbers(suit).length;
+	}, 0);
+	const scoreFlavor = getScoreFlavor(score, maxScore);
 	const [scoreRevealState, setScoreRevealState] = useState<'visible' | 'exiting' | 'hidden'>(
 		reduceMotion ? 'hidden' : 'visible',
 	);

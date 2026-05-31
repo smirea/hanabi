@@ -91,6 +91,12 @@ Add the highest value card in each completed firework. The maximum score is 25 f
 - 16-20: excellent
 - 21-24: amazing
 - 25: legendary
+- If variants raise the maximum score above 25, continue the flavor scale:
+  - 26-29: mythic
+  - 30-34: celestial
+  - 35-39: transcendent
+  - 40-44: sublime
+  - 45+: prismatic
 
 ## Expansions and Variants
 
