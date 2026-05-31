@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { HanabiGame } from '../../../game';
-import { isKnownRedundantPlay, isRedundantHint } from './hintLogic';
+import { isRedundantHint } from './hintLogic';
 
 describe('hintLogic', () => {
 	test('marks number hints redundant after the same information is already applied', () => {
@@ -61,30 +61,5 @@ describe('hintLogic', () => {
 
 		expect(result.touchedCardIds).toEqual([multicolorCardId]);
 		expect(result.redundant).toBeTrue();
-	});
-
-	test('detects known redundant play when card identity is fully known and firework is already high enough', () => {
-		const game = new HanabiGame({
-			playerIds: ['p1', 'p2'],
-			playerNames: ['A', 'B'],
-			shuffleSeed: 9,
-		});
-
-		const currentPlayer = game.state.players[game.state.currentTurnPlayerIndex];
-		const cardId = currentPlayer?.cards[0];
-		if (!currentPlayer || !cardId) {
-			throw new Error('Missing player/card for redundant play test');
-		}
-
-		const card = game.state.cards[cardId];
-		if (!card) {
-			throw new Error('Missing selected card');
-		}
-
-		card.hints.color = card.suit;
-		card.hints.number = card.number;
-		game.state.fireworks[card.suit] = Array.from({ length: card.number }, () => cardId);
-
-		expect(isKnownRedundantPlay(game.state, cardId)).toBeTrue();
 	});
 });

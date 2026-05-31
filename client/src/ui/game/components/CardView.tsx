@@ -10,7 +10,6 @@ export function CardView({
 	showNegativeNumberHints,
 	onSelect,
 	isDisabled = false,
-	isRedundantPlayArmed = false,
 	testId,
 	onNode,
 }: {
@@ -19,7 +18,6 @@ export function CardView({
 	showNegativeNumberHints: boolean;
 	onSelect?: () => void;
 	isDisabled?: boolean;
-	isRedundantPlayArmed?: boolean;
 	testId: string;
 	onNode?: (node: HTMLButtonElement | null) => void;
 }) {
@@ -55,7 +53,7 @@ export function CardView({
 	return (
 		<button
 			type='button'
-			className={`card ${card.hints.recentlyHinted ? 'recent' : ''} ${isRedundantPlayArmed ? 'redundant-play-armed' : ''}`}
+			className={`card ${card.hints.recentlyHinted ? 'recent' : ''}`}
 			style={{ '--card-bg': bgColor } as CSSProperties}
 			onClick={isDisabled ? undefined : onSelect}
 			data-testid={testId}

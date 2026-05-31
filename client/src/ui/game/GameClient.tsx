@@ -117,8 +117,6 @@ function GameClient({
 		setPendingAction,
 		wildColorHintTargetPlayerId,
 		setWildColorHintTargetPlayerId,
-		redundantPlayConfirmCardId,
-		setRedundantPlayConfirmCardId,
 		clearActionDraft,
 		clearHintDraft,
 	} = useTransientActionState();
@@ -562,7 +560,6 @@ function GameClient({
 	}
 
 	function applyRedundantHintFeedback(touchedCardIds: CardId[]): void {
-		setRedundantPlayConfirmCardId(null);
 		for (const touchedId of touchedCardIds) {
 			triggerCardFx(touchedId, 'hint-redundant');
 		}
@@ -599,15 +596,8 @@ function GameClient({
 		resolved: ReturnType<typeof resolveCardSelectionAction>,
 		onAction: (action: GameAction) => void,
 	): void {
-		if (resolved.kind === 'arm-redundant-play') {
-			setRedundantPlayConfirmCardId(resolved.cardId);
-			triggerCardFx(resolved.cardId, 'hint-redundant');
-			return;
-		}
-
 		if (resolved.kind === 'wild-color-picker') {
 			setWildColorHintTargetPlayerId(resolved.targetPlayerId);
-			setRedundantPlayConfirmCardId(null);
 			return;
 		}
 
@@ -637,7 +627,6 @@ function GameClient({
 				pendingAction: debugGame.state.ui.pendingAction,
 				playerId,
 				cardId,
-				redundantPlayConfirmCardId,
 			});
 
 			applyResolvedCardSelection(resolved, action => {
@@ -657,7 +646,6 @@ function GameClient({
 			pendingAction,
 			playerId,
 			cardId,
-			redundantPlayConfirmCardId,
 		});
 
 		applyResolvedCardSelection(resolved, action => {
@@ -1094,7 +1082,6 @@ function GameClient({
 	const selectedAction: PendingCardAction = isLocalDebugMode
 		? debugGame.state.ui.pendingAction
 		: pendingAction;
-	const redundantPlayArmed = selectedAction === 'play' && redundantPlayConfirmCardId !== null;
 	const viewerHandCount =
 		perspective.players.find(player => player.id === perspective.viewerId)?.cards.length ?? 0;
 	const viewerHasCards = viewerHandCount > 0;
@@ -1285,9 +1272,6 @@ function GameClient({
 									showNegativeNumberHints={showNegativeNumberHints}
 									onSelect={() => handleCardSelect(player.id, card.id)}
 									testId={`card-${player.id}-${cardIndex}`}
-									isRedundantPlayArmed={
-										selectedAction === 'play' && redundantPlayConfirmCardId === card.id
-									}
 									onNode={node => {
 										if (node) {
 											cardNodeByIdRef.current.set(card.id, node);
@@ -1376,7 +1360,7 @@ function GameClient({
 							onClick={handlePlayPress}
 							disabled={playDisabled}
 						>
-							<span className='action-main'>{redundantPlayArmed ? 'Confirm' : 'Play'}</span>
+							<span className='action-main'>Play</span>
 						</button>
 					</div>
 				</section>

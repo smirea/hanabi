@@ -115,18 +115,3 @@ export function isRedundantHint(
 
 	return { redundant: !wouldChange, touchedCardIds };
 }
-
-export function isKnownRedundantPlay(state: HanabiState, cardId: CardId): boolean {
-	const card = state.cards[cardId];
-	if (!card) {
-		return false;
-	}
-
-	const knownColor = card.hints.color;
-	const knownNumber = card.hints.number;
-	if (knownColor === null || knownNumber === null) {
-		return false;
-	}
-
-	return state.fireworks[knownColor].length >= knownNumber;
-}

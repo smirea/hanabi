@@ -19,6 +19,43 @@ const TWO_PLAYER_MULTICOLOR_DECK: TestCardSeed[] = [
 ];
 
 describe('resolveCardSelectionAction', () => {
+	test('plays immediately even when selected card is already known redundant', () => {
+		const game = new HanabiGame({
+			playerIds: ['p1', 'p2'],
+			playerNames: ['A', 'B'],
+			includeMulticolor: true,
+			deck: TWO_PLAYER_MULTICOLOR_DECK,
+		});
+
+		const actorId = game.state.players[0]?.id;
+		const cardId = game.state.players[0]?.cards[0];
+		if (!actorId || !cardId) {
+			throw new Error('Failed to prepare redundant play selection test');
+		}
+
+		const card = game.state.cards[cardId];
+		card.hints.color = card.suit;
+		card.hints.number = card.number;
+		game.state.fireworks[card.suit] = Array.from({ length: card.number }, () => cardId);
+
+		const resolved = resolveCardSelectionAction({
+			state: game.state,
+			actorId,
+			pendingAction: 'play',
+			playerId: actorId,
+			cardId,
+		});
+
+		expect(resolved).toEqual({
+			kind: 'action',
+			action: {
+				type: 'play',
+				actorId,
+				cardId,
+			},
+		});
+	});
+
 	test('opens base-suit picker when selecting a multicolor card for a color hint', () => {
 		const game = new HanabiGame({
 			playerIds: ['p1', 'p2'],
@@ -41,7 +78,6 @@ describe('resolveCardSelectionAction', () => {
 			pendingAction: 'hint-color',
 			playerId: target.id,
 			cardId: multicolorCardId,
-			redundantPlayConfirmCardId: null,
 		});
 
 		expect(resolved).toEqual({ kind: 'wild-color-picker', targetPlayerId: target.id });
@@ -68,7 +104,6 @@ describe('resolveCardSelectionAction', () => {
 			pendingAction: 'hint-color',
 			playerId: target.id,
 			cardId: redCardId,
-			redundantPlayConfirmCardId: null,
 		});
 
 		expect(resolved).toEqual({
