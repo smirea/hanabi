@@ -899,6 +899,38 @@ describe('HanabiGame', () => {
 		expect(() => game.giveColorHint('p2', 'M')).toThrow('Cannot call multicolor color hints');
 	});
 
+	test('multicolor cards become known as multicolor after two different color hints', () => {
+		const game = new HanabiGame({
+			playerNames: ['A', 'B'],
+			includeMulticolor: true,
+			deck: twoPlayerDeck(
+				[card('R', 1), card('R', 2), card('R', 3), card('R', 4), card('R', 5)],
+				[card('M', 1), card('Y', 2), card('W', 3), card('Y', 4), card('W', 5)],
+			),
+		});
+
+		const multicolorCardId = game.state.players[1].cards[0];
+		game.giveColorHint('p2', 'R');
+		expect(game.state.cards[multicolorCardId].hints.color).toBe('R');
+
+		game.state.currentTurnPlayerIndex = 0;
+		game.giveColorHint('p2', 'B');
+		expect(game.state.cards[multicolorCardId].hints.color).toBe('M');
+		expect(game.state.cards[multicolorCardId].hints.notColors).not.toContain('B');
+
+		game.state.currentTurnPlayerIndex = 0;
+		for (const cardId of game.state.players[1].cards) {
+			if (cardId !== multicolorCardId) {
+				game.state.cards[cardId].hints.notColors.push('G');
+			}
+		}
+		const hintTokensBefore = game.state.hintTokens;
+		expect(() => game.giveColorHint('p2', 'G')).toThrow(
+			'Hint would provide no new information',
+		);
+		expect(game.state.hintTokens).toBe(hintTokensBefore);
+	});
+
 	test('endless mode loses immediately when discarding an indispensable card', () => {
 		const tail = [
 			card('R', 2),

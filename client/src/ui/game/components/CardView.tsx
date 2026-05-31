@@ -23,7 +23,7 @@ export function CardView({
 	testId: string;
 	onNode?: (node: HTMLButtonElement | null) => void;
 }) {
-	const knownColor = card.hints.color === 'M' ? null : card.hints.color;
+	const knownColor = card.hints.color;
 	const knownNumber = card.hints.number;
 
 	let faceSuit: Suit | null = null;

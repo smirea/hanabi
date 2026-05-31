@@ -240,6 +240,22 @@ function addUnique<T>(target: T[], value: T): void {
 	}
 }
 
+function nextKnownColorForTouchedHint(
+	knownColor: Suit | null,
+	hintSuit: Suit,
+	includeMulticolor: boolean,
+): Suit {
+	if (knownColor === null) {
+		return hintSuit;
+	}
+
+	if (knownColor === hintSuit || knownColor === 'M') {
+		return knownColor;
+	}
+
+	return includeMulticolor ? 'M' : hintSuit;
+}
+
 export class HanabiGame {
 	public state: HanabiState;
 
@@ -642,7 +658,12 @@ export class HanabiGame {
 		const redundant = targetPlayer.cards.every(cardId => {
 			const card = this.getCardOrThrow(cardId);
 			if (touchedSet.has(cardId)) {
-				return card.hints.color === suit && !card.hints.notColors.includes(suit);
+				const nextColor = nextKnownColorForTouchedHint(
+					card.hints.color,
+					suit,
+					this.state.settings.includeMulticolor,
+				);
+				return nextColor === card.hints.color && !card.hints.notColors.includes(suit);
 			}
 
 			return card.hints.notColors.includes(suit);
@@ -658,7 +679,11 @@ export class HanabiGame {
 		for (const cardId of targetPlayer.cards) {
 			const card = this.getCardOrThrow(cardId);
 			if (touchedSet.has(cardId)) {
-				card.hints.color = suit;
+				card.hints.color = nextKnownColorForTouchedHint(
+					card.hints.color,
+					suit,
+					this.state.settings.includeMulticolor,
+				);
 				card.hints.notColors = card.hints.notColors.filter(value => value !== suit);
 				card.hints.recentlyHinted = true;
 			} else {

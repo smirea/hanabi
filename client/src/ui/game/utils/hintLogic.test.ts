@@ -36,6 +36,33 @@ describe('hintLogic', () => {
 		expect(after.redundant).toBeTrue();
 	});
 
+	test('treats known multicolor as redundant for later base-color hints', () => {
+		const game = new HanabiGame({
+			playerIds: ['p1', 'p2'],
+			playerNames: ['A', 'B'],
+			includeMulticolor: true,
+			shuffleSeed: 17,
+		});
+
+		const target = game.state.players[1];
+		const multicolorCardId = target?.cards[0];
+		if (!target || !multicolorCardId) {
+			throw new Error('Missing target player/card for multicolor redundancy test');
+		}
+
+		for (const cardId of target.cards) {
+			const card = game.state.cards[cardId];
+			card.suit = cardId === multicolorCardId ? 'M' : 'Y';
+			card.hints.color = cardId === multicolorCardId ? 'M' : null;
+			card.hints.notColors = cardId === multicolorCardId ? [] : ['G'];
+		}
+
+		const result = isRedundantHint(game.state, target.id, { hintType: 'color', suit: 'G' });
+
+		expect(result.touchedCardIds).toEqual([multicolorCardId]);
+		expect(result.redundant).toBeTrue();
+	});
+
 	test('detects known redundant play when card identity is fully known and firework is already high enough', () => {
 		const game = new HanabiGame({
 			playerIds: ['p1', 'p2'],

@@ -12,6 +12,22 @@ function doesCardMatchColorHint(
 	return settings.includeMulticolor && cardSuit === 'M' && hintSuit !== 'M';
 }
 
+function nextKnownColorForTouchedHint(
+	knownColor: Suit | null,
+	hintSuit: Suit,
+	includeMulticolor: boolean,
+): Suit {
+	if (knownColor === null) {
+		return hintSuit;
+	}
+
+	if (knownColor === hintSuit || knownColor === 'M') {
+		return knownColor;
+	}
+
+	return includeMulticolor ? 'M' : hintSuit;
+}
+
 export type HintRedundancy =
 	| { hintType: 'number'; number: CardNumber }
 	| { hintType: 'color'; suit: Suit };
@@ -82,7 +98,12 @@ export function isRedundantHint(
 		}
 
 		if (touchedSet.has(cardId)) {
-			if (card.hints.color !== hint.suit || card.hints.notColors.includes(hint.suit)) {
+			const nextColor = nextKnownColorForTouchedHint(
+				card.hints.color,
+				hint.suit,
+				state.settings.includeMulticolor,
+			);
+			if (nextColor !== card.hints.color || card.hints.notColors.includes(hint.suit)) {
 				wouldChange = true;
 				break;
 			}
