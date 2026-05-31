@@ -92,18 +92,40 @@ Add the highest value card in each completed firework. The maximum score is 25 f
 - 21-24: amazing
 - 25: legendary
 
-## Multicolor Suit Options (Toggle)
+## Expansions and Variants
 
-Use these options to enable or customize the multicolor suit.
+The lobby can enable any supported expansion before players ready up. Changing any setting clears ready status.
 
-### Variant 1: Sixth Suit (Short Deck)
+### Colour Avalanche / Extra Suit
 
 - Add the multicolor suit and build it like any other firework.
-- Use only one multicolor card of each value (1-5).
+- This app uses the short-deck version: one multicolor card of each value (1-5).
 - You cannot call "multicolor" for color clues.
 - To clue a multicolor card, call a base color (white/red/blue/yellow/green); multicolor cards count as matching that color for clues.
+- Number clues work normally.
 
-### Variant 2: Sudden Death
+### Black Powder
+
+- Add the black suit to the deck.
+- Black is a sixth firework, but it is built in descending order: 5, 4, 3, 2, 1.
+- Black cards are colorless. You cannot give black color information, and black cards are not included in other color clues.
+- Number clues work normally.
+- Completing the black firework with the 1 gives the normal completed-firework bonus.
+- Black scoring is a penalty, not a normal firework score: subtract 1 point for each missing black card. With only the base suits plus Black Powder, the maximum score is still 25.
+
+### 5 Flamboyants
+
+- Shuffle the six bonus tiles face down near the draw deck during setup.
+- When a player completes a normal firework by playing a 5, reveal and resolve one bonus tile instead of taking the normal clue-token bonus.
+- Bonus tile effects:
+  - Gain 1 clue token.
+  - Gain 1 clue token and recover 1 fuse token. If no fuse has been spent, only gain the clue.
+  - Give 1 free color clue.
+  - Give 1 free number clue.
+  - Choose a card from the discard pile and shuffle it back into the draw deck. If the deck is empty, the player may instead use the "play from discard" effect.
+  - Choose a card from the discard pile and add it to the matching firework if it is currently playable. If no discarded card is playable, the effect is lost. If this plays a 5, immediately reveal and resolve another bonus tile.
+
+### Sudden Death
 
 - The game does not end after the last card is drawn.
 - The team has only 1 fuse token.
