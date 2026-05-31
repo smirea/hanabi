@@ -5,6 +5,7 @@ import { storageKeys } from '../utils/constants';
 import { LS } from '../utils/utils';
 
 const navigateMock = mock(() => {});
+const sendActionMock = mock(async () => null);
 
 void mock.module('@tanstack/react-router', () => ({
 	useNavigate: () => navigateMock,
@@ -31,7 +32,7 @@ void mock.module('../hooks/useGameServer', () => ({
 		error: null,
 		joinRoom: async () => null,
 		reloadRoom: async () => null,
-		sendAction: async () => null,
+		sendAction: sendActionMock,
 	}),
 }));
 
@@ -40,6 +41,7 @@ import { RoomScreen } from './RoomScreen';
 describe('RoomScreen', () => {
 	beforeEach(() => {
 		navigateMock.mockClear();
+		sendActionMock.mockClear();
 		window.history.replaceState(null, '', '/');
 		window.location.hash = '';
 	});
@@ -100,18 +102,21 @@ describe('RoomScreen', () => {
 		});
 	});
 
-	test('stores the active room and clears it when leaving', () => {
+	test('stores the active room and leaves on the server before clearing it locally', async () => {
 		render(<RoomScreen code='ABCD' />);
 
 		expect(LS.get(storageKeys.currentRoom)).toBe('ABCD');
 
 		fireEvent.click(screen.getByTestId('lobby-leave-room'));
 
-		expect(LS.get(storageKeys.currentRoom)).toBeNull();
-		expect(navigateMock).toHaveBeenCalledWith({
-			to: '/',
-			search: {},
-			hash: '',
+		await waitFor(() => {
+			expect(sendActionMock).toHaveBeenCalledWith({ type: 'leave', actorId: 'player:1' });
+			expect(LS.get(storageKeys.currentRoom)).toBeNull();
+			expect(navigateMock).toHaveBeenCalledWith({
+				to: '/',
+				search: {},
+				hash: '',
+			});
 		});
 	});
 });

@@ -155,8 +155,18 @@ function GameClient({
 		};
 	}, [isLocalDebugMode, onlineRoom.room, onlineRoom.user]);
 	const leaveOnlineRoom = useCallback(() => {
-		onLeaveRoom?.();
-	}, [onLeaveRoom]);
+		const actorId = connectionState.selfPlayerId;
+		if (isLocalDebugMode || !actorId) {
+			onLeaveRoom?.();
+			return;
+		}
+
+		void onlineRoom
+			.sendAction({ type: 'leave', actorId })
+			.finally(() => {
+				onLeaveRoom?.();
+			});
+	}, [connectionState.selfPlayerId, isLocalDebugMode, onLeaveRoom, onlineRoom]);
 
 	useEffect(() => {
 		if (!isLocalDebugMode && onlineRoom.wasKicked) {
