@@ -35,6 +35,13 @@ function createFinishedRoom({
 		shuffleSeed: 1234,
 	});
 	const gameState = game.getSnapshot();
+	const viewerCardId = gameState.players[0]?.cards[0];
+	if (viewerCardId) {
+		const viewerCard = gameState.cards[viewerCardId];
+		viewerCard.hints.number = viewerCard.number === 5 ? 4 : 5;
+		viewerCard.hints.notColors = ['R', 'B'];
+	}
+
 	gameState.status = status;
 	gameState.fuseTokensUsed = fuseTokensUsed;
 	gameState.logs.push({
@@ -108,5 +115,24 @@ describe('App online reconnect state', () => {
 
 		expect(screen.getByTestId('endgame-title')).toHaveTextContent('You lost');
 		expect(screen.getByTestId('endgame-lives-remaining')).toHaveTextContent('Lives0/3');
+	});
+
+	test('endgame summary reveals final hands with viewer hand hints', () => {
+		LS.set({ [storageKeys.debugMode]: false });
+		const room = createFinishedRoom();
+		mockRoom = room;
+
+		render(<App roomCode='ABCD' />);
+
+		const firstCardId = room.gameState.players[0].cards[0];
+		const firstCard = room.gameState.cards[firstCardId];
+		const finalCard = screen.getByTestId('endgame-final-card-player:1-0');
+
+		expect(screen.getByTestId('endgame-final-hands')).toBeInTheDocument();
+		expect(finalCard.querySelector('.card-face-value')).toHaveTextContent(String(firstCard.number));
+		expect(finalCard.querySelector('.badge.number')).toHaveTextContent(
+			String(firstCard.hints.number),
+		);
+		expect(finalCard.querySelectorAll('.badge.not-color')).toHaveLength(2);
 	});
 });

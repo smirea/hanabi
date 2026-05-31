@@ -4,9 +4,11 @@ import {
 	CARD_NUMBERS,
 	type GameLogEntry,
 	type HanabiPerspectiveState,
+	type PerspectiveCard,
 	type PlayerId,
 } from '../../../game';
 import { suitColors } from '../../../utils/constants';
+import { CardView } from '../components/CardView';
 import { PegPips, getPegPipStates } from '../components/PegPips';
 import { getLogBadge, renderLogMessage } from '../utils/logFormatting';
 
@@ -35,6 +37,7 @@ export function EndgameOverlay({
 	score,
 	perspective,
 	discardCounts,
+	finalHands,
 	players,
 	viewerId,
 	statsByPlayerId,
@@ -49,6 +52,7 @@ export function EndgameOverlay({
 	score: number;
 	perspective: HanabiPerspectiveState;
 	discardCounts: Map<string, number>;
+	finalHands: Array<{ id: PlayerId; name: string; cards: PerspectiveCard[] }>;
 	players: Array<{ id: PlayerId; name: string }>;
 	viewerId: PlayerId;
 	statsByPlayerId: Map<
@@ -318,68 +322,109 @@ export function EndgameOverlay({
 							</div>
 						</section>
 					) : (
-						<section className='endgame-stats' data-testid='endgame-stats'>
-							<table className='endgame-table' data-testid='endgame-stats-table'>
-								<colgroup>
-									<col className='col-name' />
-									<col className='col-num' />
-									<col className='col-num' />
-									<col className='col-num' />
-									<col className='col-num' />
-								</colgroup>
-								<thead>
-									<tr>
-										<th scope='col'>name</th>
-										<th scope='col' className='num'>
-											gave
-										</th>
-										<th scope='col' className='num'>
-											received
-										</th>
-										<th scope='col' className='num'>
-											played
-										</th>
-										<th scope='col' className='num'>
-											discard
-										</th>
-									</tr>
-								</thead>
-								<tbody>
-									{players.map(player => {
-										const stats = statsByPlayerId.get(player.id) ?? {
-											hintsGiven: 0,
-											hintsReceived: 0,
-											plays: 0,
-											discards: 0,
-										};
-										const isViewer = player.id === viewerId;
+						<section className='endgame-summary' data-testid='endgame-summary'>
+							<section className='endgame-final-hands' data-testid='endgame-final-hands'>
+								<h3 className='endgame-section-title'>Final Hands</h3>
+								<div className='endgame-final-hand-list'>
+									{finalHands.map(hand => {
+										const isViewer = hand.id === viewerId;
 										return (
-											<tr
-												key={player.id}
-												className={isViewer ? 'you' : undefined}
-												data-testid={`endgame-player-${player.id}`}
+											<article
+												key={hand.id}
+												className='endgame-final-hand'
+												data-testid={`endgame-final-hand-${hand.id}`}
 											>
-												<td className='name' data-testid={`endgame-player-name-${player.id}`}>
-													{player.name}
+												<header className='endgame-final-hand-header'>
+													<span>{hand.name}</span>
 													{isViewer ? <span className='you-tag'>you</span> : null}
-												</td>
-												<td className='num' data-testid={`endgame-hints-given-${player.id}`}>
-													<span className='endgame-num-value'>{stats.hintsGiven}</span>
-												</td>
-												<td className='num' data-testid={`endgame-hints-received-${player.id}`}>
-													<span className='endgame-num-value'>{stats.hintsReceived}</span>
-												</td>
-												<td className='num' data-testid={`endgame-plays-${player.id}`}>
-													<span className='endgame-num-value'>{stats.plays}</span>
-												</td>
-												<td className='num' data-testid={`endgame-discards-${player.id}`}>
-													<span className='endgame-num-value'>{stats.discards}</span>
-												</td>
-											</tr>
+												</header>
+												<div
+													className='endgame-final-hand-cards'
+													style={
+														{
+															'--hand-size': String(Math.max(hand.cards.length, 1)),
+														} as CSSProperties
+													}
+												>
+													{hand.cards.map((card, cardIndex) => (
+														<CardView
+															key={card.id}
+															card={card}
+															showNegativeColorHints
+															showNegativeNumberHints
+															isDisabled
+															testId={`endgame-final-card-${hand.id}-${cardIndex}`}
+														/>
+													))}
+												</div>
+											</article>
 										);
 									})}
-								</tbody>
-							</table>
+								</div>
+							</section>
+							<section className='endgame-stats' data-testid='endgame-stats'>
+								<table className='endgame-table' data-testid='endgame-stats-table'>
+									<colgroup>
+										<col className='col-name' />
+										<col className='col-num' />
+										<col className='col-num' />
+										<col className='col-num' />
+										<col className='col-num' />
+									</colgroup>
+									<thead>
+										<tr>
+											<th scope='col'>name</th>
+											<th scope='col' className='num'>
+												gave
+											</th>
+											<th scope='col' className='num'>
+												received
+											</th>
+											<th scope='col' className='num'>
+												played
+											</th>
+											<th scope='col' className='num'>
+												discard
+											</th>
+										</tr>
+									</thead>
+									<tbody>
+										{players.map(player => {
+											const stats = statsByPlayerId.get(player.id) ?? {
+												hintsGiven: 0,
+												hintsReceived: 0,
+												plays: 0,
+												discards: 0,
+											};
+											const isViewer = player.id === viewerId;
+											return (
+												<tr
+													key={player.id}
+													className={isViewer ? 'you' : undefined}
+													data-testid={`endgame-player-${player.id}`}
+												>
+													<td className='name' data-testid={`endgame-player-name-${player.id}`}>
+														{player.name}
+														{isViewer ? <span className='you-tag'>you</span> : null}
+													</td>
+													<td className='num' data-testid={`endgame-hints-given-${player.id}`}>
+														<span className='endgame-num-value'>{stats.hintsGiven}</span>
+													</td>
+													<td className='num' data-testid={`endgame-hints-received-${player.id}`}>
+														<span className='endgame-num-value'>{stats.hintsReceived}</span>
+													</td>
+													<td className='num' data-testid={`endgame-plays-${player.id}`}>
+														<span className='endgame-num-value'>{stats.plays}</span>
+													</td>
+													<td className='num' data-testid={`endgame-discards-${player.id}`}>
+														<span className='endgame-num-value'>{stats.discards}</span>
+													</td>
+												</tr>
+											);
+										})}
+									</tbody>
+								</table>
+							</section>
 						</section>
 					)}
 				</section>

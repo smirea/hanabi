@@ -7,6 +7,7 @@ import {
 	type CardId,
 	type HanabiState,
 	type HanabiPerspectiveState,
+	type PerspectiveCard,
 	type PlayerId,
 	type Suit,
 } from '../../game';
@@ -324,6 +325,34 @@ function GameClient({
 		}
 
 		return counts;
+	}, [activeGameState]);
+	const finalHands = useMemo(() => {
+		if (!activeGameState) {
+			return [];
+		}
+
+		return activeGameState.players.map(player => ({
+			id: player.id,
+			name: player.name,
+			cards: player.cards.map(cardId => {
+				const card = activeGameState.cards[cardId];
+				if (!card) {
+					throw new Error(`Unknown final hand card: ${cardId}`);
+				}
+
+				return {
+					id: card.id,
+					suit: card.suit,
+					number: card.number,
+					hints: {
+						...card.hints,
+						notColors: [...card.hints.notColors],
+						notNumbers: [...card.hints.notNumbers],
+					},
+					isHiddenFromViewer: false,
+				} satisfies PerspectiveCard;
+			}),
+		}));
 	}, [activeGameState]);
 	const activeGame = useMemo(() => {
 		if (isLocalDebugMode) {
@@ -1580,6 +1609,7 @@ function GameClient({
 					score={perspective.score}
 					perspective={perspective}
 					discardCounts={discardCounts}
+					finalHands={finalHands}
 					players={activeGameState.players}
 					viewerId={perspective.viewerId}
 					statsByPlayerId={endgameStatsByPlayerId}
