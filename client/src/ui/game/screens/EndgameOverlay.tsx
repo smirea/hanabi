@@ -34,18 +34,7 @@ function mulberry32(seed: number): () => number {
 	};
 }
 
-function ScoreFlavorBadge({
-	flavor,
-	outcome,
-	isLarge = false,
-}: {
-	flavor: ScoreFlavor;
-	outcome: 'win' | 'lose';
-	isLarge?: boolean;
-}) {
-	const resultLabel = outcome === 'win' ? 'winner' : 'loser';
-	const label = `${flavor.label} ${resultLabel}`;
-
+function ScoreFlavorBadge({ flavor, isLarge = false }: { flavor: ScoreFlavor; isLarge?: boolean }) {
 	return (
 		<span
 			className={`score-flavor-badge ${flavor.kind} ${isLarge ? 'large' : ''}`}
@@ -53,7 +42,6 @@ function ScoreFlavorBadge({
 			data-testid={isLarge ? 'endgame-score-reveal-badge' : 'endgame-score-flavor'}
 		>
 			<img className='score-flavor-image' src={flavor.image} alt='' aria-hidden />
-			<span className='score-flavor-text'>{label}</span>
 		</span>
 	);
 }
@@ -311,7 +299,7 @@ export function EndgameOverlay({
 					<span className='endgame-score-reveal-score' data-testid='endgame-score-reveal-score'>
 						{score}
 					</span>
-					<ScoreFlavorBadge flavor={scoreFlavor} outcome={outcome} isLarge />
+					<ScoreFlavorBadge flavor={scoreFlavor} isLarge />
 					<span className='endgame-score-reveal-formula'>{scoreFormula}</span>
 				</button>
 			)}
@@ -323,7 +311,7 @@ export function EndgameOverlay({
 					</h2>
 					<p className='endgame-score' data-testid='endgame-score'>
 						<span>{scoreFormula}</span>
-						<ScoreFlavorBadge flavor={scoreFlavor} outcome={outcome} />
+						<ScoreFlavorBadge flavor={scoreFlavor} />
 					</p>
 					<div className='endgame-resources' data-testid='endgame-resources'>
 						<div className='endgame-resource' data-testid='endgame-hints-remaining'>

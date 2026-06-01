@@ -101,8 +101,11 @@ function completeActiveFireworks(gameState: HanabiState): void {
 	}
 }
 
-function expectBadgeImage(testId: string, src: string): void {
-	const image = screen.getByTestId(testId).querySelector('img');
+function expectIconOnlyBadge(testId: string, src: string): void {
+	const badge = screen.getByTestId(testId);
+	expect(badge.textContent).toBe('');
+
+	const image = badge.querySelector('img');
 	if (!image) {
 		throw new Error(`Missing badge image in ${testId}`);
 	}
@@ -154,35 +157,30 @@ describe('App online reconnect state', () => {
 		expect(screen.getByTestId('endgame-lives-remaining')).toHaveTextContent('Lives0/3');
 	});
 
-	test('endgame shows the score flavor badge and dismissible reveal', () => {
+	test('endgame shows an icon-only score flavor badge and dismissible reveal', () => {
 		LS.set({ [storageKeys.debugMode]: false });
 		mockRoom = createFinishedRoom({ status: 'lost', fuseTokensUsed: 0 });
 
 		render(<App roomCode='ABCD' />);
 
-		expect(screen.getByTestId('endgame-score-flavor')).toHaveTextContent('Poo crew loser');
-		expectBadgeImage('endgame-score-flavor', '/score-badges/poo.png');
+		expectIconOnlyBadge('endgame-score-flavor', '/score-badges/poo.png');
 		expect(screen.getByTestId('endgame-score-reveal-score')).toHaveTextContent('0');
-		expect(screen.getByTestId('endgame-score-reveal-badge')).toHaveTextContent('Poo crew loser');
-		expectBadgeImage('endgame-score-reveal-badge', '/score-badges/poo.png');
+		expectIconOnlyBadge('endgame-score-reveal-badge', '/score-badges/poo.png');
 
 		fireEvent.click(screen.getByTestId('endgame-score-reveal'));
 
 		expect(screen.getByTestId('endgame-score-reveal')).toHaveClass('exit');
 	});
 
-	test('endgame score flavor labels perfect base wins as crowned winners', () => {
+	test('endgame score flavor shows the crown icon for perfect base wins', () => {
 		LS.set({ [storageKeys.debugMode]: false });
 		mockRoom = createFinishedRoom({ status: 'won', completeFireworks: true });
 
 		render(<App roomCode='ABCD' />);
 
 		expect(screen.getByTestId('endgame-score')).toHaveTextContent('25');
-		expect(screen.getByTestId('endgame-score-flavor')).toHaveTextContent('Crowned somehow winner');
-		expectBadgeImage('endgame-score-flavor', '/score-badges/crown.png');
-		expect(screen.getByTestId('endgame-score-reveal-badge')).toHaveTextContent(
-			'Crowned somehow winner',
-		);
+		expectIconOnlyBadge('endgame-score-flavor', '/score-badges/crown.png');
+		expectIconOnlyBadge('endgame-score-reveal-badge', '/score-badges/crown.png');
 	});
 
 	test('endgame score flavor extends when variants raise the max score', () => {
@@ -196,11 +194,8 @@ describe('App online reconnect state', () => {
 		render(<App roomCode='ABCD' />);
 
 		expect(screen.getByTestId('endgame-score')).toHaveTextContent('30');
-		expect(screen.getByTestId('endgame-score-flavor')).toHaveTextContent('Elon eyebrow winner');
-		expectBadgeImage('endgame-score-flavor', '/score-badges/eyebrow.png');
-		expect(screen.getByTestId('endgame-score-reveal-badge')).toHaveTextContent(
-			'Elon eyebrow winner',
-		);
+		expectIconOnlyBadge('endgame-score-flavor', '/score-badges/eyebrow.png');
+		expectIconOnlyBadge('endgame-score-reveal-badge', '/score-badges/eyebrow.png');
 	});
 
 	test('endgame summary reveals final hands with viewer hand hints', () => {
