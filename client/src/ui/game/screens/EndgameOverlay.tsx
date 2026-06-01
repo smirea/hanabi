@@ -9,18 +9,11 @@ import {
 	isBlackSuit,
 	isFireworkCardPlayed,
 } from '../../../game';
+import { getScoreFlavor, type ScoreFlavor } from '../../scoreFlavor';
 import { suitColors } from '../../../utils/constants';
 import { CardView } from '../components/CardView';
 import { PegPips, getPegPipStates } from '../components/PegPips';
 import { getLogBadge, renderLogMessage } from '../utils/logFormatting';
-
-type ScoreFlavorKind = 'poo' | 'shovel' | 'donkey' | 'chariot' | 'crown' | 'eyebrow' | 'rocket';
-
-interface ScoreFlavor {
-	kind: ScoreFlavorKind;
-	label: string;
-	image: string;
-}
 
 function hashSeed(input: string): number {
 	let hash = 5381;
@@ -41,35 +34,6 @@ function mulberry32(seed: number): () => number {
 	};
 }
 
-const BASE_SCORE_FLAVORS: Array<ScoreFlavor & { minScore: number }> = [
-	{ minScore: 21, kind: 'crown', label: 'Crowned somehow', image: '/score-badges/crown.png' },
-	{ minScore: 16, kind: 'chariot', label: 'Chariot chaos', image: '/score-badges/chariot.png' },
-	{ minScore: 11, kind: 'donkey', label: 'Donkey mode', image: '/score-badges/donkey.png' },
-	{ minScore: 6, kind: 'shovel', label: 'Shovel duty', image: '/score-badges/shovel.png' },
-	{ minScore: 0, kind: 'poo', label: 'Poo crew', image: '/score-badges/poo.png' },
-];
-
-const EXTENDED_SCORE_FLAVORS: Array<ScoreFlavor & { minScore: number }> = [
-	{ minScore: 31, kind: 'rocket', label: 'Starship nonsense', image: '/score-badges/rocket.png' },
-	{ minScore: 26, kind: 'eyebrow', label: 'Elon eyebrow', image: '/score-badges/eyebrow.png' },
-];
-
-function getScoreFlavor(score: number, maxScore: number): ScoreFlavor {
-	if (maxScore > 25) {
-		const extendedFlavor = EXTENDED_SCORE_FLAVORS.find(flavor => score >= flavor.minScore);
-		if (extendedFlavor) {
-			return extendedFlavor;
-		}
-	}
-
-	const baseFlavor = BASE_SCORE_FLAVORS.find(flavor => score >= flavor.minScore);
-	if (baseFlavor) {
-		return baseFlavor;
-	}
-
-	return { kind: 'poo', label: 'Poo crew', image: '/score-badges/poo.png' };
-}
-
 function ScoreFlavorBadge({
 	flavor,
 	outcome,
@@ -85,6 +49,7 @@ function ScoreFlavorBadge({
 	return (
 		<span
 			className={`score-flavor-badge ${flavor.kind} ${isLarge ? 'large' : ''}`}
+			style={{ '--score-flavor-color': flavor.accent } as CSSProperties}
 			data-testid={isLarge ? 'endgame-score-reveal-badge' : 'endgame-score-flavor'}
 		>
 			<img className='score-flavor-image' src={flavor.image} alt='' aria-hidden />
