@@ -383,12 +383,12 @@ describe('HanabiGame', () => {
 		game.playCard(openingPlay);
 		expect(game.state.drawDeck).toHaveLength(0);
 		expect(game.state.status).toBe('last_round');
-		expect(game.state.lastRound).toEqual({ turnsRemaining: 2 });
+		expect(game.state.lastRound).toEqual({ turnsRemaining: 2, finalPlayerId: 'p1' });
 		expect(game.state.currentTurnPlayerIndex).toBe(1);
 
 		game.giveNumberHint('p1', 2);
 		expect(game.state.status).toBe('last_round');
-		expect(game.state.lastRound).toEqual({ turnsRemaining: 1 });
+		expect(game.state.lastRound).toEqual({ turnsRemaining: 1, finalPlayerId: 'p1' });
 		expect(game.state.currentTurnPlayerIndex).toBe(0);
 
 		game.giveColorHint('p2', 'R');
@@ -399,6 +399,23 @@ describe('HanabiGame', () => {
 			status: 'finished',
 			reason: 'final_round_complete',
 		});
+	});
+
+	test('snapshot restore preserves the active last round', () => {
+		const game = new HanabiGame({
+			playerNames: ['A', 'B'],
+			deck: twoPlayerDeck(
+				[card('R', 1), card('Y', 2), card('G', 2), card('B', 2), card('W', 2)],
+				[card('R', 2), card('Y', 1), card('G', 1), card('B', 1), card('W', 1)],
+				[card('G', 5)],
+			),
+		});
+
+		game.playCard(game.state.players[0].cards[0]);
+		const restored = HanabiGame.fromState(game.getSnapshot());
+
+		expect(restored.state.status).toBe('last_round');
+		expect(restored.state.lastRound).toEqual({ turnsRemaining: 2, finalPlayerId: 'p1' });
 	});
 
 	test('playing the final needed card wins immediately', () => {

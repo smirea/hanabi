@@ -9,7 +9,7 @@ Hanabi is a cooperative card game. Players can see everyone else’s cards but n
 - 60 cards in 6 suits (white, red, blue, yellow, green, multicolor)
   - Each suit has: three 1s, two 2s, two 3s, two 4s, one 5
 - 8 blue information tokens
-- 4 black fuse tokens
+- 3 black fuse tokens
 
 ## Setup (Base Game)
 
@@ -72,12 +72,15 @@ On your turn, you must take exactly one of the following actions (no skipping):
 
 ## End of the Game
 
-The game ends in one of three ways:
+The official game ends in one of three ways:
 
 1. **Immediate loss:** The third black fuse token is added to the lid.
 2. **Immediate win:** All fireworks are completed before the deck runs out.
 3. **Last round:** When the last card is drawn, each player (including the player who drew it) takes one final turn. No cards are drawn during this final round.
-4. **Implementation finish:** If no incomplete firework can advance because none of the next required cards are left in player hands or the deck, the game finishes with the current score.
+
+Once the last round is complete, the game ends and the team scores the fireworks.
+
+Implementation note: in non-Sudden Death games, the app also finishes an unwinnable game when no incomplete firework can advance because none of the next required cards are left in player hands or the deck.
 
 ## Scoring
 

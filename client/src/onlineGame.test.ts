@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { PlayerId } from './game';
+import { HanabiGame, type CardNumber, type PlayerId, type Suit } from './game';
 import type { OnlineRoomState, RoomMember } from './utils/types';
 import {
 	applyOnlineRoomAction,
@@ -25,6 +25,23 @@ function createState(overrides: Partial<OnlineRoomState> = {}): OnlineRoomState 
 
 function ready(state: OnlineRoomState, actorId: PlayerId) {
 	return applyOnlineRoomAction(state, { type: 'set-ready', actorId, ready: true });
+}
+
+function card(suit: Suit, number: CardNumber): { suit: Suit; number: CardNumber } {
+	return { suit, number };
+}
+
+function twoPlayerDeck(
+	p1: { suit: Suit; number: CardNumber }[],
+	p2: { suit: Suit; number: CardNumber }[],
+	tail: { suit: Suit; number: CardNumber }[],
+) {
+	const deck: { suit: Suit; number: CardNumber }[] = [];
+	for (let index = 0; index < 5; index += 1) {
+		deck.push(p1[index], p2[index]);
+	}
+	deck.push(...tail);
+	return deck;
 }
 
 describe('onlineGame', () => {
@@ -224,5 +241,44 @@ describe('onlineGame', () => {
 		expect(rejected).toBeFalse();
 		expect(accepted).toBeTrue();
 		expect(state.gameState.turn).toBeGreaterThan(1);
+	});
+
+	test('online actions preserve final round countdown after the deck empties', () => {
+		const game = new HanabiGame({
+			playerIds: ['player:1', 'player:2'],
+			playerNames: ['Alex', 'Blair'],
+			deck: twoPlayerDeck(
+				[card('R', 1), card('Y', 2), card('G', 2), card('B', 2), card('W', 2)],
+				[card('R', 2), card('Y', 1), card('G', 1), card('B', 1), card('W', 1)],
+				[card('G', 5)],
+			),
+		});
+		game.playCard(game.state.players[0].cards[0]);
+		const state = createState({
+			phase: 'playing',
+			members: PLAYERS.slice(0, 2),
+			gameState: game.getSnapshot(),
+		});
+
+		expect(state.gameState?.status).toBe('last_round');
+		expect(
+			applyOnlineRoomAction(state, {
+				type: 'game-action',
+				actorId: 'player:2',
+				action: {
+					type: 'hint-number',
+					actorId: 'player:2',
+					targetPlayerId: 'player:1',
+					number: 2,
+				},
+			}),
+		).toBeTrue();
+
+		expect(state.gameState?.status).toBe('last_round');
+		expect(state.gameState?.lastRound).toEqual({
+			turnsRemaining: 1,
+			finalPlayerId: 'player:1',
+		});
+		expect(state.gameState?.players[state.gameState.currentTurnPlayerIndex]?.id).toBe('player:1');
 	});
 });

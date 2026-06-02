@@ -63,6 +63,10 @@ function isBonusHintEffect(effect: string): boolean {
 	return effect === 'free-color-hint' || effect === 'free-number-hint';
 }
 
+function possessiveName(name: string): string {
+	return name.endsWith('s') ? `${name}'` : `${name}'s`;
+}
+
 async function writeToClipboard(text: string): Promise<void> {
 	if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
 		await navigator.clipboard.writeText(text);
@@ -1295,6 +1299,21 @@ function GameClient({
 	const numberHintDisabled =
 		gameOver || normalActionBlocked || !canAct || perspective.hintTokens <= 0;
 	const playDisabled = gameOver || normalActionBlocked || !canAct || !viewerHasCards;
+	const deckWarningLevel =
+		!activeGameState.settings.endlessMode && !gameOver && perspective.drawDeckCount <= 3
+			? 'danger'
+			: !activeGameState.settings.endlessMode && !gameOver && perspective.drawDeckCount <= 9
+				? 'warning'
+				: null;
+	const lastRoundFinalPlayer =
+		perspective.lastRound === null
+			? null
+			: (perspective.players.find(player => player.id === perspective.lastRound?.finalPlayerId) ??
+				null);
+	const showLastRoundBanner =
+		!activeGameState.settings.endlessMode &&
+		perspective.status === 'last_round' &&
+		lastRoundFinalPlayer !== null;
 	const bonusDiscardChoices =
 		pendingBonus && activeGameState
 			? [...activeGameState.discardPile]
@@ -1382,7 +1401,11 @@ function GameClient({
 				</div>
 
 				<div className='stat deck-stat' data-testid='status-deck'>
-					<div className='deck-pill' ref={deckPillRef} data-testid='deck-pill'>
+					<div
+						className={`deck-pill${deckWarningLevel ? ` deck-pill-${deckWarningLevel}` : ''}`}
+						ref={deckPillRef}
+						data-testid='deck-pill'
+					>
 						<CardsThree size={17} weight='fill' />
 						<DeckCount value={perspective.drawDeckCount} />
 					</div>
@@ -1411,6 +1434,16 @@ function GameClient({
 						{remainingFuses}
 					</span>
 				</div>
+
+				{showLastRoundBanner && (
+					<div className='last-round-banner' data-testid='last-round-banner'>
+						<span className='last-round-banner-title'>Deck is empty</span>
+						<span className='last-round-banner-copy'>
+							Everyone gets one more turn. Game ends after{' '}
+							{possessiveName(lastRoundFinalPlayer.name)} next turn.
+						</span>
+					</div>
+				)}
 			</section>
 
 			<section

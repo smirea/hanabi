@@ -20,7 +20,7 @@ const RULE_TABS: RulesTab[] = [
 			'Each firework is built in order from 1 to 5. A correct 5 normally returns one clue token.',
 			'On your turn, give one clue, discard one card, or play one card. You cannot skip.',
 			'Clues must point to every card of one color or one number in a teammate hand.',
-			'Misplayed cards use a fuse. The game ends on the final fuse, all fireworks completed, or after the final round once the deck runs out.',
+			'Misplayed cards use a fuse. The game ends when the third fuse is used, all fireworks are completed, or after the final round once the last card is drawn.',
 		],
 	},
 	{

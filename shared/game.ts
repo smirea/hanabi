@@ -155,8 +155,9 @@ export interface GameSettings {
 	handSize: number;
 }
 
-interface LastRoundState {
+export interface LastRoundState {
 	turnsRemaining: number;
+	finalPlayerId: PlayerId;
 }
 
 export interface HanabiState {
@@ -256,6 +257,7 @@ export interface HanabiPerspectiveState {
 	maxFuseTokens: number;
 	drawDeckCount: number;
 	status: GameStatus;
+	lastRound: LastRoundState | null;
 	turn: number;
 	score: number;
 	activeSuits: Suit[];
@@ -480,6 +482,7 @@ export class HanabiGame {
 			maxFuseTokens: this.state.settings.maxFuseTokens,
 			drawDeckCount: this.state.drawDeck.length,
 			status: this.state.status,
+			lastRound: this.state.lastRound ? deepClone(this.state.lastRound) : null,
 			turn: this.state.turn,
 			score: this.getScore(),
 			activeSuits: [...this.state.settings.activeSuits],
@@ -1366,7 +1369,10 @@ export class HanabiGame {
 		const deckEmptiedOnDraw = this.drawCardForPlayer(this.state.currentTurnPlayerIndex);
 		if (deckEmptiedOnDraw && !this.state.settings.endlessMode && this.state.status === 'active') {
 			this.state.status = 'last_round';
-			this.state.lastRound = { turnsRemaining: this.state.players.length };
+			this.state.lastRound = {
+				turnsRemaining: this.state.players.length,
+				finalPlayerId: this.state.players[this.state.currentTurnPlayerIndex].id,
+			};
 		}
 
 		this.finalizeAction({ enteredLastRound: deckEmptiedOnDraw });
@@ -1692,7 +1698,28 @@ export class HanabiGame {
 		cloned.pendingBonus ??= null;
 
 		if (cloned.status === 'last_round') {
-			cloned.status = 'active';
+			const turnsRemaining = Math.max(
+				0,
+				Math.floor(cloned.lastRound?.turnsRemaining ?? cloned.players.length),
+			);
+			const inferredFinalPlayerIndex =
+				cloned.players.length === 0
+					? -1
+					: (cloned.currentTurnPlayerIndex + Math.max(1, turnsRemaining) - 1) %
+						cloned.players.length;
+			const inferredFinalPlayerId =
+				inferredFinalPlayerIndex >= 0 ? cloned.players[inferredFinalPlayerIndex]?.id : null;
+			const restoredFinalPlayerId = cloned.lastRound?.finalPlayerId ?? null;
+			const finalPlayerId = cloned.players.some(player => player.id === restoredFinalPlayerId)
+				? restoredFinalPlayerId
+				: inferredFinalPlayerId;
+			if (!finalPlayerId) {
+				cloned.status = 'active';
+				cloned.lastRound = null;
+			} else {
+				cloned.lastRound = { turnsRemaining, finalPlayerId };
+			}
+		} else {
 			cloned.lastRound = null;
 		}
 
