@@ -1,11 +1,18 @@
 import '@testing-library/jest-dom';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import {
+	getStoredLobbySettings,
+	markPendingCreatedRoomCode,
+	setStoredLobbySettings,
+} from '../lobbySettingsStorage';
+import { cloneLobbySettings, type LobbySettings } from '../onlineGame';
 import { storageKeys } from '../utils/constants';
 import { LS } from '../utils/utils';
 
 const navigateMock = mock(() => {});
 const sendActionMock = mock(async () => null);
+let mockRoomSettings: LobbySettings = cloneLobbySettings();
 
 void mock.module('@tanstack/react-router', () => ({
 	useNavigate: () => navigateMock,
@@ -21,12 +28,7 @@ void mock.module('../hooks/useGameServer', () => ({
 			snapshotVersion: 0,
 			phase: 'lobby',
 			members: [{ id: 'player:1', userId: 1, name: 'unnamed', isTv: false, isReady: false }],
-			settings: {
-				includeMulticolor: false,
-				multicolorShortDeck: false,
-				multicolorWildHints: false,
-				endlessMode: false,
-			},
+			settings: mockRoomSettings,
 			gameState: null,
 		},
 		user: { id: 1, name: 'unnamed' },
@@ -43,6 +45,7 @@ describe('RoomScreen', () => {
 	beforeEach(() => {
 		navigateMock.mockClear();
 		sendActionMock.mockClear();
+		mockRoomSettings = cloneLobbySettings();
 		window.history.replaceState(null, '', '/');
 		window.location.hash = '';
 	});
@@ -118,6 +121,43 @@ describe('RoomScreen', () => {
 				search: {},
 				hash: '',
 			});
+		});
+	});
+
+	test('stores the current room settings as the last used configuration', async () => {
+		mockRoomSettings = {
+			...cloneLobbySettings(),
+			includeBlack: true,
+			includeFlamboyants: true,
+		};
+
+		render(<RoomScreen code='ABCD' />);
+
+		await waitFor(() => {
+			expect(getStoredLobbySettings()).toEqual(mockRoomSettings);
+		});
+	});
+
+	test('restores stored settings when this player creates a new room', async () => {
+		const savedSettings = {
+			...cloneLobbySettings(),
+			includeMulticolor: true,
+			multicolorShortDeck: true,
+			multicolorWildHints: true,
+			includeBlack: true,
+		};
+		setStoredLobbySettings(savedSettings);
+		markPendingCreatedRoomCode('ABCD');
+
+		render(<RoomScreen code='ABCD' />);
+
+		await waitFor(() => {
+			expect(sendActionMock).toHaveBeenCalledWith({
+				type: 'set-settings',
+				actorId: 'player:1',
+				next: savedSettings,
+			});
+			expect(LS.get(storageKeys.pendingCreatedRoom)).toBeNull();
 		});
 	});
 });

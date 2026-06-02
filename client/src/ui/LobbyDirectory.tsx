@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useAppVersion, useRoomDirectory } from '../hooks/useGameServer';
+import {
+	clearPendingCreatedRoomCode,
+	markPendingCreatedRoomCode,
+} from '../lobbySettingsStorage';
 import { withPersistentSearch } from '../navigation';
 import { sanitizePlayerName } from '../onlineGame';
 import { createRoomCode, parseRoomCode } from '../roomCodes';
@@ -25,12 +29,20 @@ export function LobbyDirectory({ resumeRoomCode = null, onLeaveResumeRoom }: Lob
 	const resumePlayers =
 		resumeRoom?.players.length ? resumeRoom.players.slice(0, 5).join(', ') : 'No active players';
 
-	const goToRoom = (code: string) => {
+	const goToRoom = (code: string, options: { created?: boolean } = {}) => {
+		const roomCode = parseRoomCode(code);
+		if (!roomCode) return;
+
 		const name = sanitizePlayerName(playerName);
 		if (name && name !== playerName) setPlayerName(name);
+		if (options.created) {
+			markPendingCreatedRoomCode(roomCode);
+		} else {
+			clearPendingCreatedRoomCode();
+		}
 		void navigate({
 			to: '/',
-			search: withPersistentSearch(code),
+			search: withPersistentSearch(roomCode),
 			hash: currentHash,
 		});
 	};
@@ -96,7 +108,7 @@ export function LobbyDirectory({ resumeRoomCode = null, onLeaveResumeRoom }: Lob
 						<button
 							type='button'
 							className='lobby-directory-create-btn'
-							onClick={() => goToRoom(createRoomCode())}
+							onClick={() => goToRoom(createRoomCode(), { created: true })}
 							data-testid='room-directory-create'
 						>
 							Create Room

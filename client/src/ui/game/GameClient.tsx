@@ -14,8 +14,20 @@ import {
 	isFireworkCardPlayed,
 } from '../../game';
 import { useDebugScreensController } from '../../debugScreens';
-import { cloneLobbySettings, playerIdForUser, sanitizePlayerName } from '../../onlineGame';
+import {
+	cloneLobbySettings,
+	normalizeSettings,
+	playerIdForUser,
+	sanitizePlayerName,
+} from '../../onlineGame';
 import { useAppVersion, useOnlineRoom } from '../../hooks/useGameServer';
+import {
+	areLobbySettingsSame,
+	clearPendingCreatedRoomCode,
+	getPendingCreatedRoomCode,
+	getStoredLobbySettings,
+	setStoredLobbySettings,
+} from '../../lobbySettingsStorage';
 import { storageKeys, suitColors, suitNames } from '../../utils/constants';
 import { useLocalStorage } from '../../utils/utils';
 import type { GameAction, LobbySettings, RoomViewState } from '../../utils/types';
@@ -167,6 +179,7 @@ function GameClient({
 			selfPlayerId: onlineRoom.user ? playerIdForUser(onlineRoom.user.id) : null,
 		};
 	}, [isLocalDebugMode, onlineRoom.room, onlineRoom.user]);
+	const pendingCreatedRoomCode = isLocalDebugMode ? null : getPendingCreatedRoomCode();
 	const leaveOnlineRoom = useCallback(() => {
 		const actorId = connectionState.selfPlayerId;
 		if (isLocalDebugMode || !actorId) {
@@ -180,6 +193,67 @@ function GameClient({
 				onLeaveRoom?.();
 			});
 	}, [connectionState.selfPlayerId, isLocalDebugMode, onLeaveRoom, onlineRoom]);
+
+	useEffect(() => {
+		if (
+			isLocalDebugMode ||
+			pendingCreatedRoomCode !== roomId ||
+			connectionState.status !== 'connected' ||
+			connectionState.phase !== 'lobby' ||
+			!connectionState.selfPlayerId
+		) {
+			return;
+		}
+
+		clearPendingCreatedRoomCode();
+		const savedSettings = getStoredLobbySettings();
+		const isOnlySelfMember =
+			connectionState.members.length === 1 &&
+			connectionState.members[0]?.id === connectionState.selfPlayerId;
+		if (
+			!savedSettings ||
+			!isOnlySelfMember ||
+			areLobbySettingsSame(connectionState.settings, savedSettings)
+		) {
+			return;
+		}
+
+		void onlineRoom.sendAction({
+			type: 'set-settings',
+			actorId: connectionState.selfPlayerId,
+			next: savedSettings,
+		});
+	}, [
+		connectionState.members,
+		connectionState.phase,
+		connectionState.selfPlayerId,
+		connectionState.settings,
+		connectionState.status,
+		isLocalDebugMode,
+		onlineRoom.sendAction,
+		pendingCreatedRoomCode,
+		roomId,
+	]);
+
+	useEffect(() => {
+		if (
+			isLocalDebugMode ||
+			pendingCreatedRoomCode === roomId ||
+			connectionState.status !== 'connected' ||
+			!connectionState.selfPlayerId
+		) {
+			return;
+		}
+
+		setStoredLobbySettings(connectionState.settings);
+	}, [
+		connectionState.selfPlayerId,
+		connectionState.settings,
+		connectionState.status,
+		isLocalDebugMode,
+		pendingCreatedRoomCode,
+		roomId,
+	]);
 
 	useEffect(() => {
 		if (!isLocalDebugMode && onlineRoom.wasKicked) {
@@ -1070,6 +1144,7 @@ function GameClient({
 			return;
 		}
 
+		setStoredLobbySettings(normalizeSettings({ ...connectionState.settings, ...next }));
 		void onlineRoom.sendAction({
 			type: 'set-settings',
 			actorId: connectionState.selfPlayerId,

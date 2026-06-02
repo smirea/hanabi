@@ -39,6 +39,8 @@ function getDefaults(): Partial<StorageValueByKey> {
 		[storageKeys.playerName]: '',
 		[storageKeys.serverUserId]: null,
 		[storageKeys.currentRoom]: null,
+		[storageKeys.lastLobbySettings]: null,
+		[storageKeys.pendingCreatedRoom]: null,
 		[storageKeys.darkMode]: false,
 		[storageKeys.negativeColorHints]: true,
 		[storageKeys.negativeNumberHints]: true,
