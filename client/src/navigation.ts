@@ -33,6 +33,14 @@ export function clearStoredRoomCode(): void {
 	LS.delete(storageKeys.currentRoom);
 }
 
-export function resolveHomeRoom(searchRoom: string | undefined): string | null {
-	return searchRoom?.trim() ? searchRoom : null;
+export function getLocationRoomSearch(): string | null {
+	if (typeof window === 'undefined') return null;
+
+	const room = new URLSearchParams(window.location.search).get('room');
+	return room?.trim() ? room : null;
+}
+
+export function resolveHomeRoom(searchRoom: unknown): string | null {
+	if (typeof searchRoom === 'string' && searchRoom.trim()) return searchRoom;
+	return getLocationRoomSearch();
 }

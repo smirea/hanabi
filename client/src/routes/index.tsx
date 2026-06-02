@@ -18,8 +18,8 @@ export const Route = createFileRoute('/')({
 function HomeRoute() {
 	const { room } = Route.useSearch();
 	const restoredRoom = resolveHomeRoom(room);
-	const storedRoom = !room?.trim() ? getStoredRoomCode() : null;
-	const shouldResumeFromServer = !room?.trim() && !storedRoom;
+	const storedRoom = restoredRoom ? null : getStoredRoomCode();
+	const shouldResumeFromServer = !restoredRoom && !storedRoom;
 	const serverResume = useCurrentRoomResume(shouldResumeFromServer);
 	const serverRoom = serverResume.roomCode;
 	const [dismissedResumeRoom, setDismissedResumeRoom] = useState<string | null>(null);
