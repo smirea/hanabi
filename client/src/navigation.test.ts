@@ -13,11 +13,11 @@ describe('room navigation persistence', () => {
 		window.history.replaceState(null, '', '/');
 	});
 
-	test('restores the stored room when the home route has no room search param', () => {
+	test('keeps the stored room available without resolving it as the home room', () => {
 		setStoredRoomCode('abcd');
 
 		expect(getStoredRoomCode()).toBe('ABCD');
-		expect(resolveHomeRoom(undefined)).toBe('ABCD');
+		expect(resolveHomeRoom(undefined)).toBeNull();
 	});
 
 	test('explicit room search takes priority over the stored room', () => {

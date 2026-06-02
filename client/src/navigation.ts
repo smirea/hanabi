@@ -34,5 +34,5 @@ export function clearStoredRoomCode(): void {
 }
 
 export function resolveHomeRoom(searchRoom: string | undefined): string | null {
-	return searchRoom?.trim() ? searchRoom : getStoredRoomCode();
+	return searchRoom?.trim() ? searchRoom : null;
 }

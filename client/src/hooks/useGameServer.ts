@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { playerIdForUser } from '../onlineGame';
+import { parseRoomCode } from '../roomCodes';
 import { storageKeys } from '../utils/constants';
 import { LS } from '../utils/utils';
 import type {
@@ -105,6 +107,23 @@ export function useCurrentRoomResume(enabled = true) {
 	}, [enabled]);
 
 	return { roomCode, isLoading };
+}
+
+export async function leaveRoomForStoredUser(roomCode: string): Promise<void> {
+	const code = parseRoomCode(roomCode);
+	const userId = getStoredUserId();
+	if (!code || !userId) return;
+
+	await readJson<RoomResponse>(
+		await fetch(`${apiBase}/rooms/${encodeURIComponent(code)}/actions`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				userId,
+				action: { type: 'leave', actorId: playerIdForUser(userId) },
+			}),
+		}),
+	);
 }
 
 async function readJson<T>(response: Response): Promise<T> {

@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 const navigateMock = mock(() => {});
+let roomDirectory: Array<{ code: string; players: string[]; phase: 'lobby' | 'playing' }> = [];
 
 void mock.module('@tanstack/react-router', () => ({
 	useNavigate: () => navigateMock,
@@ -10,7 +11,7 @@ void mock.module('@tanstack/react-router', () => ({
 
 void mock.module('../hooks/useGameServer', () => ({
 	useAppVersion: () => ({ versionText: 'version 05 31, 2026 @ 12:34' }),
-	useRoomDirectory: () => ({ rooms: [], reloadDirectory: async () => {} }),
+	useRoomDirectory: () => ({ rooms: roomDirectory, reloadDirectory: async () => {} }),
 }));
 
 import { LobbyDirectory } from './LobbyDirectory';
@@ -18,6 +19,7 @@ import { LobbyDirectory } from './LobbyDirectory';
 describe('LobbyDirectory', () => {
 	beforeEach(() => {
 		navigateMock.mockClear();
+		roomDirectory = [];
 		window.history.replaceState(null, '', '/');
 		window.location.hash = '';
 	});
@@ -64,5 +66,25 @@ describe('LobbyDirectory', () => {
 		expect(screen.getByTestId('room-directory-version')).toHaveTextContent(
 			'version 05 31, 2026 @ 12:34',
 		);
+	});
+
+	test('renders a resumable room banner with leave and join actions', () => {
+		const leaveMock = mock(() => {});
+		roomDirectory = [{ code: 'ABCD', players: ['Alex', 'Blair'], phase: 'lobby' }];
+
+		render(<LobbyDirectory resumeRoomCode='ABCD' onLeaveResumeRoom={leaveMock} />);
+
+		expect(screen.getByTestId('room-resume-banner')).toHaveTextContent('room ABCD');
+		expect(screen.getByTestId('room-resume-banner')).toHaveTextContent('Alex, Blair');
+
+		fireEvent.click(screen.getByTestId('room-resume-join'));
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: '/',
+			search: { room: 'ABCD' },
+			hash: '',
+		});
+
+		fireEvent.click(screen.getByTestId('room-resume-leave'));
+		expect(leaveMock).toHaveBeenCalledWith('ABCD');
 	});
 });

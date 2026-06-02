@@ -7,13 +7,23 @@ import { createRoomCode, parseRoomCode } from '../roomCodes';
 import { storageKeys } from '../utils/constants';
 import { useLocalStorage } from '../utils/utils';
 
-export function LobbyDirectory() {
+interface LobbyDirectoryProps {
+	resumeRoomCode?: string | null;
+	onLeaveResumeRoom?: (code: string) => void;
+}
+
+export function LobbyDirectory({ resumeRoomCode = null, onLeaveResumeRoom }: LobbyDirectoryProps) {
 	const navigate = useNavigate();
 	const { rooms: directory } = useRoomDirectory();
 	const { versionText } = useAppVersion();
 	const [joinInput, setJoinInput] = useState('');
 	const [playerName, setPlayerName] = useLocalStorage(storageKeys.playerName, '');
 	const currentHash = typeof window === 'undefined' ? '' : window.location.hash.replace(/^#/, '');
+	const resumeRoom = resumeRoomCode
+		? directory.find(room => room.code === resumeRoomCode)
+		: undefined;
+	const resumePlayers =
+		resumeRoom?.players.length ? resumeRoom.players.slice(0, 5).join(', ') : 'No active players';
 
 	const goToRoom = (code: string) => {
 		const name = sanitizePlayerName(playerName);
@@ -29,6 +39,32 @@ export function LobbyDirectory() {
 	return (
 		<main className='app lobby-app' data-testid='room-directory-root'>
 			<section className='lobby-shell-body lobby-shell-body-full'>
+				{resumeRoomCode && (
+					<section className='room-resume-banner' data-testid='room-resume-banner'>
+						<div className='room-resume-copy'>
+							<span className='room-resume-code'>room {resumeRoomCode}:</span>
+							<span className='room-resume-players'>{resumePlayers}</span>
+						</div>
+						<div className='room-resume-actions'>
+							<button
+								type='button'
+								className='room-resume-button subtle'
+								onClick={() => onLeaveResumeRoom?.(resumeRoomCode)}
+								data-testid='room-resume-leave'
+							>
+								Leave
+							</button>
+							<button
+								type='button'
+								className='room-resume-button primary'
+								onClick={() => goToRoom(resumeRoomCode)}
+								data-testid='room-resume-join'
+							>
+								Join
+							</button>
+						</div>
+					</section>
+				)}
 				<section className='lobby-card lobby-directory-card'>
 					<header className='lobby-directory-header'>
 						<h1 className='lobby-directory-title'>Hanabi</h1>

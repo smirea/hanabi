@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, mock, test } from 'bun:test';
-import { useCurrentRoomResume } from './useGameServer';
+import { leaveRoomForStoredUser, useCurrentRoomResume } from './useGameServer';
 import { storageKeys } from '../utils/constants';
 import { LS } from '../utils/utils';
 
@@ -59,5 +59,22 @@ describe('useCurrentRoomResume', () => {
 		});
 		expect(screen.getByTestId('resume-room')).toHaveTextContent('none');
 		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	test('leaves a room for the stored server user', async () => {
+		LS.set({ [storageKeys.serverUserId]: 7 });
+		const fetchMock = mock(async () => Response.json({ room: null }));
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		await leaveRoomForStoredUser('ABCD');
+
+		expect(fetchMock).toHaveBeenCalledWith('/api/rooms/ABCD/actions', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				userId: 7,
+				action: { type: 'leave', actorId: 'player:7' },
+			}),
+		});
 	});
 });

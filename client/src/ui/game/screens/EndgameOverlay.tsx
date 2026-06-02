@@ -1,4 +1,4 @@
-import { Fire, LightbulbFilament } from '@phosphor-icons/react';
+import { ArrowsClockwise, Fire, LightbulbFilament } from '@phosphor-icons/react';
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { flushSync } from 'react-dom';
 import {
@@ -111,6 +111,7 @@ export function EndgameOverlay({
 	const totalHintsUsed = [...statsByPlayerId.values()].reduce((total, stats) => {
 		return total + stats.hintsGiven;
 	}, 0);
+	const rounds = Math.max(1, Math.ceil(perspective.turn / Math.max(1, players.length)));
 
 	const seedKey = `${outcome}:${status}:${score}:${logs[0]?.id ?? 'none'}`;
 
@@ -348,6 +349,13 @@ export function EndgameOverlay({
 								{score}
 							</span>
 							<div className='endgame-resources' data-testid='endgame-resources'>
+								<div className='endgame-resource' data-testid='endgame-lives-remaining'>
+									<Fire size={16} weight='fill' aria-hidden />
+									<span>Lives</span>
+									<span className='endgame-resource-value'>
+										{remainingLives}/{perspective.maxFuseTokens}
+									</span>
+								</div>
 								<div className='endgame-resource' data-testid='endgame-hints-remaining'>
 									<LightbulbFilament size={16} weight='fill' aria-hidden />
 									<span>Hints left</span>
@@ -355,12 +363,10 @@ export function EndgameOverlay({
 										{perspective.hintTokens}/{perspective.maxHintTokens}
 									</span>
 								</div>
-								<div className='endgame-resource' data-testid='endgame-lives-remaining'>
-									<Fire size={16} weight='fill' aria-hidden />
-									<span>Lives</span>
-									<span className='endgame-resource-value'>
-										{remainingLives}/{perspective.maxFuseTokens}
-									</span>
+								<div className='endgame-resource' data-testid='endgame-rounds'>
+									<ArrowsClockwise size={16} weight='bold' aria-hidden />
+									<span>Rounds</span>
+									<span className='endgame-resource-value'>{rounds}</span>
 								</div>
 								<div className='endgame-resource' data-testid='endgame-hints-used'>
 									<LightbulbFilament size={16} weight='fill' aria-hidden />

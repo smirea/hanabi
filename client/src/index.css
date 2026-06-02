@@ -446,6 +446,77 @@ body {
 
 .lobby-shell-body-full {
 	grid-row: 1 / -1;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	justify-content: flex-start;
+}
+
+.room-resume-banner {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 0.46rem;
+	padding: 0.36rem 0.42rem 0.36rem 0.52rem;
+	border-radius: 10px;
+	border: 1px solid rgba(178, 190, 214, 0.8);
+	background: rgba(253, 254, 255, 0.84);
+	box-shadow: 0 8px 18px rgba(25, 35, 56, 0.08);
+}
+
+.room-resume-copy {
+	min-width: 0;
+	display: flex;
+	align-items: baseline;
+	gap: 0.34rem;
+	color: var(--gray-600);
+	font-size: 0.66rem;
+	font-weight: 800;
+	line-height: 1.1;
+}
+
+.room-resume-code {
+	flex: 0 0 auto;
+	font-weight: 950;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+}
+
+.room-resume-players {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: color-mix(in srgb, var(--gray-600) 72%, transparent);
+}
+
+.room-resume-actions {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.24rem;
+}
+
+.room-resume-button {
+	min-height: 1.74rem;
+	padding: 0 0.52rem;
+	border-radius: 8px;
+	border: 1px solid rgba(178, 190, 214, 0.9);
+	background: rgba(255, 255, 255, 0.86);
+	color: var(--gray-600);
+	font-family: inherit;
+	font-size: 0.62rem;
+	font-weight: 900;
+	cursor: pointer;
+}
+
+.room-resume-button.primary {
+	border-color: rgba(79, 142, 255, 0.68);
+	background: rgba(79, 142, 255, 0.95);
+	color: #fff;
+}
+
+.room-resume-button:active {
+	transform: scale(0.98);
 }
 
 .lobby-card {
@@ -3354,7 +3425,9 @@ body {
 
 .endgame-resources {
 	display: grid;
-	gap: 0.14rem;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	column-gap: 0.54rem;
+	row-gap: 0.14rem;
 	min-width: 0;
 }
 
@@ -4400,6 +4473,26 @@ body {
 	border-color: rgba(90, 112, 168, 0.35);
 	background: rgba(11, 13, 20, 0.92);
 	box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);
+}
+
+:root[data-theme='dark'] .room-resume-banner {
+	border-color: rgba(90, 112, 168, 0.35);
+	background: rgba(11, 13, 20, 0.82);
+	box-shadow: 0 12px 24px rgba(0, 0, 0, 0.38);
+}
+
+:root[data-theme='dark'] .room-resume-copy,
+:root[data-theme='dark'] .room-resume-button:not(.primary) {
+	color: rgba(240, 244, 255, 0.92);
+}
+
+:root[data-theme='dark'] .room-resume-players {
+	color: rgba(176, 196, 240, 0.68);
+}
+
+:root[data-theme='dark'] .room-resume-button:not(.primary) {
+	border-color: rgba(90, 112, 168, 0.38);
+	background: rgba(16, 20, 32, 0.78);
 }
 
 :root[data-theme='dark'] .lobby-player {
