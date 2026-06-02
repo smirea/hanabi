@@ -88,14 +88,14 @@ Add the highest value card in each completed firework. The maximum score is 25 f
 
 ### Score Scale (Optional Flavor)
 
-- 0-5: poo crew
-- 6-10: shovel duty
-- 11-15: donkey mode
-- 16-20: chariot chaos
-- 21-25: crowned somehow
+- 0-5: Legendary loser
+- 6-10: Shovel specialist
+- 11-15: Donkey tactician
+- 16-20: Chariot captain
+- 21-25: Hanabi legend
 - If variants raise the maximum score above 25, continue the flavor scale:
-  - 26-30: Elon eyebrow
-  - 31+: Starship nonsense
+  - 26-30: Eyebrow ace
+  - 31+: Rocket prodigy
 
 ## Expansions and Variants
 
@@ -136,4 +136,4 @@ The lobby can enable any supported expansion before players ready up. Changing a
 - The team has only 1 fuse token.
 - The game continues until the team is defeated (the fuse token is used, or an indispensable card is discarded) or victorious (all fireworks completed).
 - Score scale is not used; the goal is perfection.
-- This variant can be combined with one other variant.
+- This variant can be combined with the other supported variants.

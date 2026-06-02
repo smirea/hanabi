@@ -1,4 +1,4 @@
-import { normalizeSettings, type LobbySettings } from './onlineGame';
+import { areLobbySettingsEqual, normalizeSettings, type LobbySettings } from './onlineGame';
 import { parseRoomCode } from './roomCodes';
 import { storageKeys } from './utils/constants';
 import { LS } from './utils/utils';
@@ -17,17 +17,7 @@ export function areLobbySettingsSame(
 	left: Partial<LobbySettings>,
 	right: Partial<LobbySettings>,
 ): boolean {
-	const normalizedLeft = normalizeSettings(left);
-	const normalizedRight = normalizeSettings(right);
-
-	return (
-		normalizedLeft.includeMulticolor === normalizedRight.includeMulticolor &&
-		normalizedLeft.includeBlack === normalizedRight.includeBlack &&
-		normalizedLeft.includeFlamboyants === normalizedRight.includeFlamboyants &&
-		normalizedLeft.multicolorShortDeck === normalizedRight.multicolorShortDeck &&
-		normalizedLeft.multicolorWildHints === normalizedRight.multicolorWildHints &&
-		normalizedLeft.endlessMode === normalizedRight.endlessMode
-	);
+	return areLobbySettingsEqual(left, right);
 }
 
 export function markPendingCreatedRoomCode(roomCode: string): void {

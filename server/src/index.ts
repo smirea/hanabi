@@ -35,6 +35,8 @@ const githubCommitUrl =
 	env.GITHUB_COMMIT_API_URL ??
 	`https://api.github.com/repos/${githubRepository}/commits/${githubBranch}`;
 const versionCacheMs = 60_000;
+const serverIdleTimeoutSeconds = 60;
+const sseHeartbeatMs = 5_000;
 mkdirSync(dirname(databasePath), { recursive: true });
 
 const sqlite = new Database(databasePath, { create: true });
@@ -407,7 +409,7 @@ function streamRoom(code: string, userId: number | null) {
 					} catch {
 						if (heartbeat) clearInterval(heartbeat);
 					}
-				}, 10000);
+				}, sseHeartbeatMs);
 			},
 			cancel() {
 				if (heartbeat) clearInterval(heartbeat);
@@ -645,6 +647,7 @@ function allHistory() {
 
 const server = Bun.serve({
 	development: env.NODE_ENV !== 'production',
+	idleTimeout: serverIdleTimeoutSeconds,
 	port: apiPort,
 	async fetch(request) {
 		try {

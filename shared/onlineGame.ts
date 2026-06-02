@@ -172,14 +172,20 @@ export function normalizeSettings(input: Partial<LobbySettings> | undefined): Lo
 	};
 }
 
-function areLobbySettingsEqual(left: LobbySettings, right: LobbySettings): boolean {
+export function areLobbySettingsEqual(
+	left: Partial<LobbySettings>,
+	right: Partial<LobbySettings>,
+): boolean {
+	const normalizedLeft = normalizeSettings(left);
+	const normalizedRight = normalizeSettings(right);
+
 	return (
-		left.includeMulticolor === right.includeMulticolor &&
-		left.includeBlack === right.includeBlack &&
-		left.includeFlamboyants === right.includeFlamboyants &&
-		left.multicolorShortDeck === right.multicolorShortDeck &&
-		left.multicolorWildHints === right.multicolorWildHints &&
-		left.endlessMode === right.endlessMode
+		normalizedLeft.includeMulticolor === normalizedRight.includeMulticolor &&
+		normalizedLeft.includeBlack === normalizedRight.includeBlack &&
+		normalizedLeft.includeFlamboyants === normalizedRight.includeFlamboyants &&
+		normalizedLeft.multicolorShortDeck === normalizedRight.multicolorShortDeck &&
+		normalizedLeft.multicolorWildHints === normalizedRight.multicolorWildHints &&
+		normalizedLeft.endlessMode === normalizedRight.endlessMode
 	);
 }
 

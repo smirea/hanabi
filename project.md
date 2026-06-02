@@ -66,19 +66,17 @@ Each card tracks and renders:
 ## Deployment (Production)
 
 - Runtime target: `https://hanabi.stf.lol`.
-- The old static-only S3/CloudFront deployment is no longer sufficient because multiplayer now requires the Bun API server and SQLite.
-- Previous AWS static architecture: private S3 bucket `stf.lol` with app assets under `s3://stf.lol/hanabi/`, served through CloudFront distribution `EF8ZR6OCMZQ48` (`d1yq9wamlmytcc.cloudfront.net`).
-- TLS certificate: ACM certificate in `us-east-1` for `*.stf.lol` (also covering `stf.lol`), attached to CloudFront.
-- DNS (Namecheap):
-  - `hanabi` CNAME -> `d1yq9wamlmytcc.cloudfront.net`.
-  - ACM DNS validation CNAME must remain in place for certificate renewals.
 - CI: GitHub Actions workflow in `.github/workflows/ci.yml`.
   - Trigger: pull requests + every push to `master`.
   - Flow: lint/typecheck + tests + build (uploads `client/dist` as the `client-dist` artifact).
 - CD/update hook: GitHub Actions workflow in `.github/workflows/mac-update.yml`.
   - Trigger: every push to `master` plus manual `workflow_dispatch`.
   - Flow: call the Mac update endpoint, then fall back to checking `https://hanabi.stf.lol/api/status` if the update request fails after reaching the service.
-- Previous static-only S3/CloudFront deployment is no longer enough because it cannot run the Bun API/SSE server or SQLite storage.
+- Previous static-only S3/CloudFront deployment is no longer enough because multiplayer requires the Bun API/SSE server and SQLite storage.
+  - Previous AWS static architecture: private S3 bucket `stf.lol` with app assets under `s3://stf.lol/hanabi/`, served through CloudFront distribution `EF8ZR6OCMZQ48` (`d1yq9wamlmytcc.cloudfront.net`).
+  - TLS certificate: ACM certificate in `us-east-1` for `*.stf.lol` (also covering `stf.lol`), attached to CloudFront.
+  - DNS (Namecheap): `hanabi` CNAME -> `d1yq9wamlmytcc.cloudfront.net`.
+  - ACM DNS validation CNAME must remain in place for certificate renewals.
   - Previous cache strategy: hashed static assets used long-lived immutable cache headers; `index.html` used no-cache headers.
 - Previous GitHub repository secrets for static deployment:
   - `AWS_ACCESS_KEY_ID`

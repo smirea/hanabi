@@ -1,6 +1,7 @@
 export {
 	applyGameAction,
 	applyOnlineRoomAction,
+	areLobbySettingsEqual,
 	buildRoomMembers,
 	cloneLobbySettings,
 	createInitialOnlineRoomState,
