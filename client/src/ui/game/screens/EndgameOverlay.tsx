@@ -1,5 +1,6 @@
 import { Fire, LightbulbFilament } from '@phosphor-icons/react';
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { flushSync } from 'react-dom';
 import {
 	type GameLogEntry,
 	type HanabiPerspectiveState,
@@ -34,12 +35,25 @@ function mulberry32(seed: number): () => number {
 	};
 }
 
-function ScoreFlavorBadge({ flavor, isLarge = false }: { flavor: ScoreFlavor; isLarge?: boolean }) {
+function ScoreFlavorBadge({
+	flavor,
+	size = 'summary',
+	useViewTransitionName = false,
+}: {
+	flavor: ScoreFlavor;
+	size?: 'summary' | 'reveal';
+	useViewTransitionName?: boolean;
+}) {
 	return (
 		<span
-			className={`score-flavor-badge ${flavor.kind} ${isLarge ? 'large' : ''}`}
-			style={{ '--score-flavor-color': flavor.accent } as CSSProperties}
-			data-testid={isLarge ? 'endgame-score-reveal-badge' : 'endgame-score-flavor'}
+			className={`score-flavor-badge ${flavor.kind} ${size}`}
+			style={
+				{
+					'--score-flavor-color': flavor.accent,
+					viewTransitionName: useViewTransitionName ? 'endgame-score-flavor' : undefined,
+				} as CSSProperties
+			}
+			data-testid={size === 'reveal' ? 'endgame-score-reveal-badge' : 'endgame-score-flavor'}
 		>
 			<img className='score-flavor-image' src={flavor.image} alt='' aria-hidden />
 		</span>
@@ -92,17 +106,11 @@ export function EndgameOverlay({
 	);
 	const scoreRevealTimers = useRef<number[]>([]);
 
-	const scoreBreakdown = perspective.activeSuits
-		.filter(suit => !isBlackSuit(suit))
-		.map(suit => perspective.fireworksHeights[suit]);
-	const blackPenalty = perspective.activeSuits.includes('K')
-		? 5 - perspective.fireworksHeights.K
-		: 0;
-	const scoreBase = scoreBreakdown.length > 0 ? scoreBreakdown.join('+') : '0';
-	const scoreFormula =
-		blackPenalty > 0 ? `${scoreBase} - ${blackPenalty} = ${score}` : `${scoreBase} = ${score}`;
 	const remainingLives =
 		status === 'lost' ? 0 : Math.max(0, perspective.maxFuseTokens - perspective.fuseTokensUsed);
+	const totalHintsUsed = [...statsByPlayerId.values()].reduce((total, stats) => {
+		return total + stats.hintsGiven;
+	}, 0);
 
 	const seedKey = `${outcome}:${status}:${score}:${logs[0]?.id ?? 'none'}`;
 
@@ -196,8 +204,21 @@ export function EndgameOverlay({
 		}
 
 		clearScoreRevealTimers();
+		hideScoreReveal();
+	}
+
+	function hideScoreReveal(): void {
+		if (!reduceMotion && typeof document.startViewTransition === 'function') {
+			document
+				.startViewTransition(() => {
+					flushSync(() => setScoreRevealState('hidden'));
+				})
+				.finished.catch(() => {});
+			return;
+		}
+
 		setScoreRevealState('exiting');
-		scoreRevealTimers.current.push(window.setTimeout(() => setScoreRevealState('hidden'), 420));
+		scoreRevealTimers.current.push(window.setTimeout(() => setScoreRevealState('hidden'), 520));
 	}
 
 	useEffect(() => {
@@ -208,8 +229,7 @@ export function EndgameOverlay({
 
 		setScoreRevealState('visible');
 		clearScoreRevealTimers();
-		scoreRevealTimers.current.push(window.setTimeout(() => setScoreRevealState('exiting'), 2400));
-		scoreRevealTimers.current.push(window.setTimeout(() => setScoreRevealState('hidden'), 2820));
+		scoreRevealTimers.current.push(window.setTimeout(hideScoreReveal, 2400));
 
 		return clearScoreRevealTimers;
 	}, [reduceMotion, seedKey]);
@@ -294,39 +314,60 @@ export function EndgameOverlay({
 					onClick={dismissScoreReveal}
 					data-testid='endgame-score-reveal'
 					aria-label='Dismiss score reveal'
+					style={{ '--score-flavor-color': scoreFlavor.accent } as CSSProperties}
 				>
-					<span className='endgame-score-reveal-kicker'>{title}</span>
 					<span className='endgame-score-reveal-score' data-testid='endgame-score-reveal-score'>
 						{score}
 					</span>
-					<ScoreFlavorBadge flavor={scoreFlavor} isLarge />
-					<span className='endgame-score-reveal-formula'>{scoreFormula}</span>
+					<span className='endgame-score-reveal-kicker'>makes you a</span>
+					<ScoreFlavorBadge
+						flavor={scoreFlavor}
+						size='reveal'
+						useViewTransitionName={scoreRevealState === 'visible'}
+					/>
+					<span className='endgame-score-reveal-rank'>{scoreFlavor.label}</span>
 				</button>
 			)}
 
 			<section className='endgame-shell'>
 				<header className='endgame-header'>
-					<h2 className='endgame-title' data-testid='endgame-title'>
+					<h2 className='endgame-title visually-hidden' data-testid='endgame-title'>
 						{title}
 					</h2>
-					<p className='endgame-score' data-testid='endgame-score'>
-						<span>{scoreFormula}</span>
-						<ScoreFlavorBadge flavor={scoreFlavor} />
-					</p>
-					<div className='endgame-resources' data-testid='endgame-resources'>
-						<div className='endgame-resource' data-testid='endgame-hints-remaining'>
-							<LightbulbFilament size={18} weight='fill' aria-hidden />
-							<span>Hints</span>
-							<span className='endgame-resource-value'>
-								{perspective.hintTokens}/{perspective.maxHintTokens}
+					<div
+						className='endgame-score-card'
+						style={{ '--score-flavor-color': scoreFlavor.accent } as CSSProperties}
+						data-testid='endgame-score'
+					>
+						<ScoreFlavorBadge
+							flavor={scoreFlavor}
+							useViewTransitionName={scoreRevealState === 'hidden'}
+						/>
+						<div className='endgame-score-card-body'>
+							<span className='endgame-score-value' data-testid='endgame-score-value'>
+								{score}
 							</span>
-						</div>
-						<div className='endgame-resource' data-testid='endgame-lives-remaining'>
-							<Fire size={18} weight='fill' aria-hidden />
-							<span>Lives</span>
-							<span className='endgame-resource-value'>
-								{remainingLives}/{perspective.maxFuseTokens}
-							</span>
+							<div className='endgame-resources' data-testid='endgame-resources'>
+								<div className='endgame-resource' data-testid='endgame-hints-remaining'>
+									<LightbulbFilament size={16} weight='fill' aria-hidden />
+									<span>Hints left</span>
+									<span className='endgame-resource-value'>
+										{perspective.hintTokens}/{perspective.maxHintTokens}
+									</span>
+								</div>
+								<div className='endgame-resource' data-testid='endgame-lives-remaining'>
+									<Fire size={16} weight='fill' aria-hidden />
+									<span>Lives</span>
+									<span className='endgame-resource-value'>
+										{remainingLives}/{perspective.maxFuseTokens}
+									</span>
+								</div>
+								<div className='endgame-resource' data-testid='endgame-hints-used'>
+									<LightbulbFilament size={16} weight='fill' aria-hidden />
+									<span>Hints used</span>
+									<span className='endgame-resource-value'>{totalHintsUsed}</span>
+								</div>
+							</div>
 						</div>
 					</div>
 				</header>
@@ -414,14 +455,10 @@ export function EndgameOverlay({
 										<col className='col-num' />
 										<col className='col-num' />
 										<col className='col-num' />
-										<col className='col-num' />
 									</colgroup>
 									<thead>
 										<tr>
 											<th scope='col'>name</th>
-											<th scope='col' className='num'>
-												gave
-											</th>
 											<th scope='col' className='num'>
 												received
 											</th>
@@ -451,9 +488,6 @@ export function EndgameOverlay({
 													<td className='name' data-testid={`endgame-player-name-${player.id}`}>
 														{player.name}
 														{isViewer ? <span className='you-tag'>you</span> : null}
-													</td>
-													<td className='num' data-testid={`endgame-hints-given-${player.id}`}>
-														<span className='endgame-num-value'>{stats.hintsGiven}</span>
 													</td>
 													<td className='num' data-testid={`endgame-hints-received-${player.id}`}>
 														<span className='endgame-num-value'>{stats.hintsReceived}</span>

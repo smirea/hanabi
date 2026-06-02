@@ -164,7 +164,11 @@ describe('App online reconnect state', () => {
 		render(<App roomCode='ABCD' />);
 
 		expectIconOnlyBadge('endgame-score-flavor', '/score-badges/poo.png');
+		expect(screen.getByTestId('endgame-score')).not.toHaveTextContent('=');
+		expect(screen.getByTestId('endgame-hints-used')).toHaveTextContent('Hints used');
 		expect(screen.getByTestId('endgame-score-reveal-score')).toHaveTextContent('0');
+		expect(screen.getByTestId('endgame-score-reveal')).toHaveTextContent('makes you a');
+		expect(screen.getByTestId('endgame-score-reveal')).toHaveTextContent('Legendary loser');
 		expectIconOnlyBadge('endgame-score-reveal-badge', '/score-badges/poo.png');
 
 		fireEvent.click(screen.getByTestId('endgame-score-reveal'));
