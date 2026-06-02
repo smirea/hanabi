@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { StrictMode } from 'react';
 
 void mock.module('./hooks/useGameServer', () => ({
 	useAppVersion: () => ({ versionText: 'version 05 31, 2026 @ 12:34' }),
@@ -414,6 +415,34 @@ describe('App local debug wiring', () => {
 		expect(LS.get(storageKeys.darkMode)).toBe(true);
 		await waitFor(() => {
 			expect(document.documentElement.dataset.theme).toBe('dark');
+		});
+	});
+
+	test('dark mode toggle flips once per click under strict mode', async () => {
+		render(
+			<StrictMode>
+				<App roomCode={ROOM_CODE} />
+			</StrictMode>,
+		);
+
+		await waitFor(() => {
+			expect(document.documentElement.dataset.theme).toBe('light');
+		});
+
+		fireEvent.click(screen.getByTestId('actions-menu'));
+		fireEvent.click(screen.getByTestId('menu-dark-mode-toggle'));
+
+		expect(LS.get(storageKeys.darkMode)).toBe(true);
+		await waitFor(() => {
+			expect(document.documentElement.dataset.theme).toBe('dark');
+		});
+
+		fireEvent.click(screen.getByTestId('actions-menu'));
+		fireEvent.click(screen.getByTestId('menu-dark-mode-toggle'));
+
+		expect(LS.get(storageKeys.darkMode)).toBe(false);
+		await waitFor(() => {
+			expect(document.documentElement.dataset.theme).toBe('light');
 		});
 	});
 

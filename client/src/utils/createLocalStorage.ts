@@ -186,12 +186,11 @@ export default function createLocalStorage<Shape extends AnyObject>(
 		}, [key]);
 
 		const setStoredValue: Dispatch<SetStateAction<Shape[K]>> = next => {
-			setValue(current => {
-				const resolved =
-					typeof next === 'function' ? (next as (current: Shape[K]) => Shape[K])(current) : next;
-				LS.set({ [key]: resolved } as unknown as Partial<Shape>);
-				return resolved;
-			});
+			const current = LS.get(key, defaultValue) as Shape[K];
+			const resolved =
+				typeof next === 'function' ? (next as (current: Shape[K]) => Shape[K])(current) : next;
+			LS.set({ [key]: resolved } as unknown as Partial<Shape>);
+			setValue(resolved);
 		};
 
 		return [value, setStoredValue] as const;
