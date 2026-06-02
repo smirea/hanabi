@@ -77,11 +77,7 @@ export function TvScreen({
 		const remaining = createEmptyCounts();
 		for (const suit of activeSuits) {
 			for (const number of CARD_NUMBERS) {
-				const totalCopies = getCardCopies(
-					suit,
-					number,
-					gameState.settings.multicolorShortDeck,
-				);
+				const totalCopies = getCardCopies(suit, number, gameState.settings.multicolorShortDeck);
 				remaining[suit][number] = Math.max(0, totalCopies - (unavailable[suit][number] ?? 0));
 			}
 		}

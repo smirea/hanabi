@@ -51,7 +51,7 @@ export const suitNames: Record<Suit, string> = {
 	Y: 'yellow',
 	G: 'green',
 	B: 'blue',
-	W: 'orange',
+	W: 'white',
 	M: 'multicolor',
 	K: 'black',
 };

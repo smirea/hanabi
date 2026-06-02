@@ -14,7 +14,7 @@ Hanabi is a cooperative card game. Players can see everyone else’s cards but n
 ## Setup (Base Game)
 
 1. Place the 8 blue information tokens face up on the table.
-2. Place the 4 black fuse tokens nearby with the longest fuse on top and the explosion on the bottom.
+2. Place the 3 black fuse tokens nearby.
 3. Remove the multicolor suit unless playing a multicolor variant.
 4. Shuffle the deck and place it face down.
 5. Deal hands (players must not look at their own cards):

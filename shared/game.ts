@@ -1027,9 +1027,9 @@ export class HanabiGame {
 		const bonusShuffleSeed =
 			input?.shuffleSeed === undefined ? undefined : input.shuffleSeed ^ 0x9e3779b9;
 		const bonusTileDeck = includeFlamboyants
-			? (input?.bonusTiles
-					? deepClone(input.bonusTiles)
-					: HanabiGame.shuffleItems([...FLAMBOYANT_BONUSES], bonusShuffleSeed))
+			? input?.bonusTiles
+				? deepClone(input.bonusTiles)
+				: HanabiGame.shuffleItems([...FLAMBOYANT_BONUSES], bonusShuffleSeed)
 			: [];
 
 		const cards: Record<CardId, Card> = {};

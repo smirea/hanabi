@@ -1,14 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useAppVersion, useRoomDirectory } from '../hooks/useGameServer';
-import {
-	clearPendingCreatedRoomCode,
-	markPendingCreatedRoomCode,
-} from '../lobbySettingsStorage';
+import { clearPendingCreatedRoomCode, markPendingCreatedRoomCode } from '../lobbySettingsStorage';
 import { withPersistentSearch } from '../navigation';
 import { sanitizePlayerName } from '../onlineGame';
 import { createRoomCode, parseRoomCode } from '../roomCodes';
-import { storageKeys } from '../utils/constants';
+import { MAX_PLAYER_NAME_LENGTH, storageKeys } from '../utils/constants';
 import { useLocalStorage } from '../utils/utils';
 
 interface LobbyDirectoryProps {
@@ -26,8 +23,9 @@ export function LobbyDirectory({ resumeRoomCode = null, onLeaveResumeRoom }: Lob
 	const resumeRoom = resumeRoomCode
 		? directory.find(room => room.code === resumeRoomCode)
 		: undefined;
-	const resumePlayers =
-		resumeRoom?.players.length ? resumeRoom.players.slice(0, 5).join(', ') : 'No active players';
+	const resumePlayers = resumeRoom?.players.length
+		? resumeRoom.players.slice(0, 5).join(', ')
+		: 'No active players';
 
 	const goToRoom = (code: string, options: { created?: boolean } = {}) => {
 		const roomCode = parseRoomCode(code);
@@ -97,8 +95,8 @@ export function LobbyDirectory({ resumeRoomCode = null, onLeaveResumeRoom }: Lob
 								className='lobby-directory-name-input'
 								value={playerName}
 								onChange={e => setPlayerName(e.target.value)}
-								placeholder='Judy Hopps'
-								maxLength={16}
+								placeholder='Player name'
+								maxLength={MAX_PLAYER_NAME_LENGTH}
 								spellCheck={false}
 								autoComplete='off'
 								data-testid='room-directory-name-input'

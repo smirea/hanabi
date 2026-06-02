@@ -302,6 +302,8 @@ describe('App online reconnect state', () => {
 			screen.getByTestId('endgame-final-hands'),
 		]);
 		expect(screen.getByTestId('endgame-final-hands')).toBeInTheDocument();
+		expect(screen.getByTestId('endgame-stats-table')).toHaveTextContent('given');
+		expect(screen.getByTestId('endgame-hints-given-player:1')).toHaveTextContent('0');
 		expect(
 			screen.getByTestId('endgame-final-hand-cards-player:1').style.getPropertyValue('--hand-size'),
 		).toBe('5');

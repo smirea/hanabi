@@ -106,8 +106,20 @@ async function writeToClipboard(text: string): Promise<void> {
 	}
 }
 
-function parseHanabiStatePayload(rawText: string): HanabiState {
-	const parsed = JSON.parse(rawText) as HanabiState | { state: HanabiState };
+type DebugRoot = Window & {
+	DEBUG?: Record<string, unknown> & {
+		getState?: () => HanabiState | null;
+		loadState?: (payload: HanabiState | { state: HanabiState } | string) => HanabiState;
+	};
+};
+
+function parseHanabiStatePayload(
+	payload: HanabiState | { state: HanabiState } | string,
+): HanabiState {
+	const parsed =
+		typeof payload === 'string'
+			? (JSON.parse(payload) as HanabiState | { state: HanabiState })
+			: payload;
 	return HanabiGame.fromState(
 		(parsed as { state?: HanabiState }).state ?? (parsed as HanabiState),
 	).getSnapshot();
@@ -187,11 +199,9 @@ function GameClient({
 			return;
 		}
 
-		void onlineRoom
-			.sendAction({ type: 'leave', actorId })
-			.finally(() => {
-				onLeaveRoom?.();
-			});
+		void onlineRoom.sendAction({ type: 'leave', actorId }).finally(() => {
+			onLeaveRoom?.();
+		});
 	}, [connectionState.selfPlayerId, isLocalDebugMode, onLeaveRoom, onlineRoom]);
 
 	useEffect(() => {
@@ -339,7 +349,7 @@ function GameClient({
 			return null;
 		}
 
-		return JSON.parse(JSON.stringify(connectionState.gameState)) as HanabiState;
+		return structuredClone(connectionState.gameState);
 	}, [connectionState.gameState]);
 	const activeGameState = isLocalDebugMode ? debugGameState : onlineGameState;
 	const terminalStatusLogId = useMemo(() => {
@@ -575,6 +585,19 @@ function GameClient({
 		setEndgamePanel('summary');
 	}, [clearActionDraft, resetAnimations]);
 
+	const loadDebugState = useCallback(
+		(payload: HanabiState | { state: HanabiState } | string): HanabiState => {
+			const loaded = parseHanabiStatePayload(payload);
+			resetUiForDebugScreens();
+			debugGame.replaceState(loaded);
+			const snapshot = debugGame.getSnapshot();
+			setDebugGameState(snapshot);
+			setIsDebugMode(true);
+			return snapshot;
+		},
+		[debugGame, resetUiForDebugScreens, setIsDebugMode],
+	);
+
 	useDebugScreensController({
 		enabled: true,
 		setIsDebugMode,
@@ -582,6 +605,26 @@ function GameClient({
 		setDebugGameState,
 		resetUi: resetUiForDebugScreens,
 	});
+
+	useEffect(() => {
+		if (typeof window === 'undefined') {
+			return;
+		}
+
+		const root = window as DebugRoot;
+		root.DEBUG ??= {};
+		const getState = () => (activeGameState ? structuredClone(activeGameState) : null);
+		const loadState = (payload: HanabiState | { state: HanabiState } | string) =>
+			loadDebugState(payload);
+
+		root.DEBUG.getState = getState;
+		root.DEBUG.loadState = loadState;
+
+		return () => {
+			if (root.DEBUG?.getState === getState) delete root.DEBUG.getState;
+			if (root.DEBUG?.loadState === loadState) delete root.DEBUG.loadState;
+		};
+	}, [activeGameState, loadDebugState]);
 
 	useEffect(() => {
 		if (!isLogDrawerOpen) return;
@@ -769,8 +812,7 @@ function GameClient({
 		}
 
 		return (
-			getNextFireworkNumber(card.suit, activeGameState.fireworks[card.suit].length) ===
-			card.number
+			getNextFireworkNumber(card.suit, activeGameState.fireworks[card.suit].length) === card.number
 		);
 	}
 
@@ -1081,7 +1123,7 @@ function GameClient({
 			const snapshot = connectionState.gameState;
 			if (snapshot) {
 				try {
-					debugGame.replaceState(JSON.parse(JSON.stringify(snapshot)) as HanabiState);
+					debugGame.replaceState(structuredClone(snapshot));
 					setDebugGameState(debugGame.getSnapshot());
 				} catch (error) {
 					const message = error instanceof Error ? error.message : 'Unknown debug state error';
@@ -1263,9 +1305,7 @@ function GameClient({
 		}
 
 		try {
-			debugGame.replaceState(loaded);
-			setDebugGameState(debugGame.getSnapshot());
-			setIsDebugMode(true);
+			loadDebugState(loaded);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : 'Unknown debug state error';
 			window.alert(`Unable to apply game state: ${message}`);

@@ -1098,9 +1098,7 @@ describe('HanabiGame', () => {
 			}
 		}
 		const hintTokensBefore = game.state.hintTokens;
-		expect(() => game.giveColorHint('p2', 'G')).toThrow(
-			'Hint would provide no new information',
-		);
+		expect(() => game.giveColorHint('p2', 'G')).toThrow('Hint would provide no new information');
 		expect(game.state.hintTokens).toBe(hintTokensBefore);
 	});
 
@@ -1128,9 +1126,7 @@ describe('HanabiGame', () => {
 		expect(blackFour).toBeDefined();
 		game.playCard(blackFour!);
 
-		expect(game.state.fireworks.K.map(cardId => game.state.cards[cardId].number)).toEqual([
-			5, 4,
-		]);
+		expect(game.state.fireworks.K.map(cardId => game.state.cards[cardId].number)).toEqual([5, 4]);
 		expect(game.getScore()).toBe(0);
 	});
 

@@ -166,7 +166,7 @@ export function LobbyScreen({
 							className='lobby-name-input'
 							value={selfName}
 							onChange={e => onSelfNameChange(e.target.value)}
-							placeholder='Judy Hopps'
+							placeholder='Player name'
 							maxLength={MAX_PLAYER_NAME_LENGTH}
 							autoComplete='nickname'
 							spellCheck={false}

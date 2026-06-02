@@ -164,9 +164,7 @@ describe('onlineGame', () => {
 			'player:3',
 		]);
 		expect(state.gameState?.currentTurnPlayerIndex).toBe(2);
-		expect(
-			state.gameState?.players[state.gameState.currentTurnPlayerIndex]?.id,
-		).toBe('player:3');
+		expect(state.gameState?.players[state.gameState.currentTurnPlayerIndex]?.id).toBe('player:3');
 	});
 
 	test('rejoining a playing room preserves the active player seat', () => {

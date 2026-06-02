@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { StrictMode } from 'react';
 
@@ -159,20 +159,8 @@ function createPendingFlamboyantState(effect: FlamboyantBonus) {
 		includeFlamboyants: true,
 		bonusTiles: [effect],
 		deck: twoPlayerDeck(
-			[
-				seedCard('R', 5),
-				seedCard('Y', 1),
-				seedCard('G', 1),
-				seedCard('B', 1),
-				seedCard('W', 1),
-			],
-			[
-				seedCard('R', 1),
-				seedCard('Y', 2),
-				seedCard('G', 2),
-				seedCard('B', 2),
-				seedCard('W', 2),
-			],
+			[seedCard('R', 5), seedCard('Y', 1), seedCard('G', 1), seedCard('B', 1), seedCard('W', 1)],
+			[seedCard('R', 1), seedCard('Y', 2), seedCard('G', 2), seedCard('B', 2), seedCard('W', 2)],
 		),
 	});
 
@@ -196,6 +184,13 @@ function createPendingFlamboyantState(effect: FlamboyantBonus) {
 	game.playCard(game.state.players[0].cards[0]);
 	return game.getSnapshot();
 }
+
+type DebugWindow = Window & {
+	DEBUG?: {
+		getState?: () => ReturnType<HanabiGame['getSnapshot']> | null;
+		loadState?: (payload: ReturnType<HanabiGame['getSnapshot']> | string) => unknown;
+	};
+};
 
 afterEach(() => {
 	cleanup();
@@ -310,7 +305,9 @@ describe('App local debug wiring', () => {
 			fireEvent.click(screen.getByTestId('actions-menu'));
 			fireEvent.click(screen.getByTestId('menu-debug-load-state'));
 
-			await waitFor(() => expect(screen.getByTestId('bonus-panel')).toHaveTextContent('Play Discard'));
+			await waitFor(() =>
+				expect(screen.getByTestId('bonus-panel')).toHaveTextContent('Play Discard'),
+			);
 			const discardButton = screen.getByTestId('bonus-discard-discard-g1');
 			expect(discardButton).toBeEnabled();
 
@@ -321,6 +318,20 @@ describe('App local debug wiring', () => {
 		} finally {
 			window.prompt = originalPrompt;
 		}
+	});
+
+	test('DEBUG helpers can inspect and load local debug state', () => {
+		render(<App roomCode={ROOM_CODE} />);
+
+		const debug = (window as DebugWindow).DEBUG;
+		expect(debug?.getState?.()?.players.map(player => player.id)).toEqual(['p1', 'p2', 'p3']);
+
+		act(() => {
+			debug?.loadState?.(JSON.stringify(createPendingFlamboyantState('play-discard')));
+		});
+
+		expect(debug?.getState?.()?.pendingBonus?.effect).toBe('play-discard');
+		expect(screen.getByTestId('bonus-panel')).toHaveTextContent('Play Discard');
 	});
 
 	test('negative hint toggles default to on and persist in local storage', () => {

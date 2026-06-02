@@ -451,7 +451,7 @@ export function applyOnlineRoomAction(state: OnlineRoomState, action: OnlineRoom
 			)
 				return false;
 
-			const game = HanabiGame.fromState(JSON.parse(JSON.stringify(state.gameState)));
+			const game = HanabiGame.fromState(structuredClone(state.gameState));
 			try {
 				applyGameAction(game, action.action);
 			} catch {

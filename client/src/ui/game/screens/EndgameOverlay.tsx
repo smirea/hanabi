@@ -461,10 +461,14 @@ export function EndgameOverlay({
 										<col className='col-num' />
 										<col className='col-num' />
 										<col className='col-num' />
+										<col className='col-num' />
 									</colgroup>
 									<thead>
 										<tr>
 											<th scope='col'>name</th>
+											<th scope='col' className='num'>
+												given
+											</th>
 											<th scope='col' className='num'>
 												received
 											</th>
@@ -494,6 +498,9 @@ export function EndgameOverlay({
 													<td className='name' data-testid={`endgame-player-name-${player.id}`}>
 														{player.name}
 														{isViewer ? <span className='you-tag'>you</span> : null}
+													</td>
+													<td className='num' data-testid={`endgame-hints-given-${player.id}`}>
+														<span className='endgame-num-value'>{stats.hintsGiven}</span>
 													</td>
 													<td className='num' data-testid={`endgame-hints-received-${player.id}`}>
 														<span className='endgame-num-value'>{stats.hintsReceived}</span>

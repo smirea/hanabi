@@ -48,6 +48,14 @@ See `project_animation.md` for what the various animations are and how they are 
 - Own cards are hidden but hint metadata is always visible.
 - Persist clue metadata per card: known color/value and exclusions.
 - Client persistence should use `LS` and `useLocalStorage` from `client/src/utils/utils.ts`; that module initializes the `debug_id` namespace once, so callers should not read or scope `localStorage` directly.
+- `W` is the white rules suit. The client may render it with a warm high-contrast color, but labels and docs should still call it white.
+
+## Best Practices
+
+- Keep `shared/game.ts` authoritative for gameplay. Client preflight logic is only for UX; the engine/server still enforce legality.
+- Keep room behavior in `shared/onlineGame.ts`; client/server should not fork room-action rules.
+- Use `DEBUG.getState()` and `DEBUG.loadState(stateOrJson)` for manual state setup. Loading state switches to Local Debug.
+- Do not edit `client/src/routeTree.gen.ts` directly; run `bun run routes:gen` after route changes.
 
 ## Testing Guidance
 

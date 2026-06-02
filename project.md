@@ -37,7 +37,7 @@
 
 1. Fireworks + hints + fuses + deck.
 2. Player lanes and card rows.
-3. Action row (hint color, hint number, play, discard, reconnect).
+3. Action row (hint color, hint number, play, discard, menu).
 
 ## Card Hint Markings
 
@@ -75,9 +75,10 @@ Each card tracks and renders:
 - CI: GitHub Actions workflow in `.github/workflows/ci.yml`.
   - Trigger: pull requests + every push to `master`.
   - Flow: lint/typecheck + tests + build (uploads `client/dist` as the `client-dist` artifact).
-- CD: GitHub Actions workflow in `.github/workflows/deploy.yml`.
-  - Current status: disabled and manual-only because static S3/CloudFront deployment cannot run the Bun API/SSE server or SQLite storage.
-  - Before re-enabling: choose server hosting, persistent `DATABASE_URL` storage, and routing for the client plus `/api`/SSE traffic. The Bun server can serve the built client when `SERVE_CLIENT=1`.
+- CD/update hook: GitHub Actions workflow in `.github/workflows/mac-update.yml`.
+  - Trigger: every push to `master` plus manual `workflow_dispatch`.
+  - Flow: call the Mac update endpoint, then fall back to checking `https://hanabi.stf.lol/api/status` if the update request fails after reaching the service.
+- Previous static-only S3/CloudFront deployment is no longer enough because it cannot run the Bun API/SSE server or SQLite storage.
   - Previous cache strategy: hashed static assets used long-lived immutable cache headers; `index.html` used no-cache headers.
 - Previous GitHub repository secrets for static deployment:
   - `AWS_ACCESS_KEY_ID`

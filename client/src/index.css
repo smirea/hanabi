@@ -3428,7 +3428,9 @@ body {
 .score-flavor-badge.reveal {
 	width: clamp(8.5rem, 47vw, 12.25rem);
 	height: clamp(8.5rem, 47vw, 12.25rem);
-	filter: drop-shadow(0 24px 32px color-mix(in srgb, var(--score-flavor-color) 28%, rgba(15, 18, 26, 0.16)));
+	filter: drop-shadow(
+		0 24px 32px color-mix(in srgb, var(--score-flavor-color) 28%, rgba(15, 18, 26, 0.16))
+	);
 	animation: endgame-badge-pop 0.58s cubic-bezier(0.16, 1.18, 0.2, 1) 0.18s both;
 }
 
