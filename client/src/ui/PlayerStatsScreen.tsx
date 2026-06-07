@@ -517,19 +517,8 @@ function PlayerStatsDetail({
 			values: row => row.games.map(game => game.turns),
 		}),
 		makeMetricRow({
-			key: 'rounds',
-			label: 'rounds',
-			direction: 'lower',
-			player,
-			players,
-			total: row => row.totalRounds,
-			average: row => row.averageRounds,
-			median: row => row.medianRounds,
-			values: row => row.games.map(game => game.rounds),
-		}),
-		makeMetricRow({
 			key: 'given',
-			label: 'given',
+			label: 'hints given',
 			direction: 'higher',
 			player,
 			players,
@@ -540,7 +529,7 @@ function PlayerStatsDetail({
 		}),
 		makeMetricRow({
 			key: 'received',
-			label: 'received',
+			label: 'hints received',
 			direction: 'lower',
 			player,
 			players,
@@ -551,7 +540,7 @@ function PlayerStatsDetail({
 		}),
 		makeMetricRow({
 			key: 'played',
-			label: 'played',
+			label: 'cards played',
 			direction: 'higher',
 			player,
 			players,

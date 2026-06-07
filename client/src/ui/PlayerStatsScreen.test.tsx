@@ -166,7 +166,10 @@ describe('PlayerStatsScreen', () => {
 		expect(screen.getByTestId('player-stats-metric-table')).not.toHaveTextContent('global');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('score');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('15');
-		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('given');
+		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('hints given');
+		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('hints received');
+		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('cards played');
+		expect(screen.getByTestId('player-stats-metric-table')).not.toHaveTextContent('rounds');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('6');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('3');
 		expect(
