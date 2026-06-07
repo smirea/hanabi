@@ -1920,9 +1920,7 @@ body {
 
 .player-stats-metric-row {
 	min-height: 2.28rem;
-	grid-template-columns:
-		minmax(3.45rem, 1.2fr) repeat(3, minmax(2.28rem, 0.7fr))
-		repeat(2, minmax(2.12rem, 0.62fr)) minmax(2.18rem, 0.58fr);
+	grid-template-columns: minmax(3.15rem, 1fr) repeat(5, minmax(2.22rem, 0.62fr));
 }
 
 .player-stats-detail .player-stats-metric-table {
@@ -1944,6 +1942,10 @@ body {
 	font-size: 0.62rem;
 }
 
+.player-stats-detail .player-stats-metric-row > span {
+	min-width: 0;
+}
+
 .player-stats-detail .player-stats-metric-row:last-child {
 	border-bottom: 0;
 }
@@ -1961,44 +1963,50 @@ body {
 	letter-spacing: 0.05em;
 }
 
+.player-stats-metric-value {
+	display: inline-flex;
+	align-items: baseline;
+	justify-content: flex-end;
+	gap: 0.12rem;
+	font-variant-numeric: tabular-nums;
+}
+
 .player-stats-comparison {
 	position: relative;
-	width: 1.3rem;
-	height: 1.3rem;
-	margin-left: auto;
+	width: 0.72rem;
+	height: 0.72rem;
 	display: inline-grid;
 	place-items: center;
 	border-radius: 999px;
 	color: rgba(101, 116, 139, 0.72);
-	font-size: 0.78rem;
+	font-size: 0.58rem;
 	font-weight: 950;
 	line-height: 1;
 	cursor: help;
 	outline: none;
+	opacity: 0.58;
 }
 
 .player-stats-comparison.best,
 .player-stats-comparison.top,
 .player-stats-comparison.up {
 	color: #128342;
-	background: rgba(45, 201, 109, 0.12);
 }
 
 .player-stats-comparison.down,
 .player-stats-comparison.bottom,
 .player-stats-comparison.worst {
 	color: #c0383d;
-	background: rgba(255, 88, 79, 0.12);
 }
 
 .player-stats-comparison.neutral {
 	color: rgba(101, 116, 139, 0.46);
-	background: rgba(101, 116, 139, 0.08);
+	opacity: 0.28;
 }
 
 .player-stats-comparison-poo {
-	width: 1rem;
-	height: 1rem;
+	width: 0.7rem;
+	height: 0.7rem;
 	object-fit: contain;
 	filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.35));
 }
@@ -2067,49 +2075,96 @@ body {
 .player-stats-game-row {
 	--history-accent: #64748b;
 	display: grid;
-	grid-template-columns: 4.56rem minmax(0, 1fr) auto;
-	gap: 0.5rem;
+	grid-template-columns: 4.42rem minmax(0, 1fr) auto;
+	gap: 0.46rem;
 	align-items: center;
-	padding: 0.42rem;
-	border-radius: 10px;
-	border: 1px solid color-mix(in srgb, var(--history-accent) 24%, rgba(195, 205, 227, 0.84));
+	min-height: 3rem;
+	padding: 0.34rem 0.08rem 0.34rem 0.36rem;
+	border: 0;
+	border-bottom: 1px solid rgba(195, 205, 227, 0.58);
 	border-left: 3px solid var(--history-accent);
-	background: rgba(251, 253, 255, 0.92);
-	box-shadow: 0 7px 16px rgba(25, 35, 56, 0.05);
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
+}
+
+.player-stats-game-row:last-child {
+	border-bottom: 0;
 }
 
 .player-stats-game-score {
 	min-width: 0;
 	display: flex;
-	align-items: center;
-	gap: 0.28rem;
+	align-items: stretch;
+	gap: 0.24rem;
+	height: 2.32rem;
 }
 
 .player-stats-game-score .history-score {
-	width: 2.66rem;
-	min-width: 2.66rem;
-	height: 2.66rem;
+	width: auto;
+	min-width: 1.36rem;
+	height: auto;
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+	color: color-mix(in srgb, var(--history-accent) 76%, #111827);
+}
+
+.player-stats-game-score .history-score-value {
+	font-size: 1rem;
 }
 
 .player-stats-game-badge.history-badge {
-	width: 1.7rem;
-	height: 1.7rem;
+	width: 1.62rem;
+	height: 100%;
+	border: 0;
+	background: transparent;
 	box-shadow: none;
 }
 
 .player-stats-game-badge .history-badge-image {
-	width: 1.24rem;
-	height: 1.24rem;
+	width: 100%;
+	height: 100%;
 }
 
 .player-stats-game-resources {
-	display: grid;
-	gap: 0.18rem;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 0.16rem;
 	color: var(--gray-500);
-	font-size: 0.56rem;
+	font-size: 0.58rem;
 	font-weight: 900;
 	text-align: right;
 	font-variant-numeric: tabular-nums;
+}
+
+.player-stats-game-meta {
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	gap: 0.36rem;
+	flex-wrap: wrap;
+	color: var(--gray-500);
+	font-size: 0.58rem;
+	font-weight: 800;
+	line-height: 1.25;
+}
+
+.player-stats-game-stat {
+	min-width: 0;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.14rem;
+	white-space: nowrap;
+}
+
+.player-stats-game-stat-icon {
+	display: inline-grid;
+	place-items: center;
+	color: color-mix(in srgb, var(--history-accent) 78%, var(--gray-500));
+	line-height: 0;
+	opacity: 0.74;
 }
 
 .stats {
@@ -5854,19 +5909,16 @@ body {
 :root[data-theme='dark'] .player-stats-comparison.top,
 :root[data-theme='dark'] .player-stats-comparison.up {
 	color: #61d68b;
-	background: rgba(45, 201, 109, 0.16);
 }
 
 :root[data-theme='dark'] .player-stats-comparison.down,
 :root[data-theme='dark'] .player-stats-comparison.bottom,
 :root[data-theme='dark'] .player-stats-comparison.worst {
 	color: #ff8f89;
-	background: rgba(255, 88, 79, 0.16);
 }
 
 :root[data-theme='dark'] .player-stats-comparison.neutral {
 	color: rgba(176, 196, 240, 0.58);
-	background: rgba(176, 196, 240, 0.09);
 }
 
 :root[data-theme='dark'] .player-stats-comparison[data-tooltip]::before,
@@ -5874,6 +5926,20 @@ body {
 	border-color: rgba(90, 112, 168, 0.48);
 	background: rgba(11, 13, 20, 0.98);
 	color: rgba(240, 244, 255, 0.92);
+}
+
+:root[data-theme='dark'] .player-stats-game-row {
+	border-bottom-color: rgba(90, 112, 168, 0.28);
+	background: transparent;
+}
+
+:root[data-theme='dark'] .player-stats-game-score .history-score {
+	color: color-mix(in srgb, var(--history-accent) 42%, rgba(240, 244, 255, 0.96));
+}
+
+:root[data-theme='dark'] .player-stats-game-meta,
+:root[data-theme='dark'] .player-stats-game-resources {
+	color: rgba(176, 196, 240, 0.78);
 }
 
 :root[data-theme='dark'] .lobby-config-dropdown {

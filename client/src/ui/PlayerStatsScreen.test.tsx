@@ -86,7 +86,7 @@ describe('PlayerStatsScreen', () => {
 		});
 	});
 
-	test('shows totals, average, median, best, worst, and global comparison for a player', () => {
+	test('shows player title, compact metric columns, and per-cell comparisons', () => {
 		mockHistory = [
 			historyEntry({
 				score: 10,
@@ -108,22 +108,24 @@ describe('PlayerStatsScreen', () => {
 
 		render(<PlayerStatsScreen playerId='player:1' />);
 
-		expect(screen.getByTestId('player-stats-detail')).toHaveTextContent('Alex');
-		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('avg/game');
+		expect(screen.getByRole('heading', { name: "Alex's stats" })).toBeInTheDocument();
+		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('avg');
+		expect(screen.getByTestId('player-stats-metric-table')).not.toHaveTextContent('avg/game');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('best');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('worst');
-		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('global');
+		expect(screen.getByTestId('player-stats-metric-table')).not.toHaveTextContent('global');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('score');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('15');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('given');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('6');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('3');
-		expect(screen.getByTestId('player-stats-comparison-given')).toHaveClass('best');
-		expect(screen.getByTestId('player-stats-comparison-given')).toHaveAccessibleName(
-			/Best global given/,
+		expect(screen.getByTestId('player-stats-comparison-given-total')).toHaveClass('best');
+		expect(screen.getByTestId('player-stats-comparison-given-total')).toHaveAccessibleName(
+			/Best\. given/,
 		);
 		expect(screen.getByTestId('player-stats-recent')).toContainElement(
 			screen.getByAltText('Shovel specialist'),
 		);
+		expect(screen.getAllByLabelText('turns: 42').length).toBeGreaterThan(0);
 	});
 });

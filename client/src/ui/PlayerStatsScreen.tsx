@@ -1,4 +1,13 @@
-import { ArrowLeft, ChartBar, Fire, LightbulbFilament, Medal, Trophy } from '@phosphor-icons/react';
+import {
+	ArrowLeft,
+	CalendarBlank,
+	ChartBar,
+	ClockCounterClockwise,
+	Fire,
+	LightbulbFilament,
+	Medal,
+	Trophy,
+} from '@phosphor-icons/react';
 import { useNavigate } from '@tanstack/react-router';
 import { useMemo, type CSSProperties, type ReactNode } from 'react';
 import { useGameHistory } from '../hooks/useGameServer';
@@ -11,16 +20,17 @@ import { aggregatePlayerStats, type PlayerStatsAggregate } from './playerStats';
 
 type MetricDirection = 'higher' | 'lower';
 type ComparisonKind = 'best' | 'top' | 'up' | 'neutral' | 'down' | 'bottom' | 'worst';
+type MetricColumn = 'total' | 'average' | 'median' | 'best' | 'worst';
+
+interface MetricCell {
+	value: number;
+	comparison: MetricComparison | null;
+}
 
 interface MetricRow {
 	key: string;
 	label: string;
-	total: number;
-	average: number;
-	median: number;
-	values: number[];
-	globalValues: number[];
-	direction: MetricDirection;
+	cells: Record<MetricColumn, MetricCell>;
 }
 
 interface MetricComparison {
@@ -98,47 +108,61 @@ function comparisonLabel(kind: ComparisonKind): string {
 	}
 }
 
-function metricComparison(row: MetricRow): MetricComparison | null {
-	const values = row.globalValues.filter(Number.isFinite);
-	if (values.length < 2 || !Number.isFinite(row.average)) return null;
+function detailTitle(playerName: string | undefined): string {
+	return playerName ? `${playerName}'s stats` : 'Player stats';
+}
 
-	const allEqual = values.every(value => value === values[0]);
+function metricComparison({
+	label,
+	value,
+	values,
+	direction,
+}: {
+	label: string;
+	value: number;
+	values: number[];
+	direction: MetricDirection;
+}): MetricComparison | null {
+	const finiteValues = values.filter(Number.isFinite);
+	if (finiteValues.length < 2 || !Number.isFinite(value)) return null;
+
+	const allEqual = finiteValues.every(nextValue => nextValue === finiteValues[0]);
 	if (allEqual) {
 		return {
 			kind: 'neutral',
 			label: comparisonLabel('neutral'),
-			note: `${row.label} matches the global pack at ${formatNumber(row.average)} per game.`,
+			note: `${label}: even with everyone.`,
 		};
 	}
 
-	const best = bestMetricValue(values, row.direction);
-	const worst = worstMetricValue(values, row.direction);
-	const comparableValues = values.filter(value => value !== row.average);
+	const best = bestMetricValue(finiteValues, direction);
+	const worst = worstMetricValue(finiteValues, direction);
+	const comparableValues = finiteValues.filter(nextValue => nextValue !== value);
 	const denominator = Math.max(1, comparableValues.length);
-	const betterThan = comparableValues.filter(value =>
-		isBetterThan(row.average, value, row.direction),
+	const betterThan = comparableValues.filter(otherValue =>
+		isBetterThan(value, otherValue, direction),
 	).length;
-	const worseThan = comparableValues.filter(value =>
-		isBetterThan(value, row.average, row.direction),
+	const worseThan = comparableValues.filter(otherValue =>
+		isBetterThan(otherValue, value, direction),
 	).length;
 	const betterPercent = Math.round((betterThan / denominator) * 100);
 	const worsePercent = Math.round((worseThan / denominator) * 100);
-	const globalMedian = medianNumber(values);
-	const baseNote = `${row.label} is ${formatNumber(row.average)} per game; global median is ${formatNumber(globalMedian)}.`;
+	const globalMedian = medianNumber(finiteValues);
+	const baseNote = `${label}: ${formatNumber(value)}. Median: ${formatNumber(globalMedian)}.`;
 
-	if (row.average === best) {
+	if (value === best) {
 		return {
 			kind: 'best',
 			label: comparisonLabel('best'),
-			note: `Best global ${row.label}. ${baseNote}`,
+			note: `Best. ${baseNote}`,
 		};
 	}
 
-	if (row.average === worst) {
+	if (value === worst) {
 		return {
 			kind: 'worst',
 			label: 'Worst',
-			note: `Worst global ${row.label}. ${baseNote}`,
+			note: `Worst. ${baseNote}`,
 		};
 	}
 
@@ -146,7 +170,7 @@ function metricComparison(row: MetricRow): MetricComparison | null {
 		return {
 			kind: 'top',
 			label: comparisonLabel('top'),
-			note: `Better than ${betterPercent}% of players. ${baseNote}`,
+			note: `Better than ${betterPercent}%. ${baseNote}`,
 		};
 	}
 
@@ -154,7 +178,7 @@ function metricComparison(row: MetricRow): MetricComparison | null {
 		return {
 			kind: 'up',
 			label: comparisonLabel('up'),
-			note: `Better than ${betterPercent}% of players. ${baseNote}`,
+			note: `Better than ${betterPercent}%. ${baseNote}`,
 		};
 	}
 
@@ -162,7 +186,7 @@ function metricComparison(row: MetricRow): MetricComparison | null {
 		return {
 			kind: 'bottom',
 			label: comparisonLabel('bottom'),
-			note: `Worse than ${worsePercent}% of players. ${baseNote}`,
+			note: `Worse than ${worsePercent}%. ${baseNote}`,
 		};
 	}
 
@@ -170,14 +194,95 @@ function metricComparison(row: MetricRow): MetricComparison | null {
 		return {
 			kind: 'down',
 			label: comparisonLabel('down'),
-			note: `Worse than ${worsePercent}% of players. ${baseNote}`,
+			note: `Worse than ${worsePercent}%. ${baseNote}`,
 		};
 	}
 
 	return {
 		kind: 'neutral',
 		label: comparisonLabel('neutral'),
-		note: `Near the global middle. ${baseNote}`,
+		note: `Middle. ${baseNote}`,
+	};
+}
+
+function metricCell({
+	label,
+	value,
+	values,
+	direction,
+}: {
+	label: string;
+	value: number;
+	values: number[];
+	direction: MetricDirection;
+}): MetricCell {
+	return {
+		value,
+		comparison: metricComparison({ label, value, values, direction }),
+	};
+}
+
+function makeMetricRow({
+	key,
+	label,
+	player,
+	players,
+	direction,
+	total,
+	average,
+	median,
+	values,
+}: {
+	key: string;
+	label: string;
+	player: PlayerStatsAggregate;
+	players: PlayerStatsAggregate[];
+	direction: MetricDirection;
+	total: (player: PlayerStatsAggregate) => number;
+	average: (player: PlayerStatsAggregate) => number;
+	median: (player: PlayerStatsAggregate) => number;
+	values: (player: PlayerStatsAggregate) => number[];
+}): MetricRow {
+	const currentValues = values(player);
+	const best = (nextPlayer: PlayerStatsAggregate) => bestMetricValue(values(nextPlayer), direction);
+	const worst = (nextPlayer: PlayerStatsAggregate) =>
+		worstMetricValue(values(nextPlayer), direction);
+
+	return {
+		key,
+		label,
+		cells: {
+			total: metricCell({
+				label,
+				value: total(player),
+				values: players.map(total),
+				direction,
+			}),
+			average: metricCell({
+				label,
+				value: average(player),
+				values: players.map(average),
+				direction,
+			}),
+			median: metricCell({
+				label,
+				value: median(player),
+				values: players.map(median),
+				direction,
+			}),
+			best: metricCell({
+				label,
+				value: bestMetricValue(currentValues, direction),
+				values: players.map(best),
+				direction,
+			}),
+			worst: metricCell({
+				label,
+				value: worstMetricValue(currentValues, direction),
+				values: players.map(worst),
+				direction,
+			}),
+		},
 	};
 }
 
@@ -225,7 +330,7 @@ export function PlayerStatsScreen({ playerId }: { playerId?: string }) {
 								<ArrowLeft size={14} weight='bold' aria-hidden />
 								Stats
 							</button>
-							<h1 className='history-title'>Player Stats</h1>
+							<h1 className='history-title'>{detailTitle(selectedPlayer?.name)}</h1>
 						</div>
 
 						{selectedPlayer ? (
@@ -322,98 +427,88 @@ function PlayerStatsDetail({
 	player: PlayerStatsAggregate;
 	players: PlayerStatsAggregate[];
 }) {
-	const maxScore = player.averageScore > 25 ? 30 : 25;
-	const flavor = getScoreFlavor(Math.round(player.averageScore), maxScore);
-	const scoreStyle = { '--history-accent': flavor.accent } as CSSProperties;
 	const metricRows: MetricRow[] = [
-		{
+		makeMetricRow({
 			key: 'score',
 			label: 'score',
-			total: player.totalScore,
-			average: player.averageScore,
-			median: player.medianScore,
-			values: player.games.map(game => game.score),
-			globalValues: players.map(row => row.averageScore),
 			direction: 'higher',
-		},
-		{
+			player,
+			players,
+			total: row => row.totalScore,
+			average: row => row.averageScore,
+			median: row => row.medianScore,
+			values: row => row.games.map(game => game.score),
+		}),
+		makeMetricRow({
 			key: 'turns',
 			label: 'turns',
-			total: player.totalTurns,
-			average: player.averageTurns,
-			median: player.medianTurns,
-			values: player.games.map(game => game.turns),
-			globalValues: players.map(row => row.averageTurns),
 			direction: 'lower',
-		},
-		{
+			player,
+			players,
+			total: row => row.totalTurns,
+			average: row => row.averageTurns,
+			median: row => row.medianTurns,
+			values: row => row.games.map(game => game.turns),
+		}),
+		makeMetricRow({
 			key: 'rounds',
 			label: 'rounds',
-			total: player.totalRounds,
-			average: player.averageRounds,
-			median: player.medianRounds,
-			values: player.games.map(game => game.rounds),
-			globalValues: players.map(row => row.averageRounds),
 			direction: 'lower',
-		},
-		{
+			player,
+			players,
+			total: row => row.totalRounds,
+			average: row => row.averageRounds,
+			median: row => row.medianRounds,
+			values: row => row.games.map(game => game.rounds),
+		}),
+		makeMetricRow({
 			key: 'given',
 			label: 'given',
-			total: player.totalHintsGiven,
-			average: player.averageHintsGiven,
-			median: player.medianHintsGiven,
-			values: player.games.map(game => game.hintsGiven),
-			globalValues: players.map(row => row.averageHintsGiven),
 			direction: 'higher',
-		},
-		{
+			player,
+			players,
+			total: row => row.totalHintsGiven,
+			average: row => row.averageHintsGiven,
+			median: row => row.medianHintsGiven,
+			values: row => row.games.map(game => game.hintsGiven),
+		}),
+		makeMetricRow({
 			key: 'received',
 			label: 'received',
-			total: player.totalHintsReceived,
-			average: player.averageHintsReceived,
-			median: player.medianHintsReceived,
-			values: player.games.map(game => game.hintsReceived),
-			globalValues: players.map(row => row.averageHintsReceived),
 			direction: 'lower',
-		},
-		{
+			player,
+			players,
+			total: row => row.totalHintsReceived,
+			average: row => row.averageHintsReceived,
+			median: row => row.medianHintsReceived,
+			values: row => row.games.map(game => game.hintsReceived),
+		}),
+		makeMetricRow({
 			key: 'played',
 			label: 'played',
-			total: player.totalPlays,
-			average: player.averagePlays,
-			median: player.medianPlays,
-			values: player.games.map(game => game.plays),
-			globalValues: players.map(row => row.averagePlays),
 			direction: 'higher',
-		},
-		{
+			player,
+			players,
+			total: row => row.totalPlays,
+			average: row => row.averagePlays,
+			median: row => row.medianPlays,
+			values: row => row.games.map(game => game.plays),
+		}),
+		makeMetricRow({
 			key: 'discard',
 			label: 'discard',
-			total: player.totalDiscards,
-			average: player.averageDiscards,
-			median: player.medianDiscards,
-			values: player.games.map(game => game.discards),
-			globalValues: players.map(row => row.averageDiscards),
 			direction: 'lower',
-		},
+			player,
+			players,
+			total: row => row.totalDiscards,
+			average: row => row.averageDiscards,
+			median: row => row.medianDiscards,
+			values: row => row.games.map(game => game.discards),
+		}),
 	];
 
 	return (
 		<section className='player-stats-detail' data-testid='player-stats-detail'>
-			<header className='player-stats-hero' style={scoreStyle}>
-				<div>
-					<p className='player-stats-kicker'>aggregate</p>
-					<h2 className='player-stats-player-name'>
-						{player.name}
-						{player.isCurrentUser ? <span className='you-tag'>you</span> : null}
-					</h2>
-				</div>
-				<div className='player-stats-hero-score'>
-					<span>{formatNumber(player.averageScore)}</span>
-					<span>avg</span>
-				</div>
-			</header>
-
 			<div className='player-stats-totals'>
 				<StatTile
 					icon={<ChartBar size={15} weight='bold' />}
@@ -424,7 +519,7 @@ function PlayerStatsDetail({
 				<StatTile icon={<Fire size={15} weight='fill' />} label='losses' value={player.losses} />
 				<StatTile
 					icon={<LightbulbFilament size={15} weight='fill' />}
-					label='hints/g'
+					label='hints'
 					value={formatNumber(player.averageHintsGiven)}
 				/>
 			</div>
@@ -433,31 +528,21 @@ function PlayerStatsDetail({
 				<div className='player-stats-metric-row header'>
 					<span>stat</span>
 					<span>total</span>
-					<span>avg/game</span>
+					<span>avg</span>
 					<span>median</span>
 					<span>best</span>
 					<span>worst</span>
-					<span>global</span>
 				</div>
-				{metricRows.map(row => {
-					const comparison = metricComparison(row);
-					return (
-						<div key={row.key} className='player-stats-metric-row'>
-							<span>{row.label}</span>
-							<span>{formatNumber(row.total)}</span>
-							<span>{formatNumber(row.average)}</span>
-							<span>{formatNumber(row.median)}</span>
-							<span>{formatNumber(bestMetricValue(row.values, row.direction))}</span>
-							<span>{formatNumber(worstMetricValue(row.values, row.direction))}</span>
-							<span>
-								<ComparisonIndicator
-									comparison={comparison}
-									testId={`player-stats-comparison-${row.key}`}
-								/>
-							</span>
-						</div>
-					);
-				})}
+				{metricRows.map(row => (
+					<div key={row.key} className='player-stats-metric-row'>
+						<span>{row.label}</span>
+						<MetricValueCell row={row} column='total' />
+						<MetricValueCell row={row} column='average' />
+						<MetricValueCell row={row} column='median' />
+						<MetricValueCell row={row} column='best' />
+						<MetricValueCell row={row} column='worst' />
+					</div>
+				))}
 			</section>
 
 			<section className='player-stats-recent' data-testid='player-stats-recent'>
@@ -473,10 +558,6 @@ function PlayerStatsDetail({
 							style={gameStyle}
 						>
 							<div className='player-stats-game-score'>
-								<div className='history-score'>
-									<span className='history-score-value'>{game.score}</span>
-									<span className='history-score-label'>pts</span>
-								</div>
 								<span className='history-badge player-stats-game-badge' title={gameFlavor.label}>
 									<img
 										className='history-badge-image'
@@ -484,28 +565,79 @@ function PlayerStatsDetail({
 										alt={gameFlavor.label}
 									/>
 								</span>
+								<div className='history-score'>
+									<span className='history-score-value'>{game.score}</span>
+								</div>
 							</div>
 							<div className='history-main'>
 								<div className='history-players'>{outcomeLabel(game.status)}</div>
-								<div className='history-meta'>
-									<span>{formatDate(game.endedAt)}</span>
-									<span>{game.turns} turns</span>
-									<span>{game.hintsGiven} given</span>
+								<div className='player-stats-game-meta'>
+									<GameRowStat
+										icon={<CalendarBlank size={12} weight='bold' />}
+										value={formatDate(game.endedAt)}
+										label='date'
+									/>
+									<GameRowStat
+										icon={<ClockCounterClockwise size={12} weight='bold' />}
+										value={game.turns}
+										label='turns'
+									/>
+									<GameRowStat
+										icon={<LightbulbFilament size={12} weight='fill' />}
+										value={game.hintsGiven}
+										label='hints given'
+									/>
 								</div>
 							</div>
 							<div className='player-stats-game-resources'>
-								<span>
-									{game.livesRemaining}/{game.maxLives}
-								</span>
-								<span>
-									{game.hintsRemaining}/{game.maxHints}
-								</span>
+								<GameRowStat
+									icon={<Fire size={12} weight='fill' />}
+									value={`${game.livesRemaining}/${game.maxLives}`}
+									label='lives'
+								/>
+								<GameRowStat
+									icon={<LightbulbFilament size={12} weight='fill' />}
+									value={`${game.hintsRemaining}/${game.maxHints}`}
+									label='hints'
+								/>
 							</div>
 						</article>
 					);
 				})}
 			</section>
 		</section>
+	);
+}
+
+function MetricValueCell({ row, column }: { row: MetricRow; column: MetricColumn }) {
+	const cell = row.cells[column];
+	return (
+		<span className='player-stats-metric-value'>
+			<span>{formatNumber(cell.value)}</span>
+			<ComparisonIndicator
+				comparison={cell.comparison}
+				testId={`player-stats-comparison-${row.key}-${column}`}
+			/>
+		</span>
+	);
+}
+
+function GameRowStat({
+	icon,
+	value,
+	label,
+}: {
+	icon: ReactNode;
+	value: string | number;
+	label: string;
+}) {
+	return (
+		<span className='player-stats-game-stat' title={label} aria-label={`${label}: ${value}`}>
+			<span className='player-stats-game-stat-icon' aria-hidden>
+				{icon}
+			</span>
+			<span>{value}</span>
+		</span>
 	);
 }
 
@@ -520,7 +652,7 @@ function ComparisonIndicator({
 		return (
 			<span
 				className='player-stats-comparison neutral'
-				aria-label='No global comparison'
+				aria-label='No comparison'
 				data-testid={testId}
 			>
 				•
