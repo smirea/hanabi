@@ -114,11 +114,19 @@ describe('PlayerStatsScreen', () => {
 		expect(screen.getByTestId('player-stats-summary')).toHaveTextContent('avg score');
 		expect(screen.getByTestId('player-stats-summary')).toHaveTextContent('17.5');
 		expect(screen.getByTestId('player-stats-summary')).not.toHaveTextContent('best avg');
-		expect(screen.getByTestId('player-stats-table')).toHaveTextContent('best');
+		expect(screen.getByTestId('player-stats-table')).toHaveTextContent('WR');
+		expect(screen.getByTestId('player-stats-table')).toHaveTextContent('Avg Score');
+		expect(screen.getByTestId('player-stats-table')).toHaveTextContent('Best Score');
+		expect(screen.getByTestId('player-stats-table')).not.toHaveTextContent('median');
 		expect(screen.getByTestId('player-stats-summary-games-player:1')).not.toHaveAttribute(
 			'data-tooltip',
 		);
 		expect(screen.queryByTestId('player-stats-summary-games-player:1-comparison')).toBeNull();
+		expect(screen.getByTestId('player-stats-summary-wr-player:1')).toHaveTextContent('100%');
+		expect(screen.getByTestId('player-stats-summary-wr-player:1')).toHaveAttribute(
+			'data-tooltip',
+			'best',
+		);
 		expect(screen.getByTestId('player-stats-summary-avg-player:1')).toHaveAttribute(
 			'data-tooltip',
 			'best',

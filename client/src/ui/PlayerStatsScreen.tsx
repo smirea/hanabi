@@ -244,6 +244,10 @@ function bestScoreValue(player: PlayerStatsAggregate): number {
 	return bestScoreGame(player)?.score ?? 0;
 }
 
+function playerWinRate(player: PlayerStatsAggregate): number {
+	return player.gamesPlayed ? player.wins / player.gamesPlayed : 0;
+}
+
 function metricCell({
 	value,
 	values,
@@ -431,9 +435,9 @@ export function PlayerStatsScreen({ playerId }: { playerId?: string }) {
 								<div className='player-stats-row header'>
 									<span>player</span>
 									<span>games</span>
-									<span>avg</span>
-									<span>median</span>
-									<span>best</span>
+									<span>WR</span>
+									<span>Avg Score</span>
+									<span>Best Score</span>
 								</div>
 								{players.map(player => {
 									const bestGame = bestScoreGame(player);
@@ -461,7 +465,17 @@ export function PlayerStatsScreen({ playerId }: { playerId?: string }) {
 												testId={`player-stats-summary-games-${player.id}`}
 											/>
 											<SummaryStatCell
-												label='avg'
+												label='WR'
+												value={formatPercent(playerWinRate(player))}
+												comparison={metricComparison({
+													value: playerWinRate(player),
+													values: players.map(playerWinRate),
+													direction: 'higher',
+												})}
+												testId={`player-stats-summary-wr-${player.id}`}
+											/>
+											<SummaryStatCell
+												label='avg score'
 												value={formatNumber(player.averageScore)}
 												comparison={metricComparison({
 													value: player.averageScore,
@@ -469,16 +483,6 @@ export function PlayerStatsScreen({ playerId }: { playerId?: string }) {
 													direction: 'higher',
 												})}
 												testId={`player-stats-summary-avg-${player.id}`}
-											/>
-											<SummaryStatCell
-												label='median'
-												value={formatNumber(player.medianScore)}
-												comparison={metricComparison({
-													value: player.medianScore,
-													values: players.map(row => row.medianScore),
-													direction: 'higher',
-												})}
-												testId={`player-stats-summary-median-${player.id}`}
 											/>
 											<SummaryBestScoreCell
 												game={bestGame}
@@ -509,7 +513,6 @@ function PlayerStatsDetail({
 	player: PlayerStatsAggregate;
 	players: PlayerStatsAggregate[];
 }) {
-	const playerWinRate = player.gamesPlayed ? player.wins / player.gamesPlayed : 0;
 	const metricRows: MetricRow[] = [
 		makeMetricRow({
 			key: 'score',
@@ -592,7 +595,7 @@ function PlayerStatsDetail({
 				<StatTile
 					icon={<Percent size={15} weight='bold' />}
 					label='win rate'
-					value={formatPercent(playerWinRate)}
+					value={formatPercent(playerWinRate(player))}
 				/>
 				<StatTile
 					icon={<LightbulbFilament size={15} weight='fill' />}
