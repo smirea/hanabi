@@ -112,6 +112,7 @@ describe('PlayerStatsScreen', () => {
 		expect(screen.getByTestId('player-stats-summary-games-player:1')).not.toHaveAttribute(
 			'data-tooltip',
 		);
+		expect(screen.queryByTestId('player-stats-summary-games-player:1-comparison')).toBeNull();
 		expect(screen.getByTestId('player-stats-summary-avg-player:1')).toHaveAttribute(
 			'data-tooltip',
 			'best',

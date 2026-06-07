@@ -437,11 +437,8 @@ export function PlayerStatsScreen({ playerId }: { playerId?: string }) {
 											<SummaryStatCell
 												label='games'
 												value={player.gamesPlayed}
-												comparison={metricComparison({
-													value: player.gamesPlayed,
-													values: players.map(row => row.gamesPlayed),
-													direction: 'higher',
-												})}
+												comparison={null}
+												showComparison={false}
 												testId={`player-stats-summary-games-${player.id}`}
 											/>
 											<SummaryStatCell
@@ -668,18 +665,26 @@ function SummaryStatCell({
 	label,
 	value,
 	comparison,
+	showComparison = true,
 	testId,
 }: {
 	label: string;
 	value: string | number;
 	comparison: MetricComparison | null;
+	showComparison?: boolean;
 	testId: string;
 }) {
-	const tooltip = comparison ? comparisonTooltip(comparison) : `${label}: ${value}`;
+	const tooltip = showComparison
+		? comparison
+			? comparisonTooltip(comparison)
+			: `${label}: ${value}`
+		: undefined;
 	return (
 		<span className='player-stats-summary-stat' data-tooltip={tooltip} data-testid={testId}>
 			<span>{value}</span>
-			<ComparisonIndicator comparison={comparison} testId={`${testId}-comparison`} />
+			{showComparison ? (
+				<ComparisonIndicator comparison={comparison} testId={`${testId}-comparison`} />
+			) : null}
 		</span>
 	);
 }
