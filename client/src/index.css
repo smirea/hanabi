@@ -1731,12 +1731,12 @@ body {
 
 .player-stats-totals {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
+	grid-template-columns: repeat(4, minmax(0, 1fr));
 	gap: 0.36rem;
 }
 
 .player-stats-detail .player-stats-totals {
-	grid-template-columns: repeat(4, minmax(0, 1fr));
+	grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .player-stats-tile {

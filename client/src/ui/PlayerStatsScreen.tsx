@@ -5,6 +5,7 @@ import {
 	Fire,
 	LightbulbFilament,
 	Medal,
+	Percent,
 	Trophy,
 } from '@phosphor-icons/react';
 import { useNavigate } from '@tanstack/react-router';
@@ -42,6 +43,16 @@ function formatNumber(value: number): string {
 	if (!Number.isFinite(value)) return '0';
 	if (Number.isInteger(value)) return String(value);
 	return value.toFixed(1);
+}
+
+function formatPercent(value: number): string {
+	if (!Number.isFinite(value)) return '0%';
+	return `${Math.round(value * 100)}%`;
+}
+
+function average(values: number[]): number {
+	if (values.length === 0) return 0;
+	return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 function formatDate(value: string): string {
@@ -316,7 +327,10 @@ export function PlayerStatsScreen({ playerId }: { playerId?: string }) {
 		[history, currentPlayerId],
 	);
 	const selectedPlayer = playerId ? players.find(player => player.id === playerId) : null;
-	const bestAverageScore = Math.max(0, ...players.map(player => player.averageScore));
+	const overallWinRate = history.length
+		? history.filter(game => game.status === 'won').length / history.length
+		: 0;
+	const overallAverageScore = average(history.map(game => game.score));
 	const currentHash = typeof window === 'undefined' ? '' : window.location.hash.replace(/^#/, '');
 
 	function goHome(): void {
@@ -403,8 +417,13 @@ export function PlayerStatsScreen({ playerId }: { playerId?: string }) {
 								/>
 								<StatTile
 									icon={<Trophy size={15} weight='bold' />}
-									label='best avg'
-									value={formatNumber(bestAverageScore)}
+									label='win rate'
+									value={formatPercent(overallWinRate)}
+								/>
+								<StatTile
+									icon={<ChartBar size={15} weight='bold' />}
+									label='avg score'
+									value={formatNumber(overallAverageScore)}
 								/>
 							</div>
 
@@ -490,6 +509,7 @@ function PlayerStatsDetail({
 	player: PlayerStatsAggregate;
 	players: PlayerStatsAggregate[];
 }) {
+	const playerWinRate = player.gamesPlayed ? player.wins / player.gamesPlayed : 0;
 	const metricRows: MetricRow[] = [
 		makeMetricRow({
 			key: 'score',
@@ -570,8 +590,13 @@ function PlayerStatsDetail({
 				<StatTile icon={<Trophy size={15} weight='bold' />} label='wins' value={player.wins} />
 				<StatTile icon={<Fire size={15} weight='fill' />} label='losses' value={player.losses} />
 				<StatTile
+					icon={<Percent size={15} weight='bold' />}
+					label='win rate'
+					value={formatPercent(playerWinRate)}
+				/>
+				<StatTile
 					icon={<LightbulbFilament size={15} weight='fill' />}
-					label='hints'
+					label='avg hints'
 					value={formatNumber(player.averageHintsGiven)}
 				/>
 			</div>

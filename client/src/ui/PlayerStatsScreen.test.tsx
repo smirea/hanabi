@@ -98,6 +98,7 @@ describe('PlayerStatsScreen', () => {
 			historyEntry({
 				roomCode: 'WXYZ',
 				score: 10,
+				status: 'lost',
 				players: ['Blair'],
 				endedAt: '2026-05-30T20:12:00.000Z',
 				playerStats: [
@@ -108,6 +109,11 @@ describe('PlayerStatsScreen', () => {
 
 		render(<PlayerStatsScreen />);
 
+		expect(screen.getByTestId('player-stats-summary')).toHaveTextContent('win rate');
+		expect(screen.getByTestId('player-stats-summary')).toHaveTextContent('50%');
+		expect(screen.getByTestId('player-stats-summary')).toHaveTextContent('avg score');
+		expect(screen.getByTestId('player-stats-summary')).toHaveTextContent('17.5');
+		expect(screen.getByTestId('player-stats-summary')).not.toHaveTextContent('best avg');
 		expect(screen.getByTestId('player-stats-table')).toHaveTextContent('best');
 		expect(screen.getByTestId('player-stats-summary-games-player:1')).not.toHaveAttribute(
 			'data-tooltip',
@@ -160,6 +166,9 @@ describe('PlayerStatsScreen', () => {
 		render(<PlayerStatsScreen playerId='player:1' />);
 
 		expect(screen.getByRole('heading', { name: "Alex's stats" })).toBeInTheDocument();
+		expect(screen.getByTestId('player-stats-detail')).toHaveTextContent('win rate');
+		expect(screen.getByTestId('player-stats-detail')).toHaveTextContent('100%');
+		expect(screen.getByTestId('player-stats-detail')).toHaveTextContent('avg hints');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('avg');
 		expect(screen.getByTestId('player-stats-metric-table')).not.toHaveTextContent('avg/game');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('best');
