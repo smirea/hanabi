@@ -1907,26 +1907,6 @@ body {
 	outline: none;
 }
 
-.player-stats-summary-icon {
-	display: inline-grid;
-	place-items: center;
-	flex: 0 0 auto;
-	line-height: 0;
-	opacity: 0.86;
-}
-
-.player-stats-summary-stat.games .player-stats-summary-icon {
-	color: var(--turn-blue);
-}
-
-.player-stats-summary-stat.avg .player-stats-summary-icon {
-	color: #128342;
-}
-
-.player-stats-summary-stat.median .player-stats-summary-icon {
-	color: #8a5cf6;
-}
-
 .player-stats-summary .player-stats-comparison {
 	width: 0.58rem;
 	height: 0.58rem;

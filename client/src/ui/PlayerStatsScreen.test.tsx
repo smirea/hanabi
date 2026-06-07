@@ -123,6 +123,9 @@ describe('PlayerStatsScreen', () => {
 		);
 		expect(screen.getByTestId('player-stats-summary-best-player:1')).toHaveTextContent('25');
 		expect(
+			screen.getByTestId('player-stats-table').querySelector('.player-stats-summary-icon'),
+		).toBeNull();
+		expect(
 			screen
 				.getByTestId('player-stats-row-player:1')
 				.querySelector('.player-stats-summary-badge img'),

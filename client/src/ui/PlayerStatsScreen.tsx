@@ -1,6 +1,5 @@
 import {
 	ArrowLeft,
-	CardsThree,
 	ChartBar,
 	ClockCounterClockwise,
 	Fire,
@@ -432,7 +431,6 @@ export function PlayerStatsScreen({ playerId }: { playerId?: string }) {
 												{player.isCurrentUser ? <span className='you-tag'>you</span> : null}
 											</span>
 											<SummaryStatCell
-												icon={<CardsThree size={11} weight='bold' />}
 												label='games'
 												value={player.gamesPlayed}
 												comparison={metricComparison({
@@ -440,11 +438,9 @@ export function PlayerStatsScreen({ playerId }: { playerId?: string }) {
 													values: players.map(row => row.gamesPlayed),
 													direction: 'higher',
 												})}
-												tone='games'
 												testId={`player-stats-summary-games-${player.id}`}
 											/>
 											<SummaryStatCell
-												icon={<ChartBar size={11} weight='bold' />}
 												label='avg'
 												value={formatNumber(player.averageScore)}
 												comparison={metricComparison({
@@ -452,11 +448,9 @@ export function PlayerStatsScreen({ playerId }: { playerId?: string }) {
 													values: players.map(row => row.averageScore),
 													direction: 'higher',
 												})}
-												tone='avg'
 												testId={`player-stats-summary-avg-${player.id}`}
 											/>
 											<SummaryStatCell
-												icon={<Medal size={11} weight='bold' />}
 												label='median'
 												value={formatNumber(player.medianScore)}
 												comparison={metricComparison({
@@ -464,7 +458,6 @@ export function PlayerStatsScreen({ playerId }: { playerId?: string }) {
 													values: players.map(row => row.medianScore),
 													direction: 'higher',
 												})}
-												tone='median'
 												testId={`player-stats-summary-median-${player.id}`}
 											/>
 											<SummaryBestScoreCell
@@ -679,30 +672,19 @@ function PlayerStatsDetail({
 }
 
 function SummaryStatCell({
-	icon,
 	label,
 	value,
 	comparison,
-	tone,
 	testId,
 }: {
-	icon: ReactNode;
 	label: string;
 	value: string | number;
 	comparison: MetricComparison | null;
-	tone: 'games' | 'avg' | 'median';
 	testId: string;
 }) {
 	const tooltip = comparison?.note ?? `${label}: ${value}`;
 	return (
-		<span
-			className={`player-stats-summary-stat ${tone}`}
-			data-tooltip={tooltip}
-			data-testid={testId}
-		>
-			<span className='player-stats-summary-icon' aria-hidden>
-				{icon}
-			</span>
+		<span className='player-stats-summary-stat' data-tooltip={tooltip} data-testid={testId}>
 			<span>{value}</span>
 			<ComparisonIndicator comparison={comparison} testId={`${testId}-comparison`} />
 		</span>
