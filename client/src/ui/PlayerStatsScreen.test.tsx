@@ -109,9 +109,8 @@ describe('PlayerStatsScreen', () => {
 		render(<PlayerStatsScreen />);
 
 		expect(screen.getByTestId('player-stats-table')).toHaveTextContent('best');
-		expect(screen.getByTestId('player-stats-summary-games-player:1')).toHaveAttribute(
+		expect(screen.getByTestId('player-stats-summary-games-player:1')).not.toHaveAttribute(
 			'data-tooltip',
-			'middle',
 		);
 		expect(screen.getByTestId('player-stats-summary-avg-player:1')).toHaveAttribute(
 			'data-tooltip',
@@ -170,6 +169,9 @@ describe('PlayerStatsScreen', () => {
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('given');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('6');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('3');
+		expect(
+			screen.getByTestId('player-stats-comparison-score-total').parentElement,
+		).not.toHaveAttribute('data-tooltip');
 		expect(screen.getByTestId('player-stats-comparison-given-total')).toHaveClass('best');
 		expect(screen.getByTestId('player-stats-comparison-given-total')).toHaveAccessibleName('best');
 		expect(screen.getByTestId('player-stats-recent')).toContainElement(

@@ -116,6 +116,11 @@ function comparisonNote(kind: ComparisonKind): string {
 	}
 }
 
+function comparisonTooltip(comparison: MetricComparison | null): string | undefined {
+	if (!comparison || comparison.kind === 'neutral') return undefined;
+	return comparison.note;
+}
+
 function detailTitle(playerName: string | undefined): string {
 	return playerName ? `${playerName}'s stats` : 'Player stats';
 }
@@ -681,7 +686,7 @@ function SummaryStatCell({
 	comparison: MetricComparison | null;
 	testId: string;
 }) {
-	const tooltip = comparison?.note ?? `${label}: ${value}`;
+	const tooltip = comparison ? comparisonTooltip(comparison) : `${label}: ${value}`;
 	return (
 		<span className='player-stats-summary-stat' data-tooltip={tooltip} data-testid={testId}>
 			<span>{value}</span>
@@ -702,7 +707,7 @@ function SummaryBestScoreCell({
 	testId: string;
 }) {
 	const score = game?.score ?? 0;
-	const tooltip = comparison?.note ?? `best: ${score}`;
+	const tooltip = comparison ? comparisonTooltip(comparison) : `best: ${score}`;
 	return (
 		<span className='player-stats-summary-best' data-tooltip={tooltip} data-testid={testId}>
 			<span className='player-stats-summary-best-value'>{score}</span>
@@ -719,7 +724,7 @@ function SummaryBestScoreCell({
 function MetricValueCell({ row, column }: { row: MetricRow; column: MetricColumn }) {
 	const cell = row.cells[column];
 	const value = formatNumber(cell.value);
-	const tooltip = cell.comparison?.note;
+	const tooltip = comparisonTooltip(cell.comparison);
 	return (
 		<span
 			className='player-stats-metric-value'
