@@ -5,7 +5,6 @@ import {
 	Fire,
 	LightbulbFilament,
 	Medal,
-	Toilet,
 	Trophy,
 } from '@phosphor-icons/react';
 import { useNavigate } from '@tanstack/react-router';
@@ -788,12 +787,28 @@ function ComparisonIndicator({
 			aria-label={comparison.note}
 			data-testid={testId}
 		>
-			{comparison.kind === 'worst' ? (
-				<Toilet size={10} weight='fill' aria-hidden />
-			) : (
-				comparison.label
-			)}
+			{comparison.kind === 'worst' ? <PoopIcon size={10} /> : comparison.label}
 		</span>
+	);
+}
+
+function PoopIcon({ size }: { size: number }) {
+	return (
+		<svg
+			className='player-stats-poop-icon'
+			width={size}
+			height={size}
+			viewBox='0 0 256 270'
+			fill='currentColor'
+			aria-hidden
+			focusable='false'
+		>
+			<path d='M127.4 18c29.8 21.2 44.8 44.8 44.8 70.8 0 7.4-1.5 14.2-4.4 20.4 26.8 8.2 45.6 28.8 45.6 53.2 0 5.5-.9 10.8-2.8 15.8 19.3 7.7 31.4 22 31.4 38.4 0 25.1-28.3 45.4-63.2 45.4H77.2C42.3 262 14 241.7 14 216.6c0-16.4 12.1-30.7 31.4-38.4a45.5 45.5 0 0 1-2.8-15.8c0-25.8 21-47.4 50.2-54.2-5.1-7.1-7.7-15.5-7.7-25.1 0-24.1 18.8-42.9 52.3-65.1Z' />
+			<path
+				fill='#fff'
+				d='M86 162c0-8.8 6.7-15 15.1-15s15.1 6.2 15.1 15-6.7 15-15.1 15S86 170.8 86 162Zm53.8 0c0-8.8 6.7-15 15.1-15s15.1 6.2 15.1 15-6.7 15-15.1 15-15.1-6.2-15.1-15Zm-42.5 37.5c5.8 7.1 16 11.4 30.7 11.4s24.9-4.3 30.7-11.4c2.6-3.2 7.3-3.7 10.5-1.1s3.7 7.3 1.1 10.5c-9 11-23.3 16.9-42.3 16.9s-33.3-5.9-42.3-16.9c-2.6-3.2-2.1-7.9 1.1-10.5s7.9-2.1 10.5 1.1Z'
+			/>
+		</svg>
 	);
 }
 

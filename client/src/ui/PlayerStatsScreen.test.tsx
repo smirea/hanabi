@@ -127,6 +127,11 @@ describe('PlayerStatsScreen', () => {
 		).toBeNull();
 		expect(
 			screen
+				.getByTestId('player-stats-summary-avg-player:2-comparison')
+				.querySelector('.player-stats-poop-icon'),
+		).not.toBeNull();
+		expect(
+			screen
 				.getByTestId('player-stats-row-player:1')
 				.querySelector('.player-stats-summary-badge img'),
 		).not.toBeNull();
