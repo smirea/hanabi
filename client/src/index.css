@@ -2562,6 +2562,83 @@ body {
 	color: rgba(255, 255, 255, 0.96);
 }
 
+.card-resolution-layer,
+.card-resolution-underlay,
+.card-resolution-fold {
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	pointer-events: none;
+}
+
+.card-resolution-layer {
+	z-index: 1;
+	overflow: hidden;
+}
+
+.card-resolution-underlay,
+.card-resolution-fold {
+	display: grid;
+	place-items: center;
+}
+
+.card-resolution-underlay {
+	background: color-mix(in srgb, var(--resolution-wrong-bg) 31%, white);
+	animation: card-resolution-underlay 720ms cubic-bezier(0.2, 0.85, 0.2, 1) both;
+}
+
+.card-resolution-fold {
+	background: color-mix(in srgb, var(--resolution-bg) 31%, white);
+	box-shadow: 0 0 0 1px color-mix(in srgb, var(--resolution-bg) 44%, transparent);
+	animation-duration: 720ms;
+	animation-timing-function: cubic-bezier(0.2, 0.85, 0.2, 1);
+	animation-fill-mode: both;
+}
+
+.card-resolution-fold.to-base {
+	animation-name: card-resolution-fold-base;
+}
+
+.card-resolution-fold.to-multicolor {
+	animation-name: card-resolution-fold-multicolor;
+}
+
+.card-resolution-fold::after {
+	content: '';
+	position: absolute;
+	inset: -18%;
+	background: linear-gradient(
+		135deg,
+		transparent 45%,
+		rgba(255, 255, 255, 0.74) 49%,
+		rgba(31, 37, 54, 0.16) 51%,
+		transparent 55%
+	);
+	opacity: 0;
+	animation: card-resolution-crease 720ms cubic-bezier(0.2, 0.85, 0.2, 1) both;
+}
+
+.card-resolution-face {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 0.08rem;
+	font-weight: 800;
+	color: var(--black);
+}
+
+.card-resolution-value {
+	font-size: clamp(1.48rem, 3.55vh, 2.15rem);
+	line-height: 0.95;
+}
+
+.card-resolution-icon {
+	line-height: 0;
+	opacity: 0.92;
+	filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.35));
+}
+
 .card-face {
 	position: absolute;
 	inset: 0;
@@ -2573,6 +2650,7 @@ body {
 	padding: 1.16rem 0.22rem 1.16rem;
 	font-weight: 800;
 	color: var(--gray-600);
+	z-index: 0;
 }
 
 .card-face-value {
@@ -4972,6 +5050,76 @@ body {
 	}
 }
 
+@keyframes card-resolution-underlay {
+	0%,
+	72% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+	}
+}
+
+@keyframes card-resolution-fold-base {
+	0% {
+		clip-path: polygon(0 0, 100% 0, 0 100%);
+		transform: translateZ(0) rotateX(0deg) scale(1);
+		opacity: 1;
+	}
+	52% {
+		clip-path: polygon(0 0, 100% 0, 100% 36%, 36% 100%, 0 100%);
+		transform: translateZ(0) rotateX(0deg) scale(1.01);
+		opacity: 1;
+	}
+	86% {
+		clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+		opacity: 1;
+	}
+	100% {
+		clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+		opacity: 0;
+	}
+}
+
+@keyframes card-resolution-fold-multicolor {
+	0% {
+		clip-path: polygon(100% 0, 100% 100%, 0 100%);
+		transform: translateZ(0) rotateX(0deg) scale(1);
+		opacity: 1;
+	}
+	52% {
+		clip-path: polygon(64% 0, 100% 0, 100% 100%, 0 100%, 0 64%);
+		transform: translateZ(0) rotateX(0deg) scale(1.01);
+		opacity: 1;
+	}
+	86% {
+		clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+		opacity: 1;
+	}
+	100% {
+		clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+		opacity: 0;
+	}
+}
+
+@keyframes card-resolution-crease {
+	0% {
+		opacity: 0;
+		transform: translate(-24%, -24%);
+	}
+	42% {
+		opacity: 0.9;
+	}
+	86% {
+		opacity: 0.3;
+		transform: translate(24%, 24%);
+	}
+	100% {
+		opacity: 0;
+		transform: translate(28%, 28%);
+	}
+}
+
 @keyframes hint-redundant {
 	0% {
 		transform: translateZ(0) translateX(0) scale(1);
@@ -5918,8 +6066,15 @@ body {
 	.log-item,
 	.endgame-board,
 	.endgame-final-hand,
-	.endgame-stats {
+	.endgame-stats,
+	.card-resolution-underlay,
+	.card-resolution-fold,
+	.card-resolution-fold::after {
 		animation: none !important;
+	}
+
+	.card-resolution-layer {
+		display: none;
 	}
 
 	.turn-chip-dot {

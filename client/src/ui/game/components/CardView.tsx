@@ -1,10 +1,24 @@
-import type { CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { BASE_SUITS, type PerspectiveCard } from '../../../game';
 import type { Suit } from '../../../game';
 import { suitBadgeForeground, suitColors } from '../../../utils/constants';
 import { SuitSymbol } from './SuitSymbol';
 
 const BASE_HINT_SUITS = BASE_SUITS;
+const RESOLUTION_FOLD_MS = 720;
+
+interface AmbiguousSnapshot {
+	cardId: string;
+	isAmbiguous: boolean;
+	knownColor: Suit | null;
+}
+
+interface ResolutionFold {
+	key: number;
+	resolvedSuit: Suit;
+	wrongSuit: Suit;
+	direction: 'to-base' | 'to-multicolor';
+}
 
 function isAmbiguousMulticolorHint(card: PerspectiveCard, showAmbiguousMulticolorHints: boolean) {
 	const knownColor = card.hints.color;
@@ -46,6 +60,9 @@ export function CardView({
 	let faceValue: string | number = '?';
 	let bgColor: string | undefined;
 	let altBgColor: string | undefined;
+	const previousAmbiguousRef = useRef<AmbiguousSnapshot | null>(null);
+	const foldSequenceRef = useRef(0);
+	const [resolutionFold, setResolutionFold] = useState<ResolutionFold | null>(null);
 
 	if (card.isHiddenFromViewer) {
 		faceSuit = knownColor;
@@ -70,6 +87,53 @@ export function CardView({
 	const hasPositiveBadges = Boolean(knownColor || knownNumber);
 	const hasNegativeBadges = notColors.length > 0 || notNumbers.length > 0;
 
+	useEffect(() => {
+		const previous = previousAmbiguousRef.current;
+		const resolvedSuit = knownColor;
+
+		if (
+			previous?.cardId === card.id &&
+			previous.isAmbiguous &&
+			!ambiguousMulticolor &&
+			card.isHiddenFromViewer &&
+			showAmbiguousMulticolorHints &&
+			previous.knownColor &&
+			resolvedSuit &&
+			resolvedSuit !== 'K'
+		) {
+			const resolvedToMulticolor = resolvedSuit === 'M';
+			foldSequenceRef.current += 1;
+			setResolutionFold({
+				key: foldSequenceRef.current,
+				resolvedSuit,
+				wrongSuit: resolvedToMulticolor ? previous.knownColor : 'M',
+				direction: resolvedToMulticolor ? 'to-multicolor' : 'to-base',
+			});
+		}
+
+		previousAmbiguousRef.current = {
+			cardId: card.id,
+			isAmbiguous: ambiguousMulticolor,
+			knownColor,
+		};
+	}, [
+		ambiguousMulticolor,
+		card.id,
+		card.isHiddenFromViewer,
+		knownColor,
+		showAmbiguousMulticolorHints,
+	]);
+
+	useEffect(() => {
+		if (!resolutionFold) return;
+
+		const timeout = window.setTimeout(() => {
+			setResolutionFold(current => (current?.key === resolutionFold.key ? null : current));
+		}, RESOLUTION_FOLD_MS);
+
+		return () => window.clearTimeout(timeout);
+	}, [resolutionFold]);
+
 	return (
 		<button
 			type='button'
@@ -88,6 +152,13 @@ export function CardView({
 			aria-disabled={isDisabled}
 			aria-pressed={false}
 		>
+			{resolutionFold && (
+				<CardResolutionFold
+					fold={resolutionFold}
+					faceValue={faceValue}
+					testId={`${testId}-resolution-fold`}
+				/>
+			)}
 			<div className='card-face'>
 				<span className='card-face-value'>{faceValue}</span>
 				{faceSuit && ambiguousMulticolor ? (
@@ -181,5 +252,47 @@ export function CardView({
 				))}
 			</div>
 		</button>
+	);
+}
+
+function CardResolutionFold({
+	fold,
+	faceValue,
+	testId,
+}: {
+	fold: ResolutionFold;
+	faceValue: ReactNode;
+	testId: string;
+}) {
+	return (
+		<span
+			className='card-resolution-layer'
+			aria-hidden
+			style={
+				{
+					'--resolution-bg': suitColors[fold.resolvedSuit],
+					'--resolution-wrong-bg': suitColors[fold.wrongSuit],
+					'--resolution-fg': suitBadgeForeground[fold.resolvedSuit],
+					'--resolution-wrong-fg': suitBadgeForeground[fold.wrongSuit],
+				} as CSSProperties
+			}
+		>
+			<span className='card-resolution-underlay'>
+				<span className='card-resolution-face'>
+					<span className='card-resolution-value'>{faceValue}</span>
+					<span className='card-resolution-icon' style={{ color: suitColors[fold.wrongSuit] }}>
+						<SuitSymbol suit={fold.wrongSuit} size={24} />
+					</span>
+				</span>
+			</span>
+			<span className={`card-resolution-fold ${fold.direction}`} data-testid={testId}>
+				<span className='card-resolution-face'>
+					<span className='card-resolution-value'>{faceValue}</span>
+					<span className='card-resolution-icon' style={{ color: suitColors[fold.resolvedSuit] }}>
+						<SuitSymbol suit={fold.resolvedSuit} size={24} />
+					</span>
+				</span>
+			</span>
+		</span>
 	);
 }

@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, test } from 'bun:test';
 import type { PerspectiveCard } from '../../../game';
 import { CardView } from './CardView';
@@ -54,5 +54,63 @@ describe('CardView', () => {
 
 		expect(screen.getByTestId('card')).not.toHaveClass('ambiguous-multicolor');
 		expect(screen.queryByTestId('card-ambiguous-color')).not.toBeInTheDocument();
+	});
+
+	test('animates ambiguity resolving to the hinted base color', async () => {
+		const { rerender } = render(
+			<CardView
+				card={hiddenCard()}
+				showNegativeColorHints
+				showNegativeNumberHints
+				showAmbiguousMulticolorHints
+				testId='card'
+			/>,
+		);
+
+		await waitFor(() => expect(screen.getByTestId('card')).toHaveClass('ambiguous-multicolor'));
+
+		rerender(
+			<CardView
+				card={hiddenCard({ hints: { ...hiddenCard().hints, notColors: ['G'] } })}
+				showNegativeColorHints
+				showNegativeNumberHints
+				showAmbiguousMulticolorHints
+				testId='card'
+			/>,
+		);
+
+		await waitFor(() => {
+			expect(screen.getByTestId('card')).not.toHaveClass('ambiguous-multicolor');
+			expect(screen.getByTestId('card-resolution-fold')).toHaveClass('to-base');
+		});
+	});
+
+	test('animates ambiguity resolving to multicolor', async () => {
+		const { rerender } = render(
+			<CardView
+				card={hiddenCard()}
+				showNegativeColorHints
+				showNegativeNumberHints
+				showAmbiguousMulticolorHints
+				testId='card'
+			/>,
+		);
+
+		await waitFor(() => expect(screen.getByTestId('card')).toHaveClass('ambiguous-multicolor'));
+
+		rerender(
+			<CardView
+				card={hiddenCard({ hints: { ...hiddenCard().hints, color: 'M' } })}
+				showNegativeColorHints
+				showNegativeNumberHints
+				showAmbiguousMulticolorHints
+				testId='card'
+			/>,
+		);
+
+		await waitFor(() => {
+			expect(screen.getByTestId('card')).not.toHaveClass('ambiguous-multicolor');
+			expect(screen.getByTestId('card-resolution-fold')).toHaveClass('to-multicolor');
+		});
 	});
 });
