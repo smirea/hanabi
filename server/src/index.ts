@@ -208,13 +208,23 @@ function scoreGame(game: HanabiState): number {
 	return scoreHanabiState(game);
 }
 
+function userNameKey(value: string) {
+	return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+const playerNameAliases = new Map([['lucia 2', 'Lucia']]);
+
+function canonicalPlayerName(value: string): string {
+	return playerNameAliases.get(userNameKey(value)) ?? value;
+}
+
 function playerHistoryStats(game: HanabiState): GameHistoryPlayerStats[] {
 	const stats = new Map(
 		game.players.map(player => [
 			player.id,
 			{
 				id: player.id,
-				name: player.name,
+				name: canonicalPlayerName(player.name),
 				hintsGiven: 0,
 				hintsReceived: 0,
 				plays: 0,
@@ -547,10 +557,6 @@ function deleteRoomData(code: string) {
 	};
 }
 
-function userNameKey(value: string) {
-	return value.trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
 function deleteUserData(rawName: string | null | undefined) {
 	const name = sanitizePlayerName(rawName ?? '');
 	if (!name) throw new HttpError('Name is required', 400);
@@ -598,6 +604,37 @@ function deleteUserData(rawName: string | null | undefined) {
 	};
 }
 
+function applyPlayerNameAliases(): void {
+	for (const [fromKey, toName] of playerNameAliases) {
+		const timestamp = nowIso();
+		for (const user of db.select().from(users).all()) {
+			if (userNameKey(user.name) !== fromKey || user.name === toName) continue;
+			db.update(users)
+				.set({ name: toName, updatedAt: timestamp })
+				.where(eq(users.id, user.id))
+				.run();
+		}
+
+		const affectedRooms = new Set<string>();
+		for (const row of db.select().from(roomActions).all()) {
+			const action = readAction(row);
+			if (!action || (action.type !== 'join' && action.type !== 'set-name')) continue;
+			if (userNameKey(action.name) !== fromKey) continue;
+
+			const nextPayload = JSON.stringify({ ...action, name: toName });
+			if (nextPayload === row.payload) continue;
+			db.update(roomActions).set({ payload: nextPayload }).where(eq(roomActions.id, row.id)).run();
+			affectedRooms.add(row.roomCode);
+		}
+
+		for (const code of affectedRooms) {
+			roomStateCache.delete(code);
+		}
+	}
+}
+
+applyPlayerNameAliases();
+
 async function readBody<T>(request: Request): Promise<T> {
 	try {
 		return (await request.json()) as T;
@@ -619,7 +656,7 @@ function completedGame(
 		score: scoreGame(game),
 		status: game.status,
 		endedAt,
-		players: game.players.map(player => player.name),
+		players: game.players.map(player => canonicalPlayerName(player.name)),
 		playerStats: playerHistoryStats(game),
 		settings: state.settings,
 		turns: game.turn,
