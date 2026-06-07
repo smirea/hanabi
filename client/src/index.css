@@ -1849,6 +1849,111 @@ body {
 	white-space: nowrap;
 }
 
+.player-stats-summary .player-stats-table {
+	gap: 0;
+	border-top: 1px solid rgba(195, 205, 227, 0.86);
+	border-bottom: 1px solid rgba(195, 205, 227, 0.86);
+}
+
+.player-stats-summary .player-stats-row {
+	grid-template-columns:
+		minmax(4.3rem, 1.1fr) minmax(2.12rem, 0.42fr) minmax(2.42rem, 0.5fr)
+		minmax(2.7rem, 0.54fr) minmax(3.18rem, 0.66fr);
+	min-height: 2.42rem;
+	padding: 0.36rem 0.08rem;
+	border: 0;
+	border-bottom: 1px solid rgba(195, 205, 227, 0.58);
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
+	gap: 0.12rem;
+	font-size: 0.61rem;
+}
+
+.player-stats-summary .player-stats-row:last-child {
+	border-bottom: 0;
+}
+
+.player-stats-summary .player-stats-row.header {
+	padding-block: 0.24rem;
+	border-bottom: 1px solid rgba(195, 205, 227, 0.86);
+	background: rgba(253, 254, 255, 0.96);
+	font-size: 0.48rem;
+	letter-spacing: 0.05em;
+}
+
+.player-stats-summary .player-stats-row.you {
+	border-color: rgba(195, 205, 227, 0.58);
+	background: linear-gradient(90deg, rgba(79, 142, 255, 0.09), transparent 64%);
+	box-shadow: inset 2px 0 0 rgba(79, 142, 255, 0.74);
+}
+
+.player-stats-summary .player-stats-row:focus-visible {
+	outline: 2px solid rgba(79, 142, 255, 0.72);
+	outline-offset: -2px;
+}
+
+.player-stats-summary-stat,
+.player-stats-summary-best {
+	position: relative;
+	min-width: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.11rem;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	cursor: help;
+	outline: none;
+}
+
+.player-stats-summary-icon {
+	display: inline-grid;
+	place-items: center;
+	flex: 0 0 auto;
+	line-height: 0;
+	opacity: 0.86;
+}
+
+.player-stats-summary-stat.games .player-stats-summary-icon {
+	color: var(--turn-blue);
+}
+
+.player-stats-summary-stat.avg .player-stats-summary-icon {
+	color: #128342;
+}
+
+.player-stats-summary-stat.median .player-stats-summary-icon {
+	color: #8a5cf6;
+}
+
+.player-stats-summary .player-stats-comparison {
+	width: 0.58rem;
+	height: 0.58rem;
+	flex: 0 0 auto;
+	font-size: 0.5rem;
+}
+
+.player-stats-summary-best-value {
+	font-weight: 950;
+}
+
+.player-stats-summary-badge {
+	width: 1.05rem;
+	height: 1.42rem;
+	margin-left: 0.04rem;
+	display: inline-grid;
+	place-items: center;
+	flex: 0 0 auto;
+}
+
+.player-stats-summary-badge img {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+	filter: drop-shadow(0 1px 1px rgba(15, 18, 26, 0.18));
+}
+
 .player-stats-hero {
 	--history-accent: #64748b;
 	display: grid;
@@ -2012,6 +2117,10 @@ body {
 
 .player-stats-metric-value[data-tooltip]::before,
 .player-stats-metric-value[data-tooltip]::after,
+.player-stats-summary-stat[data-tooltip]::before,
+.player-stats-summary-stat[data-tooltip]::after,
+.player-stats-summary-best[data-tooltip]::before,
+.player-stats-summary-best[data-tooltip]::after,
 .player-stats-comparison[data-tooltip]::before,
 .player-stats-comparison[data-tooltip]::after,
 .player-stats-game-stat[data-tooltip]::before,
@@ -2027,6 +2136,8 @@ body {
 }
 
 .player-stats-metric-value[data-tooltip]::before,
+.player-stats-summary-stat[data-tooltip]::before,
+.player-stats-summary-best[data-tooltip]::before,
 .player-stats-comparison[data-tooltip]::before,
 .player-stats-game-stat[data-tooltip]::before {
 	content: none;
@@ -2049,6 +2160,8 @@ body {
 }
 
 .player-stats-metric-value[data-tooltip]::after,
+.player-stats-summary-stat[data-tooltip]::after,
+.player-stats-summary-best[data-tooltip]::after,
 .player-stats-comparison[data-tooltip]::after,
 .player-stats-game-stat[data-tooltip]::after {
 	content: none;
@@ -2063,6 +2176,8 @@ body {
 
 .player-stats-metric-value[data-tooltip]:hover::before,
 .player-stats-metric-value[data-tooltip]:focus-visible::before,
+.player-stats-summary-stat[data-tooltip]:hover::before,
+.player-stats-summary-best[data-tooltip]:hover::before,
 .player-stats-comparison[data-tooltip]:hover::before,
 .player-stats-comparison[data-tooltip]:focus-visible::before,
 .player-stats-game-stat[data-tooltip]:hover::before,
@@ -2074,6 +2189,8 @@ body {
 
 .player-stats-metric-value[data-tooltip]:hover::after,
 .player-stats-metric-value[data-tooltip]:focus-visible::after,
+.player-stats-summary-stat[data-tooltip]:hover::after,
+.player-stats-summary-best[data-tooltip]:hover::after,
 .player-stats-comparison[data-tooltip]:hover::after,
 .player-stats-comparison[data-tooltip]:focus-visible::after,
 .player-stats-game-stat[data-tooltip]:hover::after,
@@ -5613,6 +5730,12 @@ body {
 		box-shadow: 0 10px 22px rgba(25, 35, 56, 0.1);
 	}
 
+	.player-stats-summary .player-stats-row:hover {
+		transform: none;
+		box-shadow: inset 2px 0 0 rgba(79, 142, 255, 0.58);
+		background: rgba(79, 142, 255, 0.055);
+	}
+
 	.card:not(:disabled):hover {
 		transform: translateY(-1px) scale(1.01);
 		border-color: color-mix(in srgb, var(--turn-blue) 42%, var(--gray-200));
@@ -5884,6 +6007,25 @@ body {
 	color: rgba(176, 196, 240, 0.78);
 }
 
+:root[data-theme='dark'] .player-stats-summary .player-stats-table {
+	border-color: rgba(90, 112, 168, 0.38);
+}
+
+:root[data-theme='dark'] .player-stats-summary .player-stats-row {
+	border-bottom-color: rgba(90, 112, 168, 0.28);
+	background: transparent;
+}
+
+:root[data-theme='dark'] .player-stats-summary .player-stats-row.header {
+	border-bottom-color: rgba(90, 112, 168, 0.38);
+	background: rgba(16, 20, 32, 0.94);
+}
+
+:root[data-theme='dark'] .player-stats-summary .player-stats-row.you {
+	background: linear-gradient(90deg, rgba(79, 142, 255, 0.16), transparent 64%);
+	box-shadow: inset 2px 0 0 rgba(79, 142, 255, 0.82);
+}
+
 :root[data-theme='dark'] .player-stats-detail .player-stats-metric-table {
 	border-color: rgba(90, 112, 168, 0.38);
 }
@@ -5949,6 +6091,10 @@ body {
 
 :root[data-theme='dark'] .player-stats-metric-value[data-tooltip]::before,
 :root[data-theme='dark'] .player-stats-metric-value[data-tooltip]::after,
+:root[data-theme='dark'] .player-stats-summary-stat[data-tooltip]::before,
+:root[data-theme='dark'] .player-stats-summary-stat[data-tooltip]::after,
+:root[data-theme='dark'] .player-stats-summary-best[data-tooltip]::before,
+:root[data-theme='dark'] .player-stats-summary-best[data-tooltip]::after,
 :root[data-theme='dark'] .player-stats-comparison[data-tooltip]::before,
 :root[data-theme='dark'] .player-stats-comparison[data-tooltip]::after,
 :root[data-theme='dark'] .player-stats-game-stat[data-tooltip]::before,

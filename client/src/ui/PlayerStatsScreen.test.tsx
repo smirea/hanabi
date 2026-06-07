@@ -86,6 +86,49 @@ describe('PlayerStatsScreen', () => {
 		});
 	});
 
+	test('shows summary stat tooltips and best score badges', () => {
+		mockHistory = [
+			historyEntry({
+				score: 25,
+				players: ['Alex'],
+				playerStats: [
+					{ id: 'player:1', name: 'Alex', hintsGiven: 2, hintsReceived: 1, plays: 5, discards: 3 },
+				],
+			}),
+			historyEntry({
+				roomCode: 'WXYZ',
+				score: 10,
+				players: ['Blair'],
+				endedAt: '2026-05-30T20:12:00.000Z',
+				playerStats: [
+					{ id: 'player:2', name: 'Blair', hintsGiven: 1, hintsReceived: 2, plays: 4, discards: 4 },
+				],
+			}),
+		];
+
+		render(<PlayerStatsScreen />);
+
+		expect(screen.getByTestId('player-stats-table')).toHaveTextContent('best');
+		expect(screen.getByTestId('player-stats-summary-games-player:1')).toHaveAttribute(
+			'data-tooltip',
+			'middle',
+		);
+		expect(screen.getByTestId('player-stats-summary-avg-player:1')).toHaveAttribute(
+			'data-tooltip',
+			'best',
+		);
+		expect(screen.getByTestId('player-stats-summary-best-player:1')).toHaveAttribute(
+			'data-tooltip',
+			'best',
+		);
+		expect(screen.getByTestId('player-stats-summary-best-player:1')).toHaveTextContent('25');
+		expect(
+			screen
+				.getByTestId('player-stats-row-player:1')
+				.querySelector('.player-stats-summary-badge img'),
+		).not.toBeNull();
+	});
+
 	test('shows player title, compact metric columns, and per-cell comparisons', () => {
 		mockHistory = [
 			historyEntry({

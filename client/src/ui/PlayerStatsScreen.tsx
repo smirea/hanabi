@@ -1,5 +1,6 @@
 import {
 	ArrowLeft,
+	CardsThree,
 	ChartBar,
 	ClockCounterClockwise,
 	Fire,
@@ -217,6 +218,18 @@ function otherPlayersLabel(
 	return others.length > 0 ? others.join(', ') : 'solo';
 }
 
+function bestScoreGame(player: PlayerStatsAggregate): PlayerStatsAggregate['games'][number] | null {
+	return player.games.reduce<PlayerStatsAggregate['games'][number] | null>((best, game) => {
+		if (!best) return game;
+		if (game.score !== best.score) return game.score > best.score ? game : best;
+		return game.endedAt > best.endedAt ? game : best;
+	}, null);
+}
+
+function bestScoreValue(player: PlayerStatsAggregate): number {
+	return bestScoreGame(player)?.score ?? 0;
+}
+
 function metricCell({
 	value,
 	values,
@@ -398,24 +411,75 @@ export function PlayerStatsScreen({ playerId }: { playerId?: string }) {
 									<span>games</span>
 									<span>avg</span>
 									<span>median</span>
+									<span>best</span>
 								</div>
-								{players.map(player => (
-									<button
-										key={player.id}
-										type='button'
-										className={`player-stats-row ${player.isCurrentUser ? 'you' : ''}`}
-										onClick={() => goPlayer(player.id)}
-										data-testid={`player-stats-row-${player.id}`}
-									>
-										<span className='player-stats-name'>
-											{player.name}
-											{player.isCurrentUser ? <span className='you-tag'>you</span> : null}
-										</span>
-										<span>{player.gamesPlayed}</span>
-										<span>{formatNumber(player.averageScore)}</span>
-										<span>{formatNumber(player.medianScore)}</span>
-									</button>
-								))}
+								{players.map(player => {
+									const bestGame = bestScoreGame(player);
+									const bestFlavor = bestGame
+										? getScoreFlavor(bestGame.score, bestGame.score > 25 ? 30 : 25)
+										: null;
+
+									return (
+										<button
+											key={player.id}
+											type='button'
+											className={`player-stats-row ${player.isCurrentUser ? 'you' : ''}`}
+											onClick={() => goPlayer(player.id)}
+											data-testid={`player-stats-row-${player.id}`}
+										>
+											<span className='player-stats-name'>
+												{player.name}
+												{player.isCurrentUser ? <span className='you-tag'>you</span> : null}
+											</span>
+											<SummaryStatCell
+												icon={<CardsThree size={11} weight='bold' />}
+												label='games'
+												value={player.gamesPlayed}
+												comparison={metricComparison({
+													value: player.gamesPlayed,
+													values: players.map(row => row.gamesPlayed),
+													direction: 'higher',
+												})}
+												tone='games'
+												testId={`player-stats-summary-games-${player.id}`}
+											/>
+											<SummaryStatCell
+												icon={<ChartBar size={11} weight='bold' />}
+												label='avg'
+												value={formatNumber(player.averageScore)}
+												comparison={metricComparison({
+													value: player.averageScore,
+													values: players.map(row => row.averageScore),
+													direction: 'higher',
+												})}
+												tone='avg'
+												testId={`player-stats-summary-avg-${player.id}`}
+											/>
+											<SummaryStatCell
+												icon={<Medal size={11} weight='bold' />}
+												label='median'
+												value={formatNumber(player.medianScore)}
+												comparison={metricComparison({
+													value: player.medianScore,
+													values: players.map(row => row.medianScore),
+													direction: 'higher',
+												})}
+												tone='median'
+												testId={`player-stats-summary-median-${player.id}`}
+											/>
+											<SummaryBestScoreCell
+												game={bestGame}
+												flavor={bestFlavor}
+												comparison={metricComparison({
+													value: bestScoreValue(player),
+													values: players.map(bestScoreValue),
+													direction: 'higher',
+												})}
+												testId={`player-stats-summary-best-${player.id}`}
+											/>
+										</button>
+									);
+								})}
 							</div>
 						</section>
 					)}
@@ -611,6 +675,63 @@ function PlayerStatsDetail({
 				})}
 			</section>
 		</section>
+	);
+}
+
+function SummaryStatCell({
+	icon,
+	label,
+	value,
+	comparison,
+	tone,
+	testId,
+}: {
+	icon: ReactNode;
+	label: string;
+	value: string | number;
+	comparison: MetricComparison | null;
+	tone: 'games' | 'avg' | 'median';
+	testId: string;
+}) {
+	const tooltip = comparison?.note ?? `${label}: ${value}`;
+	return (
+		<span
+			className={`player-stats-summary-stat ${tone}`}
+			data-tooltip={tooltip}
+			data-testid={testId}
+		>
+			<span className='player-stats-summary-icon' aria-hidden>
+				{icon}
+			</span>
+			<span>{value}</span>
+			<ComparisonIndicator comparison={comparison} testId={`${testId}-comparison`} />
+		</span>
+	);
+}
+
+function SummaryBestScoreCell({
+	game,
+	flavor,
+	comparison,
+	testId,
+}: {
+	game: PlayerStatsAggregate['games'][number] | null;
+	flavor: ReturnType<typeof getScoreFlavor> | null;
+	comparison: MetricComparison | null;
+	testId: string;
+}) {
+	const score = game?.score ?? 0;
+	const tooltip = comparison?.note ?? `best: ${score}`;
+	return (
+		<span className='player-stats-summary-best' data-tooltip={tooltip} data-testid={testId}>
+			<span className='player-stats-summary-best-value'>{score}</span>
+			<ComparisonIndicator comparison={comparison} testId={`${testId}-comparison`} />
+			{flavor ? (
+				<span className='player-stats-summary-badge' aria-hidden>
+					<img src={flavor.image} alt='' />
+				</span>
+			) : null}
+		</span>
 	);
 }
 
