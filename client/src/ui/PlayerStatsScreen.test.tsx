@@ -86,7 +86,7 @@ describe('PlayerStatsScreen', () => {
 		});
 	});
 
-	test('shows totals, average per game, and median per game for a player', () => {
+	test('shows totals, average, median, best, worst, and global comparison for a player', () => {
 		mockHistory = [
 			historyEntry({
 				score: 10,
@@ -110,10 +110,20 @@ describe('PlayerStatsScreen', () => {
 
 		expect(screen.getByTestId('player-stats-detail')).toHaveTextContent('Alex');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('avg/game');
+		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('best');
+		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('worst');
+		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('global');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('score');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('15');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('given');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('6');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('3');
+		expect(screen.getByTestId('player-stats-comparison-given')).toHaveClass('best');
+		expect(screen.getByTestId('player-stats-comparison-given')).toHaveAccessibleName(
+			/Best global given/,
+		);
+		expect(screen.getByTestId('player-stats-recent')).toContainElement(
+			screen.getByAltText('Shovel specialist'),
+		);
 	});
 });
