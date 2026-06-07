@@ -369,7 +369,7 @@ describe('HanabiGame', () => {
 		expect(() => losingGame.beginPlaySelection()).toThrow('Game is over (lost)');
 	});
 
-	test('drawing the final card starts last round and ends after final turns', () => {
+	test('drawing the final card keeps the game active with no final round', () => {
 		const game = new HanabiGame({
 			playerNames: ['A', 'B'],
 			deck: twoPlayerDeck(
@@ -382,26 +382,21 @@ describe('HanabiGame', () => {
 		const openingPlay = game.state.players[0].cards[0];
 		game.playCard(openingPlay);
 		expect(game.state.drawDeck).toHaveLength(0);
-		expect(game.state.status).toBe('last_round');
-		expect(game.state.lastRound).toEqual({ turnsRemaining: 2, finalPlayerId: 'p1' });
+		expect(game.state.status).toBe('active');
+		expect(game.state.lastRound).toBeNull();
 		expect(game.state.currentTurnPlayerIndex).toBe(1);
 
 		game.giveNumberHint('p1', 2);
-		expect(game.state.status).toBe('last_round');
-		expect(game.state.lastRound).toEqual({ turnsRemaining: 1, finalPlayerId: 'p1' });
+		expect(game.state.status).toBe('active');
+		expect(game.state.lastRound).toBeNull();
 		expect(game.state.currentTurnPlayerIndex).toBe(0);
 
 		game.giveColorHint('p2', 'R');
-		expect(game.state.status).toBe('finished');
+		expect(game.state.status).toBe('active');
 		expect(game.state.lastRound).toBeNull();
-		expect(game.state.logs.at(-1)).toMatchObject({
-			type: 'status',
-			status: 'finished',
-			reason: 'final_round_complete',
-		});
 	});
 
-	test('snapshot restore preserves the active last round', () => {
+	test('legacy last round snapshots restore to active play', () => {
 		const game = new HanabiGame({
 			playerNames: ['A', 'B'],
 			deck: twoPlayerDeck(
@@ -412,10 +407,13 @@ describe('HanabiGame', () => {
 		});
 
 		game.playCard(game.state.players[0].cards[0]);
-		const restored = HanabiGame.fromState(game.getSnapshot());
+		const snapshot = game.getSnapshot();
+		snapshot.status = 'last_round';
+		snapshot.lastRound = { turnsRemaining: 2, finalPlayerId: 'p1' };
+		const restored = HanabiGame.fromState(snapshot);
 
-		expect(restored.state.status).toBe('last_round');
-		expect(restored.state.lastRound).toEqual({ turnsRemaining: 2, finalPlayerId: 'p1' });
+		expect(restored.state.status).toBe('active');
+		expect(restored.state.lastRound).toBeNull();
 	});
 
 	test('playing the final needed card wins immediately', () => {
@@ -979,18 +977,13 @@ describe('HanabiGame', () => {
 		expect(discardGame.state.logs.at(-1)).toMatchObject({ type: 'discard' });
 	});
 
-	test('normal games finish when no firework completion path remains', () => {
+	test('normal games keep going when no firework completion path remains', () => {
 		const game = HanabiGame.fromState(createNoValidPlaysLeftState());
 
 		game.discardCard(game.state.players[0].cards[0]);
 
-		expect(game.state.status).toBe('finished');
-		expect(game.state.logs.at(-1)).toMatchObject({
-			type: 'status',
-			status: 'finished',
-			reason: 'no_valid_plays_left',
-		});
-		expect(() => game.beginPlaySelection()).toThrow('Game is over (finished)');
+		expect(game.state.status).toBe('active');
+		expect(game.state.logs.some(log => log.type === 'status')).toBeFalse();
 	});
 
 	test('perspective view hides own cards and updates known availability by viewer', () => {

@@ -28,11 +28,13 @@ Complete the fireworks by building each color stack in order 1 through 5.
 
 ## Turn Structure
 
-On your turn, you must take exactly one of the following actions (no skipping):
+On your turn, you must take exactly one of the following actions:
 
 1. Give one piece of information
 2. Discard a card
 3. Play a card
+
+House rule used by this app: if you have no cards, you may still give information. If you have no cards and cannot legally give information, your turn is skipped.
 
 ## Actions
 
@@ -50,9 +52,8 @@ On your turn, you must take exactly one of the following actions (no skipping):
 ### 2. Discard a Card
 
 - Announce the discard and place one of your cards face up in the discard pile.
-- Return one blue token from the lid to the table (if any are in the lid).
+- Return one blue token from the lid to the table if any are in the lid. If all blue tokens are already on the table, the discard is still allowed but gains no token.
 - Draw a replacement card if the deck is not empty.
-- If all blue tokens are already on the table, you cannot discard.
 
 ### 3. Play a Card
 
@@ -72,15 +73,15 @@ On your turn, you must take exactly one of the following actions (no skipping):
 
 ## End of the Game
 
-The official game ends in one of three ways:
+House rule used by this app: the deck running out does **not** start a final round and is **not** a game-end trigger. When the deck is empty, plays and discards stop drawing replacements, so hands can shrink.
 
-1. **Immediate loss:** The third black fuse token is added to the lid.
-2. **Immediate win:** All fireworks are completed before the deck runs out.
-3. **Last round:** When the last card is drawn, each player (including the player who drew it) takes one final turn. No cards are drawn during this final round.
+The game ends in these ways:
 
-Once the last round is complete, the game ends and the team scores the fireworks.
+1. **Loss:** The third black fuse token is added to the lid.
+2. **Win:** All fireworks are completed.
+3. **No legal actions:** If every player is out of cards and no legal information action exists, the game ends and the team scores the fireworks.
 
-Implementation note: in non-Sudden Death games, the app also finishes an unwinnable game when no incomplete firework can advance because none of the next required cards are left in player hands or the deck.
+Empty-hand players can still give information if at least one clue token is available and the clue touches at least one card in a teammate hand. If no such clue is available, that player is skipped.
 
 ## Scoring
 
@@ -132,7 +133,7 @@ The lobby can enable any supported expansion before players ready up. Changing a
 
 ### Sudden Death
 
-- The game does not end after the last card is drawn.
+- The base house rule already prevents the deck from starting a final round.
 - The team has only 1 fuse token.
 - The game continues until the team is defeated (the fuse token is used, or an indispensable card is discarded) or victorious (all fireworks completed).
 - Score scale is not used; the goal is perfection.

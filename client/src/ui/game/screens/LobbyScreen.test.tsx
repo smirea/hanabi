@@ -97,7 +97,7 @@ describe('LobbyScreen', () => {
 		});
 	});
 
-	test('labels one-life deck-exhaustion mode as sudden death', () => {
+	test('labels one-life mode as sudden death', () => {
 		render(
 			<LobbyScreen
 				{...createProps({
@@ -113,7 +113,7 @@ describe('LobbyScreen', () => {
 
 		expect(screen.getByTestId('lobby-setting-endless')).toHaveTextContent('Sudden Death');
 		expect(screen.getByTestId('lobby-setting-endless')).toHaveTextContent(
-			'One life only; keep playing after the deck runs out.',
+			'One life only; perfection or bust.',
 		);
 	});
 

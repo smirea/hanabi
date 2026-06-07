@@ -241,7 +241,7 @@ describe('onlineGame', () => {
 		expect(state.gameState.turn).toBeGreaterThan(1);
 	});
 
-	test('online actions preserve final round countdown after the deck empties', () => {
+	test('online actions keep the room active after the deck empties', () => {
 		const game = new HanabiGame({
 			playerIds: ['player:1', 'player:2'],
 			playerNames: ['Alex', 'Blair'],
@@ -258,7 +258,8 @@ describe('onlineGame', () => {
 			gameState: game.getSnapshot(),
 		});
 
-		expect(state.gameState?.status).toBe('last_round');
+		expect(state.gameState?.status).toBe('active');
+		expect(state.gameState?.lastRound).toBeNull();
 		expect(
 			applyOnlineRoomAction(state, {
 				type: 'game-action',
@@ -272,11 +273,8 @@ describe('onlineGame', () => {
 			}),
 		).toBeTrue();
 
-		expect(state.gameState?.status).toBe('last_round');
-		expect(state.gameState?.lastRound).toEqual({
-			turnsRemaining: 1,
-			finalPlayerId: 'player:1',
-		});
+		expect(state.gameState?.status).toBe('active');
+		expect(state.gameState?.lastRound).toBeNull();
 		expect(state.gameState?.players[state.gameState.currentTurnPlayerIndex]?.id).toBe('player:1');
 	});
 });

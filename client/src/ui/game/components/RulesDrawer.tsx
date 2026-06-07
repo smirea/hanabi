@@ -18,9 +18,10 @@ const RULE_TABS: RulesTab[] = [
 		points: [
 			'Players can see every hand except their own. Work together to build one firework per color.',
 			'Each firework is built in order from 1 to 5. A correct 5 normally returns one clue token.',
-			'On your turn, give one clue, discard one card, or play one card. You cannot skip.',
+			'On your turn, give one clue, discard one card, or play one card.',
 			'Clues must point to every card of one color or one number in a teammate hand.',
-			'Misplayed cards use a fuse. The game ends when the third fuse is used, all fireworks are completed, or after the final round once the last card is drawn.',
+			'House rule: the deck running out does not start a final round. Empty-hand players can still clue; if they cannot clue, their turn is skipped.',
+			'Misplayed cards use a fuse. The game ends when the third fuse is used or all fireworks are completed.',
 		],
 	},
 	{
@@ -62,7 +63,7 @@ const RULE_TABS: RulesTab[] = [
 		title: 'Sudden Death',
 		points: [
 			'The team has only one fuse token.',
-			'The deck running out does not start a final round. Keep playing until victory or defeat.',
+			'The house-rule no-final-round deck behavior still applies.',
 			'Losing the one fuse or discarding an indispensable card ends the game.',
 			'The goal is perfection rather than a score scale.',
 		],

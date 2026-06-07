@@ -17,6 +17,7 @@ type EndReason =
 	| 'fuse_limit_reached'
 	| 'final_round_complete'
 	| 'indispensable_card_discarded'
+	| 'no_legal_actions_left'
 	| 'no_valid_plays_left';
 
 export type FlamboyantBonus =
@@ -1366,16 +1367,8 @@ export class HanabiGame {
 	}
 
 	private finishActionAfterBonus(): void {
-		const deckEmptiedOnDraw = this.drawCardForPlayer(this.state.currentTurnPlayerIndex);
-		if (deckEmptiedOnDraw && !this.state.settings.endlessMode && this.state.status === 'active') {
-			this.state.status = 'last_round';
-			this.state.lastRound = {
-				turnsRemaining: this.state.players.length,
-				finalPlayerId: this.state.players[this.state.currentTurnPlayerIndex].id,
-			};
-		}
-
-		this.finalizeAction({ enteredLastRound: deckEmptiedOnDraw });
+		this.drawCardForPlayer(this.state.currentTurnPlayerIndex);
+		this.finalizeAction();
 	}
 
 	private isPerfectionStillPossible(): boolean {
@@ -1413,47 +1406,9 @@ export class HanabiGame {
 		return true;
 	}
 
-	private canAnyFireworkAdvance(): boolean {
-		const remaining = createEmptyCountsBySuit();
-
-		for (const cardId of this.state.drawDeck) {
-			const card = this.state.cards[cardId];
-			if (!card) {
-				throw new Error(`Unknown card in drawDeck: ${cardId}`);
-			}
-
-			remaining[card.suit][card.number] += 1;
-		}
-
-		for (const player of this.state.players) {
-			for (const cardId of player.cards) {
-				const card = this.state.cards[cardId];
-				if (!card) {
-					throw new Error(`Unknown card in player hand: ${cardId}`);
-				}
-
-				remaining[card.suit][card.number] += 1;
-			}
-		}
-
-		for (const suit of this.state.settings.activeSuits) {
-			const height = this.state.fireworks[suit].length;
-			if (height >= CARD_NUMBERS.length) {
-				continue;
-			}
-
-			const nextNumber = getNextFireworkNumber(suit, height);
-			if (nextNumber && remaining[suit][nextNumber] > 0) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	private drawCardForPlayer(playerIndex: number): boolean {
+	private drawCardForPlayer(playerIndex: number): void {
 		if (this.state.drawDeck.length === 0) {
-			return false;
+			return;
 		}
 
 		const drawnCardId = this.state.drawDeck.shift();
@@ -1463,7 +1418,6 @@ export class HanabiGame {
 
 		const player = this.state.players[playerIndex];
 		player.cards.push(drawnCardId);
-		return this.state.drawDeck.length === 0;
 	}
 
 	private anyPlayerHasLegalAction(): boolean {
@@ -1534,35 +1488,13 @@ export class HanabiGame {
 		this.appendStatusLog(status, reason);
 	}
 
-	private finalizeAction({ enteredLastRound = false }: { enteredLastRound?: boolean } = {}): void {
+	private finalizeAction(): void {
 		if (!HanabiGame.isTerminalStatus(this.state.status) && this.areAllFireworksComplete()) {
 			this.transitionToTerminalState('won', 'all_fireworks_completed');
 		}
 
-		if (!HanabiGame.isTerminalStatus(this.state.status) && this.state.status === 'last_round') {
-			if (!this.state.lastRound) {
-				throw new Error('lastRound state is required while status is last_round');
-			}
-
-			if (!enteredLastRound) {
-				this.state.lastRound.turnsRemaining -= 1;
-			}
-
-			if (this.state.lastRound.turnsRemaining <= 0) {
-				this.transitionToTerminalState('finished', 'final_round_complete');
-			}
-		}
-
 		if (!HanabiGame.isTerminalStatus(this.state.status) && !this.anyPlayerHasLegalAction()) {
-			this.transitionToTerminalState('finished', 'final_round_complete');
-		}
-
-		if (
-			!HanabiGame.isTerminalStatus(this.state.status) &&
-			!this.state.settings.endlessMode &&
-			!this.canAnyFireworkAdvance()
-		) {
-			this.transitionToTerminalState('finished', 'no_valid_plays_left');
+			this.transitionToTerminalState('finished', 'no_legal_actions_left');
 		}
 
 		if (!HanabiGame.isTerminalStatus(this.state.status)) {
@@ -1698,27 +1630,8 @@ export class HanabiGame {
 		cloned.pendingBonus ??= null;
 
 		if (cloned.status === 'last_round') {
-			const turnsRemaining = Math.max(
-				0,
-				Math.floor(cloned.lastRound?.turnsRemaining ?? cloned.players.length),
-			);
-			const inferredFinalPlayerIndex =
-				cloned.players.length === 0
-					? -1
-					: (cloned.currentTurnPlayerIndex + Math.max(1, turnsRemaining) - 1) %
-						cloned.players.length;
-			const inferredFinalPlayerId =
-				inferredFinalPlayerIndex >= 0 ? cloned.players[inferredFinalPlayerIndex]?.id : null;
-			const restoredFinalPlayerId = cloned.lastRound?.finalPlayerId ?? null;
-			const finalPlayerId = cloned.players.some(player => player.id === restoredFinalPlayerId)
-				? restoredFinalPlayerId
-				: inferredFinalPlayerId;
-			if (!finalPlayerId) {
-				cloned.status = 'active';
-				cloned.lastRound = null;
-			} else {
-				cloned.lastRound = { turnsRemaining, finalPlayerId };
-			}
+			cloned.status = 'active';
+			cloned.lastRound = null;
 		} else {
 			cloned.lastRound = null;
 		}

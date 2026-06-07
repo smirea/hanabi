@@ -19,13 +19,7 @@ void mock.module('./hooks/useGameServer', () => ({
 }));
 
 import App from './App';
-import {
-	HanabiGame,
-	getFireworkCardNumbers,
-	scoreHanabiState,
-	type HanabiState,
-	type PlayerId,
-} from './game';
+import { HanabiGame, getFireworkCardNumbers, scoreHanabiState, type HanabiState } from './game';
 import { storageKeys } from './utils/constants';
 import { LS } from './utils/utils';
 
@@ -91,11 +85,9 @@ function createFinishedRoom({
 function createPlayingRoom({
 	drawDeckCount = 12,
 	endlessMode = false,
-	lastRoundFinalPlayerId = null,
 }: {
 	drawDeckCount?: number;
 	endlessMode?: boolean;
-	lastRoundFinalPlayerId?: PlayerId | null;
 } = {}) {
 	const game = new HanabiGame({
 		playerIds: ['player:1', 'player:2'],
@@ -105,11 +97,6 @@ function createPlayingRoom({
 	});
 	const gameState = game.getSnapshot();
 	gameState.drawDeck = gameState.drawDeck.slice(0, drawDeckCount);
-	if (lastRoundFinalPlayerId) {
-		gameState.status = 'last_round';
-		gameState.drawDeck = [];
-		gameState.lastRound = { turnsRemaining: 1, finalPlayerId: lastRoundFinalPlayerId };
-	}
 
 	return {
 		status: 'connected',
@@ -184,7 +171,7 @@ describe('App online reconnect state', () => {
 		expect(screen.queryByTestId('lobby-start')).not.toBeInTheDocument();
 	});
 
-	test('warns when the normal deck is low but not in sudden death', () => {
+	test('uses static deck warning colors when the deck is low', () => {
 		LS.set({ [storageKeys.debugMode]: false });
 		mockRoom = createPlayingRoom({ drawDeckCount: 9 });
 
@@ -197,21 +184,17 @@ describe('App online reconnect state', () => {
 
 		render(<App roomCode='ABCD' />);
 
-		expect(screen.getByTestId('deck-pill')).not.toHaveClass('deck-pill-warning');
-		expect(screen.getByTestId('deck-pill')).not.toHaveClass('deck-pill-danger');
+		expect(screen.getByTestId('deck-pill')).toHaveClass('deck-pill-danger');
 	});
 
-	test('shows the final round banner when the last card has been drawn', () => {
+	test('does not show a final round banner when the deck is empty', () => {
 		LS.set({ [storageKeys.debugMode]: false });
-		mockRoom = createPlayingRoom({ lastRoundFinalPlayerId: 'player:2' });
+		mockRoom = createPlayingRoom({ drawDeckCount: 0 });
 
 		render(<App roomCode='ABCD' />);
 
 		expect(screen.getByTestId('deck-pill')).toHaveClass('deck-pill-danger');
-		expect(screen.getByTestId('last-round-banner')).toHaveTextContent('Deck is empty');
-		expect(screen.getByTestId('last-round-banner')).toHaveTextContent(
-			"Game ends after Blair's next turn.",
-		);
+		expect(screen.queryByTestId('last-round-banner')).not.toBeInTheDocument();
 	});
 
 	test('endgame back to game only dismisses the local overlay', () => {
