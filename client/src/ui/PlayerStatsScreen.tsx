@@ -1,11 +1,11 @@
 import {
 	ArrowLeft,
-	CalendarBlank,
 	ChartBar,
 	ClockCounterClockwise,
 	Fire,
 	LightbulbFilament,
 	Medal,
+	Toilet,
 	Trophy,
 } from '@phosphor-icons/react';
 import { useNavigate } from '@tanstack/react-router';
@@ -51,8 +51,6 @@ function formatDate(value: string): string {
 	return new Intl.DateTimeFormat(undefined, {
 		month: 'short',
 		day: 'numeric',
-		hour: 'numeric',
-		minute: '2-digit',
 	}).format(date);
 }
 
@@ -65,14 +63,6 @@ function outcomeLabel(status: PlayerStatsAggregate['games'][number]['status']): 
 	if (status === 'won') return 'Win';
 	if (status === 'lost') return 'Loss';
 	return 'Done';
-}
-
-function medianNumber(values: number[]): number {
-	if (values.length === 0) return 0;
-	const sorted = [...values].sort((a, b) => a - b);
-	const mid = Math.floor(sorted.length / 2);
-	if (sorted.length % 2 === 1) return sorted[mid];
-	return (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 function bestMetricValue(values: number[], direction: MetricDirection): number {
@@ -108,17 +98,34 @@ function comparisonLabel(kind: ComparisonKind): string {
 	}
 }
 
+function comparisonNote(kind: ComparisonKind): string {
+	switch (kind) {
+		case 'best':
+			return 'best';
+		case 'top':
+			return 'top 25%';
+		case 'up':
+			return 'top 45%';
+		case 'down':
+			return 'bottom 55%';
+		case 'bottom':
+			return 'bottom 25%';
+		case 'worst':
+			return 'worst';
+		default:
+			return 'middle';
+	}
+}
+
 function detailTitle(playerName: string | undefined): string {
 	return playerName ? `${playerName}'s stats` : 'Player stats';
 }
 
 function metricComparison({
-	label,
 	value,
 	values,
 	direction,
 }: {
-	label: string;
 	value: number;
 	values: number[];
 	direction: MetricDirection;
@@ -131,7 +138,7 @@ function metricComparison({
 		return {
 			kind: 'neutral',
 			label: comparisonLabel('neutral'),
-			note: `${label}: even with everyone.`,
+			note: comparisonNote('neutral'),
 		};
 	}
 
@@ -147,14 +154,11 @@ function metricComparison({
 	).length;
 	const betterPercent = Math.round((betterThan / denominator) * 100);
 	const worsePercent = Math.round((worseThan / denominator) * 100);
-	const globalMedian = medianNumber(finiteValues);
-	const baseNote = `${label}: ${formatNumber(value)}. Median: ${formatNumber(globalMedian)}.`;
-
 	if (value === best) {
 		return {
 			kind: 'best',
 			label: comparisonLabel('best'),
-			note: `Best. ${baseNote}`,
+			note: comparisonNote('best'),
 		};
 	}
 
@@ -162,7 +166,7 @@ function metricComparison({
 		return {
 			kind: 'worst',
 			label: 'Worst',
-			note: `Worst. ${baseNote}`,
+			note: comparisonNote('worst'),
 		};
 	}
 
@@ -170,7 +174,7 @@ function metricComparison({
 		return {
 			kind: 'top',
 			label: comparisonLabel('top'),
-			note: `Better than ${betterPercent}%. ${baseNote}`,
+			note: comparisonNote('top'),
 		};
 	}
 
@@ -178,7 +182,7 @@ function metricComparison({
 		return {
 			kind: 'up',
 			label: comparisonLabel('up'),
-			note: `Better than ${betterPercent}%. ${baseNote}`,
+			note: comparisonNote('up'),
 		};
 	}
 
@@ -186,7 +190,7 @@ function metricComparison({
 		return {
 			kind: 'bottom',
 			label: comparisonLabel('bottom'),
-			note: `Worse than ${worsePercent}%. ${baseNote}`,
+			note: comparisonNote('bottom'),
 		};
 	}
 
@@ -194,31 +198,37 @@ function metricComparison({
 		return {
 			kind: 'down',
 			label: comparisonLabel('down'),
-			note: `Worse than ${worsePercent}%. ${baseNote}`,
+			note: comparisonNote('down'),
 		};
 	}
 
 	return {
 		kind: 'neutral',
 		label: comparisonLabel('neutral'),
-		note: `Middle. ${baseNote}`,
+		note: comparisonNote('neutral'),
 	};
 }
 
+function otherPlayersLabel(
+	game: PlayerStatsAggregate['games'][number],
+	playerName: string,
+): string {
+	const others = game.players.filter(name => name !== playerName);
+	return others.length > 0 ? others.join(', ') : 'solo';
+}
+
 function metricCell({
-	label,
 	value,
 	values,
 	direction,
 }: {
-	label: string;
 	value: number;
 	values: number[];
 	direction: MetricDirection;
 }): MetricCell {
 	return {
 		value,
-		comparison: metricComparison({ label, value, values, direction }),
+		comparison: metricComparison({ value, values, direction }),
 	};
 }
 
@@ -253,31 +263,26 @@ function makeMetricRow({
 		label,
 		cells: {
 			total: metricCell({
-				label,
 				value: total(player),
 				values: players.map(total),
 				direction,
 			}),
 			average: metricCell({
-				label,
 				value: average(player),
 				values: players.map(average),
 				direction,
 			}),
 			median: metricCell({
-				label,
 				value: median(player),
 				values: players.map(median),
 				direction,
 			}),
 			best: metricCell({
-				label,
 				value: bestMetricValue(currentValues, direction),
 				values: players.map(best),
 				direction,
 			}),
 			worst: metricCell({
-				label,
 				value: worstMetricValue(currentValues, direction),
 				values: players.map(worst),
 				direction,
@@ -570,35 +575,35 @@ function PlayerStatsDetail({
 								</div>
 							</div>
 							<div className='history-main'>
-								<div className='history-players'>{outcomeLabel(game.status)}</div>
-								<div className='player-stats-game-meta'>
-									<GameRowStat
-										icon={<CalendarBlank size={12} weight='bold' />}
-										value={formatDate(game.endedAt)}
-										label='date'
-									/>
-									<GameRowStat
-										icon={<ClockCounterClockwise size={12} weight='bold' />}
-										value={game.turns}
-										label='turns'
-									/>
-									<GameRowStat
-										icon={<LightbulbFilament size={12} weight='fill' />}
-										value={game.hintsGiven}
-										label='hints given'
-									/>
+								<div className='history-players'>
+									{outcomeLabel(game.status)} · {otherPlayersLabel(game, player.name)}
 								</div>
+								<div className='player-stats-game-date'>{formatDate(game.endedAt)}</div>
 							</div>
-							<div className='player-stats-game-resources'>
+							<div className='player-stats-game-stats'>
+								<GameRowStat
+									icon={<ClockCounterClockwise size={12} weight='bold' />}
+									value={game.turns}
+									label='turns'
+									tone='turns'
+								/>
+								<GameRowStat
+									icon={<LightbulbFilament size={12} weight='fill' />}
+									value={game.hintsGiven}
+									label='hints given'
+									tone='hints'
+								/>
 								<GameRowStat
 									icon={<Fire size={12} weight='fill' />}
 									value={`${game.livesRemaining}/${game.maxLives}`}
 									label='lives'
+									tone='lives'
 								/>
 								<GameRowStat
 									icon={<LightbulbFilament size={12} weight='fill' />}
 									value={`${game.hintsRemaining}/${game.maxHints}`}
 									label='hints'
+									tone='hints'
 								/>
 							</div>
 						</article>
@@ -611,9 +616,15 @@ function PlayerStatsDetail({
 
 function MetricValueCell({ row, column }: { row: MetricRow; column: MetricColumn }) {
 	const cell = row.cells[column];
+	const value = formatNumber(cell.value);
+	const tooltip = cell.comparison?.note;
 	return (
-		<span className='player-stats-metric-value'>
-			<span>{formatNumber(cell.value)}</span>
+		<span
+			className='player-stats-metric-value'
+			data-tooltip={tooltip}
+			tabIndex={tooltip ? 0 : undefined}
+		>
+			<span>{value}</span>
 			<ComparisonIndicator
 				comparison={cell.comparison}
 				testId={`player-stats-comparison-${row.key}-${column}`}
@@ -626,13 +637,21 @@ function GameRowStat({
 	icon,
 	value,
 	label,
+	tone,
 }: {
 	icon: ReactNode;
 	value: string | number;
 	label: string;
+	tone: 'turns' | 'hints' | 'lives';
 }) {
+	const tooltip = `${label}: ${value}`;
 	return (
-		<span className='player-stats-game-stat' title={label} aria-label={`${label}: ${value}`}>
+		<span
+			className={`player-stats-game-stat ${tone}`}
+			data-tooltip={tooltip}
+			tabIndex={0}
+			aria-label={tooltip}
+		>
 			<span className='player-stats-game-stat-icon' aria-hidden>
 				{icon}
 			</span>
@@ -663,13 +682,11 @@ function ComparisonIndicator({
 	return (
 		<span
 			className={`player-stats-comparison ${comparison.kind}`}
-			data-tooltip={comparison.note}
-			tabIndex={0}
 			aria-label={comparison.note}
 			data-testid={testId}
 		>
 			{comparison.kind === 'worst' ? (
-				<img src='/score-badges/poo.png' alt='' className='player-stats-comparison-poo' />
+				<Toilet size={10} weight='fill' aria-hidden />
 			) : (
 				comparison.label
 			)}

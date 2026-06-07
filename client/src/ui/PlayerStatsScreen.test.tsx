@@ -120,12 +120,15 @@ describe('PlayerStatsScreen', () => {
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('6');
 		expect(screen.getByTestId('player-stats-metric-table')).toHaveTextContent('3');
 		expect(screen.getByTestId('player-stats-comparison-given-total')).toHaveClass('best');
-		expect(screen.getByTestId('player-stats-comparison-given-total')).toHaveAccessibleName(
-			/Best\. given/,
-		);
+		expect(screen.getByTestId('player-stats-comparison-given-total')).toHaveAccessibleName('best');
 		expect(screen.getByTestId('player-stats-recent')).toContainElement(
 			screen.getByAltText('Shovel specialist'),
 		);
+		expect(screen.getByTestId('player-stats-recent')).toHaveTextContent('Win · Blair');
+		expect(screen.getByTestId('player-stats-recent')).toHaveTextContent('May 31');
+		expect(screen.getByTestId('player-stats-recent')).not.toHaveTextContent('8:12');
+		expect(screen.getByTestId('player-stats-recent')).not.toHaveTextContent('4:12');
 		expect(screen.getAllByLabelText('turns: 42').length).toBeGreaterThan(0);
+		expect(screen.getAllByLabelText('hints given: 2').length).toBeGreaterThan(0);
 	});
 });

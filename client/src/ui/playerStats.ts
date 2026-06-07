@@ -3,6 +3,7 @@ import type { GameHistoryEntry, GameHistoryPlayerStats } from '../utils/types';
 export interface PlayerStatsGame {
 	roomCode: string;
 	endedAt: string;
+	players: string[];
 	status: GameHistoryEntry['status'];
 	score: number;
 	turns: number;
@@ -103,6 +104,7 @@ export function aggregatePlayerStats(
 			current.games.push({
 				roomCode: game.roomCode,
 				endedAt: game.endedAt,
+				players: [...game.players],
 				status: game.status,
 				score: game.score,
 				turns: game.turns,
