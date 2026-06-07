@@ -105,8 +105,22 @@ export interface GameHistoryEntry {
 	status: NonNullable<HanabiState>['status'];
 	endedAt: string;
 	players: string[];
+	playerStats: GameHistoryPlayerStats[];
 	settings: LobbySettings;
 	turns: number;
+	livesRemaining: number;
+	hintsRemaining: number;
+	maxLives: number;
+	maxHints: number;
+}
+
+export interface GameHistoryPlayerStats {
+	id: GamePlayerId;
+	name: string;
+	hintsGiven: number;
+	hintsReceived: number;
+	plays: number;
+	discards: number;
 }
 
 export interface UserRecord {

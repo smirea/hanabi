@@ -5,6 +5,7 @@ export type {
 	DirectoryResponse,
 	GameAction,
 	GameHistoryEntry,
+	GameHistoryPlayerStats,
 	HistoryResponse,
 	LobbySettings,
 	OnlineRoomAction,

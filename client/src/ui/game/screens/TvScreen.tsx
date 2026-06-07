@@ -274,6 +274,7 @@ export function TvScreen({
 										card={card}
 										showNegativeColorHints={showNegativeColorHints}
 										showNegativeNumberHints={showNegativeNumberHints}
+										showAmbiguousMulticolorHints={gameState.settings.includeMulticolor}
 										isDisabled
 										testId={`tv-card-${player.id}-${cardIndex}`}
 									/>

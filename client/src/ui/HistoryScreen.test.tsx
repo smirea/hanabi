@@ -26,6 +26,10 @@ function historyEntry(entry: Partial<GameHistoryEntry> = {}): GameHistoryEntry {
 		status: 'won',
 		endedAt: '2026-05-31T20:12:00.000Z',
 		players: ['Alex', 'Blair'],
+		playerStats: [
+			{ id: 'player:1', name: 'Alex', hintsGiven: 1, hintsReceived: 2, plays: 3, discards: 4 },
+			{ id: 'player:2', name: 'Blair', hintsGiven: 2, hintsReceived: 1, plays: 4, discards: 3 },
+		],
 		settings: {
 			includeMulticolor: false,
 			multicolorShortDeck: false,
@@ -35,6 +39,10 @@ function historyEntry(entry: Partial<GameHistoryEntry> = {}): GameHistoryEntry {
 			endlessMode: false,
 		},
 		turns: 42,
+		livesRemaining: 2,
+		hintsRemaining: 4,
+		maxLives: 3,
+		maxHints: 8,
 		...entry,
 	};
 }

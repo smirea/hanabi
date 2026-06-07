@@ -9,10 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as StatsRouteImport } from './routes/stats'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as StatsPlayerIdRouteImport } from './routes/stats_.$playerId'
 import { Route as RoomCodeRouteImport } from './routes/room/$code'
 
+const StatsRoute = StatsRouteImport.update({
+  id: '/stats',
+  path: '/stats',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HistoryRoute = HistoryRouteImport.update({
   id: '/history',
   path: '/history',
@@ -21,6 +28,11 @@ const HistoryRoute = HistoryRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StatsPlayerIdRoute = StatsPlayerIdRouteImport.update({
+  id: '/stats_/$playerId',
+  path: '/stats/$playerId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RoomCodeRoute = RoomCodeRouteImport.update({
@@ -32,35 +44,56 @@ const RoomCodeRoute = RoomCodeRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/history': typeof HistoryRoute
+  '/stats': typeof StatsRoute
   '/room/$code': typeof RoomCodeRoute
+  '/stats/$playerId': typeof StatsPlayerIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/history': typeof HistoryRoute
+  '/stats': typeof StatsRoute
   '/room/$code': typeof RoomCodeRoute
+  '/stats/$playerId': typeof StatsPlayerIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/history': typeof HistoryRoute
+  '/stats': typeof StatsRoute
   '/room/$code': typeof RoomCodeRoute
+  '/stats_/$playerId': typeof StatsPlayerIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/history' | '/room/$code'
+  fullPaths: '/' | '/history' | '/stats' | '/room/$code' | '/stats/$playerId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/history' | '/room/$code'
-  id: '__root__' | '/' | '/history' | '/room/$code'
+  to: '/' | '/history' | '/stats' | '/room/$code' | '/stats/$playerId'
+  id:
+    | '__root__'
+    | '/'
+    | '/history'
+    | '/stats'
+    | '/room/$code'
+    | '/stats_/$playerId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   HistoryRoute: typeof HistoryRoute
+  StatsRoute: typeof StatsRoute
   RoomCodeRoute: typeof RoomCodeRoute
+  StatsPlayerIdRoute: typeof StatsPlayerIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/stats': {
+      id: '/stats'
+      path: '/stats'
+      fullPath: '/stats'
+      preLoaderRoute: typeof StatsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/history': {
       id: '/history'
       path: '/history'
@@ -73,6 +106,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/stats_/$playerId': {
+      id: '/stats_/$playerId'
+      path: '/stats/$playerId'
+      fullPath: '/stats/$playerId'
+      preLoaderRoute: typeof StatsPlayerIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/room/$code': {
@@ -88,7 +128,9 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   HistoryRoute: HistoryRoute,
+  StatsRoute: StatsRoute,
   RoomCodeRoute: RoomCodeRoute,
+  StatsPlayerIdRoute: StatsPlayerIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

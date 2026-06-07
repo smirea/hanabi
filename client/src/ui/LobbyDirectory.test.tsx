@@ -64,6 +64,18 @@ describe('LobbyDirectory', () => {
 		expect(screen.getByTestId('room-directory-create')).toBeInTheDocument();
 	});
 
+	test('navigates to player stats from the directory', () => {
+		render(<LobbyDirectory />);
+
+		fireEvent.click(screen.getByTestId('room-directory-stats'));
+
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: '/stats',
+			search: {},
+			hash: '',
+		});
+	});
+
 	test('marks newly created rooms for settings restore', () => {
 		render(<LobbyDirectory />);
 

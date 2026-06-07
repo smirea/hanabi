@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { ChartBar, ClockCounterClockwise } from '@phosphor-icons/react';
 import { useAppVersion, useRoomDirectory } from '../hooks/useGameServer';
 import { clearPendingCreatedRoomCode, markPendingCreatedRoomCode } from '../lobbySettingsStorage';
 import { withPersistentSearch } from '../navigation';
@@ -164,16 +165,34 @@ export function LobbyDirectory({ resumeRoomCode = null, onLeaveResumeRoom }: Lob
 							</div>
 						)}
 
-						<button
-							type='button'
-							className='lobby-button subtle lobby-history-link'
-							onClick={() =>
-								void navigate({ to: '/history', search: withPersistentSearch(), hash: currentHash })
-							}
-							data-testid='room-directory-history'
-						>
-							History
-						</button>
+						<div className='lobby-directory-links'>
+							<button
+								type='button'
+								className='lobby-button subtle lobby-history-link'
+								onClick={() =>
+									void navigate({ to: '/stats', search: withPersistentSearch(), hash: currentHash })
+								}
+								data-testid='room-directory-stats'
+							>
+								<ChartBar size={14} weight='bold' aria-hidden />
+								Stats
+							</button>
+							<button
+								type='button'
+								className='lobby-button subtle lobby-history-link'
+								onClick={() =>
+									void navigate({
+										to: '/history',
+										search: withPersistentSearch(),
+										hash: currentHash,
+									})
+								}
+								data-testid='room-directory-history'
+							>
+								<ClockCounterClockwise size={14} weight='bold' aria-hidden />
+								History
+							</button>
+						</div>
 					</div>
 				</section>
 			</section>

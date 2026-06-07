@@ -1647,6 +1647,7 @@ function GameClient({
 									card={card}
 									showNegativeColorHints={showNegativeColorHints}
 									showNegativeNumberHints={showNegativeNumberHints}
+									showAmbiguousMulticolorHints={activeGameState.settings.includeMulticolor}
 									onSelect={() => handleCardSelect(player.id, card.id)}
 									testId={`card-${player.id}-${cardIndex}`}
 									onNode={node => {

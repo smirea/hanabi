@@ -14,6 +14,7 @@ import {
 	selectRoomViewState,
 	type CurrentRoomResponse,
 	type GameHistoryEntry,
+	type GameHistoryPlayerStats,
 	type OnlineRoomAction,
 	type OnlineRoomState,
 	type RoomResponse,
@@ -205,6 +206,45 @@ function terminalStatus(status: HanabiState['status']) {
 
 function scoreGame(game: HanabiState): number {
 	return scoreHanabiState(game);
+}
+
+function playerHistoryStats(game: HanabiState): GameHistoryPlayerStats[] {
+	const stats = new Map(
+		game.players.map(player => [
+			player.id,
+			{
+				id: player.id,
+				name: player.name,
+				hintsGiven: 0,
+				hintsReceived: 0,
+				plays: 0,
+				discards: 0,
+			},
+		]),
+	);
+
+	for (const log of game.logs) {
+		if (log.type === 'hint') {
+			const actor = stats.get(log.actorId);
+			if (actor) actor.hintsGiven += 1;
+			const target = stats.get(log.targetId);
+			if (target) target.hintsReceived += 1;
+			continue;
+		}
+
+		if (log.type === 'play') {
+			const actor = stats.get(log.actorId);
+			if (actor) actor.plays += 1;
+			continue;
+		}
+
+		if (log.type === 'discard') {
+			const actor = stats.get(log.actorId);
+			if (actor) actor.discards += 1;
+		}
+	}
+
+	return [...stats.values()];
 }
 
 function readAction(row: RoomActionRow): OnlineRoomAction | null {
@@ -580,8 +620,14 @@ function completedGame(
 		status: game.status,
 		endedAt,
 		players: game.players.map(player => player.name),
+		playerStats: playerHistoryStats(game),
 		settings: state.settings,
 		turns: game.turn,
+		livesRemaining:
+			game.status === 'lost' ? 0 : Math.max(0, game.settings.maxFuseTokens - game.fuseTokensUsed),
+		hintsRemaining: game.hintTokens,
+		maxLives: game.settings.maxFuseTokens,
+		maxHints: game.settings.maxHintTokens,
 	};
 }
 
