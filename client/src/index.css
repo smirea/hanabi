@@ -1704,6 +1704,208 @@ body {
 	transition: transform var(--motion-medium) var(--ease-pop);
 }
 
+.admin-debug-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 100;
+	display: grid;
+	place-items: center;
+	padding: calc(0.62rem + env(safe-area-inset-top)) var(--screen-pad-x)
+		calc(0.62rem + env(safe-area-inset-bottom));
+	background: rgba(15, 18, 26, 0.52);
+	backdrop-filter: blur(8px);
+}
+
+.admin-debug-panel {
+	width: min(100%, var(--app-max-width));
+	max-height: min(42rem, 100%);
+	display: grid;
+	grid-template-rows: auto auto minmax(0, 1fr);
+	gap: 0.62rem;
+	border: 1px solid rgba(178, 190, 214, 0.94);
+	border-radius: 8px;
+	background: rgba(253, 254, 255, 0.98);
+	box-shadow: 0 18px 42px rgba(12, 18, 32, 0.34);
+	padding: 0.74rem;
+	overflow: hidden;
+	color: var(--gray-600);
+	animation: soft-panel-in 220ms var(--ease-pop) both;
+}
+
+.admin-debug-header,
+.admin-debug-section-header,
+.admin-debug-row,
+.admin-debug-row-meta,
+.admin-debug-header-actions,
+.admin-debug-section-title {
+	display: flex;
+	align-items: center;
+}
+
+.admin-debug-header {
+	justify-content: space-between;
+	gap: 0.58rem;
+}
+
+.admin-debug-kicker {
+	margin: 0 0 0.12rem;
+	color: var(--gray-400);
+	font-size: 0.58rem;
+	font-weight: 900;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.admin-debug-title {
+	margin: 0;
+	color: var(--black);
+	font-size: 1.12rem;
+	line-height: 1;
+}
+
+.admin-debug-header-actions {
+	gap: 0.32rem;
+}
+
+.admin-debug-icon-button {
+	width: 2rem;
+	height: 2rem;
+	border-radius: 8px;
+	border: 1px solid rgba(167, 179, 204, 0.92);
+	background: rgba(255, 255, 255, 0.95);
+	color: var(--gray-600);
+	display: grid;
+	place-items: center;
+	cursor: pointer;
+	transition:
+		transform var(--motion-fast) ease,
+		background-color var(--motion-fast) ease,
+		border-color var(--motion-fast) ease,
+		color var(--motion-fast) ease,
+		opacity var(--motion-fast) ease;
+}
+
+.admin-debug-icon-button.danger {
+	border-color: rgba(255, 59, 48, 0.24);
+	background: rgba(255, 245, 244, 0.95);
+	color: #c8231b;
+}
+
+.admin-debug-icon-button:disabled {
+	opacity: 0.42;
+	cursor: default;
+}
+
+.admin-debug-content {
+	min-height: 0;
+	overflow: auto;
+	display: grid;
+	gap: 0.72rem;
+	padding-right: 0.12rem;
+}
+
+.admin-debug-section {
+	display: grid;
+	gap: 0.42rem;
+}
+
+.admin-debug-section-header {
+	justify-content: space-between;
+	gap: 0.4rem;
+	padding: 0 0.08rem;
+}
+
+.admin-debug-section-title {
+	gap: 0.28rem;
+	min-width: 0;
+	color: var(--gray-600);
+}
+
+.admin-debug-section-title h2 {
+	margin: 0;
+	font-size: 0.72rem;
+	font-weight: 900;
+}
+
+.admin-debug-count {
+	min-width: 1.38rem;
+	border-radius: 999px;
+	background: rgba(130, 144, 168, 0.14);
+	color: var(--gray-400);
+	padding: 0.14rem 0.38rem;
+	font-size: 0.58rem;
+	font-weight: 900;
+	text-align: center;
+}
+
+.admin-debug-list,
+.admin-debug-game-days,
+.admin-debug-game-day {
+	display: grid;
+	gap: 0.36rem;
+}
+
+.admin-debug-day-title {
+	margin: 0.16rem 0 0;
+	color: var(--gray-400);
+	font-size: 0.58rem;
+	font-weight: 900;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.admin-debug-row {
+	justify-content: space-between;
+	gap: 0.5rem;
+	min-height: 3rem;
+	border: 1px solid rgba(195, 205, 227, 0.9);
+	border-radius: 8px;
+	background: rgba(251, 253, 255, 0.94);
+	padding: 0.46rem;
+}
+
+.admin-debug-row-main {
+	min-width: 0;
+	display: grid;
+	gap: 0.16rem;
+}
+
+.admin-debug-row-title {
+	color: var(--gray-600);
+	font-size: 0.76rem;
+	font-weight: 900;
+	line-height: 1.12;
+	overflow-wrap: anywhere;
+}
+
+.admin-debug-row-meta {
+	flex-wrap: wrap;
+	gap: 0.18rem 0.4rem;
+	color: var(--gray-400);
+	font-size: 0.56rem;
+	font-weight: 800;
+	text-transform: uppercase;
+}
+
+.admin-debug-empty,
+.admin-debug-error {
+	margin: 0;
+	border: 1px solid rgba(195, 205, 227, 0.9);
+	border-radius: 8px;
+	background: rgba(251, 253, 255, 0.94);
+	padding: 0.64rem;
+	color: var(--gray-400);
+	font-size: 0.7rem;
+	font-weight: 750;
+	text-align: center;
+}
+
+.admin-debug-error {
+	border-color: rgba(255, 59, 48, 0.28);
+	background: rgba(255, 245, 244, 0.95);
+	color: #b42318;
+}
+
 .player-stats-card {
 	gap: 0.72rem;
 	overflow: hidden;
@@ -5694,6 +5896,7 @@ body {
 	.lobby-config-dropdown-item:hover,
 	.menu-item:hover,
 	.rules-tab:hover,
+	.admin-debug-icon-button:not(:disabled):hover,
 	.endgame-button:hover {
 		transform: translateY(-1px);
 		box-shadow: 0 8px 18px rgba(25, 35, 56, 0.1);
@@ -5703,6 +5906,7 @@ body {
 	.lobby-setting-toggle:not(:disabled):not(.readonly):hover,
 	.lobby-player:hover,
 	.history-row:hover,
+	.admin-debug-row:hover,
 	.player-stats-row:hover,
 	.log-item:hover,
 	.endgame-final-hand:hover {
@@ -5970,6 +6174,59 @@ body {
 
 :root[data-theme='dark'] .history-players {
 	color: rgba(240, 244, 255, 0.92);
+}
+
+:root[data-theme='dark'] .admin-debug-backdrop {
+	background: rgba(2, 4, 10, 0.66);
+}
+
+:root[data-theme='dark'] .admin-debug-panel {
+	border-color: rgba(90, 112, 168, 0.38);
+	background: rgba(11, 13, 20, 0.98);
+	box-shadow: 0 18px 46px rgba(0, 0, 0, 0.62);
+	color: rgba(240, 244, 255, 0.92);
+}
+
+:root[data-theme='dark'] .admin-debug-title,
+:root[data-theme='dark'] .admin-debug-row-title,
+:root[data-theme='dark'] .admin-debug-section-title {
+	color: rgba(240, 244, 255, 0.94);
+}
+
+:root[data-theme='dark'] .admin-debug-kicker,
+:root[data-theme='dark'] .admin-debug-row-meta,
+:root[data-theme='dark'] .admin-debug-day-title,
+:root[data-theme='dark'] .admin-debug-empty {
+	color: rgba(176, 196, 240, 0.72);
+}
+
+:root[data-theme='dark'] .admin-debug-icon-button {
+	border-color: rgba(90, 112, 168, 0.38);
+	background: rgba(16, 20, 32, 0.82);
+	color: rgba(240, 244, 255, 0.92);
+}
+
+:root[data-theme='dark'] .admin-debug-icon-button.danger {
+	border-color: rgba(248, 113, 113, 0.3);
+	background: rgba(127, 29, 29, 0.24);
+	color: rgba(254, 202, 202, 0.96);
+}
+
+:root[data-theme='dark'] .admin-debug-count {
+	background: rgba(90, 112, 168, 0.24);
+	color: rgba(176, 196, 240, 0.78);
+}
+
+:root[data-theme='dark'] .admin-debug-row,
+:root[data-theme='dark'] .admin-debug-empty {
+	border-color: rgba(90, 112, 168, 0.28);
+	background: rgba(16, 20, 32, 0.72);
+}
+
+:root[data-theme='dark'] .admin-debug-error {
+	border-color: rgba(248, 113, 113, 0.3);
+	background: rgba(127, 29, 29, 0.24);
+	color: rgba(254, 202, 202, 0.96);
 }
 
 :root[data-theme='dark'] .player-stats-tile,

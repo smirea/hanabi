@@ -2,7 +2,7 @@ import { Database } from 'bun:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { env } from 'node:process';
-import { asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import {
@@ -17,6 +17,7 @@ import {
 	type GameHistoryPlayerStats,
 	type OnlineRoomAction,
 	type OnlineRoomState,
+	type RoomDirectoryListing,
 	type RoomResponse,
 	type UserRecord,
 	type VersionResponse,
@@ -105,6 +106,22 @@ const db = drizzle(sqlite);
 const encoder = new TextEncoder();
 type RoomActionRow = typeof roomActions.$inferSelect;
 type UserRow = typeof users.$inferSelect;
+type AdminHistoryGame = GameHistoryEntry & {
+	id: string;
+	startActionId: number;
+	endActionId: number;
+};
+type AdminHistoryUser = {
+	id: string;
+	userId: number | null;
+	name: string;
+	gamesPlayed: number;
+};
+type AdminSummaryResponse = {
+	rooms: RoomDirectoryListing[];
+	users: AdminHistoryUser[];
+	games: AdminHistoryGame[];
+};
 type RoomClient = {
 	controller: ReadableStreamDefaultController<Uint8Array>;
 	userId: number | null;
@@ -210,6 +227,36 @@ function scoreGame(game: HanabiState): number {
 
 function userNameKey(value: string) {
 	return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function historyGameId(roomCode: string, startActionId: number, endActionId: number): string {
+	return `${roomCode}:${startActionId}:${endActionId}`;
+}
+
+function parseHistoryGameId(value: string | null | undefined) {
+	const [roomCodeValue, startValue, endValue] = value?.split(':') ?? [];
+	const roomCode = parseRoomCode(roomCodeValue);
+	const startActionId = Number(startValue);
+	const endActionId = Number(endValue);
+	if (
+		!roomCode ||
+		!Number.isInteger(startActionId) ||
+		!Number.isInteger(endActionId) ||
+		startActionId < 1 ||
+		endActionId < startActionId
+	) {
+		return null;
+	}
+
+	return { roomCode, startActionId, endActionId };
+}
+
+function userIdFromPlayerId(playerId: string): number | null {
+	const match = /^player:(\d+)$/.exec(playerId);
+	if (!match) return null;
+
+	const userId = Number(match[1]);
+	return Number.isInteger(userId) && userId > 0 ? userId : null;
 }
 
 const playerNameAliases = new Map([['lucia 2', 'Lucia']]);
@@ -557,18 +604,24 @@ function deleteRoomData(code: string) {
 	};
 }
 
-function deleteUserData(rawName: string | null | undefined) {
-	const name = sanitizePlayerName(rawName ?? '');
-	if (!name) throw new HttpError('Name is required', 400);
+function deleteUserData(input: { userId?: number | null; name?: string | null }) {
+	const candidateUserId = input.userId;
+	const userId =
+		typeof candidateUserId === 'number' && Number.isInteger(candidateUserId) && candidateUserId > 0
+			? candidateUserId
+			: null;
+	const name = sanitizePlayerName(input.name ?? '');
+	if (!userId && !name) throw new HttpError('User id or name is required', 400);
 
-	const targetKey = userNameKey(name);
-	const matchingUsers = db
-		.select()
-		.from(users)
-		.all()
-		.filter(user => userNameKey(user.name) === targetKey);
+	const matchingUsers = userId
+		? db.select().from(users).where(eq(users.id, userId)).all()
+		: db
+				.select()
+				.from(users)
+				.all()
+				.filter(user => userNameKey(user.name) === userNameKey(name ?? ''));
 	if (matchingUsers.length === 0) {
-		return { ok: true, name, deletedUsers: [], affectedRooms: [] };
+		return { ok: true, userId, name, deletedUsers: [], affectedRooms: [] };
 	}
 
 	const userIds = matchingUsers.map(user => user.id);
@@ -598,6 +651,7 @@ function deleteUserData(rawName: string | null | undefined) {
 
 	return {
 		ok: true,
+		userId,
 		name,
 		deletedUsers: matchingUsers.map(user => ({ id: user.id, name: user.name })),
 		affectedRooms,
@@ -668,29 +722,65 @@ function completedGame(
 	};
 }
 
-function historyForRoom(code: string): GameHistoryEntry[] {
+function adminHistoryForRoom(code: string): AdminHistoryGame[] {
 	const state = createInitialOnlineRoomState();
-	const games: GameHistoryEntry[] = [];
+	const games: AdminHistoryGame[] = [];
+	let currentGameStartActionId: number | null = null;
 
 	for (const row of getRoomActions(code)) {
+		const beforePhase = state.phase;
 		const beforeStatus = state.gameState?.status;
 		const action = readAction(row);
 		if (!action) continue;
 
 		applyOnlineRoomAction(state, action);
 		state.v = row.id;
+		if (beforePhase !== 'playing' && state.phase === 'playing' && state.gameState) {
+			currentGameStartActionId = row.id;
+		}
+
 		const nextStatus = state.gameState?.status;
 		if (
 			(!beforeStatus || !terminalStatus(beforeStatus)) &&
 			nextStatus &&
 			terminalStatus(nextStatus)
 		) {
+			const startActionId = currentGameStartActionId ?? row.id;
 			const completed = completedGame(code, state, row.createdAt);
-			if (completed) games.push(completed);
+			if (completed) {
+				games.push({
+					...completed,
+					id: historyGameId(code, startActionId, row.id),
+					startActionId,
+					endActionId: row.id,
+				});
+			}
+			currentGameStartActionId = null;
+		}
+
+		if (beforePhase === 'playing' && state.phase === 'lobby') {
+			currentGameStartActionId = null;
 		}
 	}
 
 	return games;
+}
+
+function publicHistoryEntry(game: AdminHistoryGame): GameHistoryEntry {
+	return {
+		roomCode: game.roomCode,
+		score: game.score,
+		status: game.status,
+		endedAt: game.endedAt,
+		players: game.players,
+		playerStats: game.playerStats,
+		settings: game.settings,
+		turns: game.turns,
+		livesRemaining: game.livesRemaining,
+		hintsRemaining: game.hintsRemaining,
+		maxLives: game.maxLives,
+		maxHints: game.maxHints,
+	};
 }
 
 function activeRoomDirectory() {
@@ -719,13 +809,95 @@ function currentRoomForUser(userId: number | null, clientKey: string | null): Cu
 }
 
 function allHistory() {
+	return allAdminHistory().map(publicHistoryEntry);
+}
+
+function allAdminHistory() {
 	return db
 		.select()
 		.from(rooms)
 		.orderBy(desc(rooms.updatedAt))
 		.all()
-		.flatMap(room => historyForRoom(room.code))
+		.flatMap(room => adminHistoryForRoom(room.code))
 		.sort((a, b) => b.endedAt.localeCompare(a.endedAt));
+}
+
+function adminHistoryUsers(games: AdminHistoryGame[]): AdminHistoryUser[] {
+	const usersByKey = new Map<string, AdminHistoryUser>();
+
+	for (const game of games) {
+		const seenInGame = new Set<string>();
+		const players = game.playerStats.length
+			? game.playerStats.map(player => ({ id: player.id, name: player.name }))
+			: game.players.map(name => ({ id: `name:${userNameKey(name)}`, name }));
+
+		for (const player of players) {
+			const userId = userIdFromPlayerId(player.id);
+			const key = userId ? `user:${userId}` : `name:${userNameKey(player.name)}`;
+			if (seenInGame.has(key)) continue;
+			seenInGame.add(key);
+
+			const existing = usersByKey.get(key);
+			if (existing) {
+				existing.gamesPlayed += 1;
+				continue;
+			}
+
+			usersByKey.set(key, {
+				id: key,
+				userId,
+				name: player.name,
+				gamesPlayed: 1,
+			});
+		}
+	}
+
+	return [...usersByKey.values()].sort((a, b) => {
+		if (a.gamesPlayed !== b.gamesPlayed) return b.gamesPlayed - a.gamesPlayed;
+		return a.name.localeCompare(b.name);
+	});
+}
+
+function adminSummary(): AdminSummaryResponse {
+	const games = allAdminHistory();
+	return {
+		rooms: activeRoomDirectory(),
+		users: adminHistoryUsers(games),
+		games,
+	};
+}
+
+function deleteGameData(gameId: string | null | undefined) {
+	const target = parseHistoryGameId(gameId);
+	if (!target) throw new HttpError('Invalid game id', 400);
+
+	const currentGameId = historyGameId(target.roomCode, target.startActionId, target.endActionId);
+	const exists = adminHistoryForRoom(target.roomCode).some(game => game.id === currentGameId);
+	if (!exists) {
+		return { ok: true, gameId: currentGameId, roomCode: target.roomCode, deletedActions: 0 };
+	}
+
+	const deletedActions = db
+		.delete(roomActions)
+		.where(
+			and(
+				eq(roomActions.roomCode, target.roomCode),
+				gte(roomActions.id, target.startActionId),
+				lte(roomActions.id, target.endActionId),
+			),
+		)
+		.returning({ id: roomActions.id })
+		.all();
+	db.update(rooms).set({ updatedAt: nowIso() }).where(eq(rooms.code, target.roomCode)).run();
+	roomStateCache.delete(target.roomCode);
+	broadcastRoom(target.roomCode, loadRoomState(target.roomCode));
+
+	return {
+		ok: true,
+		gameId: currentGameId,
+		roomCode: target.roomCode,
+		deletedActions: deletedActions.length,
+	};
 }
 
 const server = Bun.serve({
@@ -775,6 +947,10 @@ const server = Bun.serve({
 					);
 				}
 
+				if (url.pathname === '/admin/summary' && request.method === 'GET') {
+					return json(adminSummary());
+				}
+
 				if (url.pathname === '/admin/delete-room' && request.method === 'POST') {
 					const body = await readBody<{ roomCode?: string }>(request);
 					const code = parseRoomCode(body.roomCode);
@@ -783,8 +959,13 @@ const server = Bun.serve({
 				}
 
 				if (url.pathname === '/admin/delete-user' && request.method === 'POST') {
-					const body = await readBody<{ name?: string }>(request);
-					return json(deleteUserData(body.name));
+					const body = await readBody<{ userId?: number | null; name?: string | null }>(request);
+					return json(deleteUserData(body));
+				}
+
+				if (url.pathname === '/admin/delete-game' && request.method === 'POST') {
+					const body = await readBody<{ gameId?: string }>(request);
+					return json(deleteGameData(body.gameId));
 				}
 
 				if (parts[0] === 'rooms') {
