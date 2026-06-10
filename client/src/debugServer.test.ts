@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
-import { ADMIN_DEBUG_EVENT, installDebugServerNamespace } from './debugServer';
+import { installDebugServerNamespace } from './debugServer';
 
 type DebugWindow = Window & {
 	DEBUG?: {
@@ -16,6 +16,7 @@ const originalFetch = globalThis.fetch;
 
 afterEach(() => {
 	globalThis.fetch = originalFetch;
+	window.history.replaceState(null, '', '/');
 	delete (window as DebugWindow).DEBUG;
 });
 
@@ -44,14 +45,18 @@ describe('installDebugServerNamespace', () => {
 	});
 
 	test('installs an admin screen opener', () => {
-		const events: string[] = [];
-		window.addEventListener(ADMIN_DEBUG_EVENT, () => events.push(ADMIN_DEBUG_EVENT), {
+		const popstates: string[] = [];
+		window.history.replaceState(null, '', '/?debug_id=tab-1#tv');
+		window.addEventListener('popstate', () => popstates.push(window.location.href), {
 			once: true,
 		});
 
 		installDebugServerNamespace();
 		(window as DebugWindow).DEBUG?.admin?.();
 
-		expect(events).toEqual([ADMIN_DEBUG_EVENT]);
+		expect(window.location.pathname).toBe('/admin');
+		expect(window.location.search).toBe('?debug_id=tab-1');
+		expect(window.location.hash).toBe('#tv');
+		expect(popstates).toEqual(['http://localhost/admin?debug_id=tab-1#tv']);
 	});
 });

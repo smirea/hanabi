@@ -4,7 +4,6 @@ import { installDebugServerNamespace } from './debugServer';
 import { installDebugNamespace } from './debugScreens';
 import { RouterProvider } from '@tanstack/react-router';
 import { router } from './router';
-import { AdminDebugScreen } from './ui/AdminDebugScreen';
 import './index.css';
 import { storageKeys } from './utils/constants';
 import { LS } from './utils/utils';
@@ -33,6 +32,5 @@ installDebugServerNamespace();
 createRoot(rootElement).render(
 	<StrictMode>
 		<RouterProvider router={router} />
-		<AdminDebugScreen />
 	</StrictMode>,
 );

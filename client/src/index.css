@@ -1704,18 +1704,6 @@ body {
 	transition: transform var(--motion-medium) var(--ease-pop);
 }
 
-.admin-debug-backdrop {
-	position: fixed;
-	inset: 0;
-	z-index: 100;
-	display: grid;
-	place-items: center;
-	padding: calc(0.62rem + env(safe-area-inset-top)) var(--screen-pad-x)
-		calc(0.62rem + env(safe-area-inset-bottom));
-	background: rgba(15, 18, 26, 0.52);
-	backdrop-filter: blur(8px);
-}
-
 .admin-debug-panel {
 	width: min(100%, var(--app-max-width));
 	max-height: min(42rem, 100%);
@@ -1765,6 +1753,11 @@ body {
 
 .admin-debug-header-actions {
 	gap: 0.32rem;
+}
+
+.admin-debug-heading {
+	min-width: 0;
+	text-align: center;
 }
 
 .admin-debug-icon-button {
@@ -6174,10 +6167,6 @@ body {
 
 :root[data-theme='dark'] .history-players {
 	color: rgba(240, 244, 255, 0.92);
-}
-
-:root[data-theme='dark'] .admin-debug-backdrop {
-	background: rgba(2, 4, 10, 0.66);
 }
 
 :root[data-theme='dark'] .admin-debug-panel {

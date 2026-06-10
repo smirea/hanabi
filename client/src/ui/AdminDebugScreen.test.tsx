@@ -1,8 +1,14 @@
 import '@testing-library/jest-dom';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 import type { AdminDebugSummary } from '../adminDebugApi';
-import { ADMIN_DEBUG_EVENT } from '../debugServer';
+
+const navigateMock = mock(() => {});
+
+void mock.module('@tanstack/react-router', () => ({
+	useNavigate: () => navigateMock,
+}));
+
 import { AdminDebugScreen } from './AdminDebugScreen';
 
 const originalFetch = globalThis.fetch;
@@ -60,10 +66,11 @@ afterEach(() => {
 	cleanup();
 	globalThis.fetch = originalFetch;
 	window.confirm = originalConfirm;
+	navigateMock.mockClear();
 });
 
 describe('AdminDebugScreen', () => {
-	test('opens from DEBUG event and posts delete actions', async () => {
+	test('loads admin data and posts delete actions', async () => {
 		const requests: Array<{ body: unknown; method: string; url: string }> = [];
 		globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
 			const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
@@ -74,10 +81,6 @@ describe('AdminDebugScreen', () => {
 		window.confirm = mock(() => true) as unknown as typeof window.confirm;
 
 		render(<AdminDebugScreen />);
-		await act(async () => {
-			window.dispatchEvent(new Event(ADMIN_DEBUG_EVENT));
-			await Promise.resolve();
-		});
 
 		expect(await screen.findByTestId('admin-debug-root')).toBeInTheDocument();
 		expect(screen.getByText('ABCD')).toBeInTheDocument();

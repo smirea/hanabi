@@ -1,7 +1,5 @@
 import { deleteAdminGame, deleteAdminRoom, deleteAdminUser } from './adminDebugApi';
 
-export const ADMIN_DEBUG_EVENT = 'hanabi:admin-debug';
-
 interface DebugServerNamespace {
 	deleteRoom: (roomCode: string) => Promise<unknown>;
 	deleteUser: (input: { userId?: number | null; name?: string | null }) => Promise<unknown>;
@@ -20,7 +18,13 @@ export function installDebugServerNamespace(): void {
 
 	const root = window as DebugRoot;
 	root.DEBUG ??= {};
-	root.DEBUG.admin = () => window.dispatchEvent(new Event(ADMIN_DEBUG_EVENT));
+	root.DEBUG.admin = () => {
+		const nextUrl = `/admin${window.location.search}${window.location.hash}`;
+		window.history.pushState(null, '', nextUrl);
+		const event =
+			typeof PopStateEvent === 'function' ? new PopStateEvent('popstate') : new Event('popstate');
+		window.dispatchEvent(event);
+	};
 	root.DEBUG.server = {
 		deleteRoom: deleteAdminRoom,
 		deleteUser: deleteAdminUser,

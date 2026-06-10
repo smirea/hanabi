@@ -1,11 +1,12 @@
 import {
+	ArrowLeft,
 	ArrowClockwise,
 	ClockCounterClockwise,
 	DoorOpen,
 	Trash,
 	Users,
-	X,
 } from '@phosphor-icons/react';
+import { useNavigate } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -17,7 +18,7 @@ import {
 	type AdminDebugSummary,
 	type AdminDebugUser,
 } from '../adminDebugApi';
-import { ADMIN_DEBUG_EVENT } from '../debugServer';
+import { withPersistentSearch } from '../navigation';
 
 function formatDay(value: string): string {
 	const date = new Date(value);
@@ -68,12 +69,13 @@ function plural(value: number, label: string): string {
 }
 
 export function AdminDebugScreen() {
-	const [isOpen, setIsOpen] = useState(false);
+	const navigate = useNavigate();
 	const [summary, setSummary] = useState<AdminDebugSummary | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
 	const [busyAction, setBusyAction] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const gameGroups = useMemo(() => groupGamesByDay(summary?.games ?? []), [summary?.games]);
+	const currentHash = typeof window === 'undefined' ? '' : window.location.hash.replace(/^#/, '');
 
 	const reload = useCallback(async () => {
 		setIsLoading(true);
@@ -88,13 +90,7 @@ export function AdminDebugScreen() {
 	}, []);
 
 	useEffect(() => {
-		const openAdmin = () => {
-			setIsOpen(true);
-			void reload();
-		};
-
-		window.addEventListener(ADMIN_DEBUG_EVENT, openAdmin);
-		return () => window.removeEventListener(ADMIN_DEBUG_EVENT, openAdmin);
+		void reload();
 	}, [reload]);
 
 	const runAction = useCallback(
@@ -134,173 +130,169 @@ export function AdminDebugScreen() {
 		void runAction(`game:${game.id}`, () => deleteAdminGame(game.id));
 	};
 
-	if (!isOpen) return null;
-
 	return (
-		<div className='admin-debug-backdrop' data-testid='admin-debug-root'>
-			<section
-				className='admin-debug-panel'
-				role='dialog'
-				aria-modal='true'
-				aria-label='Admin Debug'
-			>
-				<header className='admin-debug-header'>
-					<div>
-						<p className='admin-debug-kicker'>Debug</p>
-						<h1 className='admin-debug-title'>Admin</h1>
-					</div>
-					<div className='admin-debug-header-actions'>
+		<main className='app lobby-app admin-debug-app' data-testid='admin-debug-root'>
+			<section className='lobby-shell-body lobby-shell-body-full'>
+				<section className='lobby-card admin-debug-panel' aria-label='Admin Debug'>
+					<header className='admin-debug-header'>
 						<button
 							type='button'
-							className='admin-debug-icon-button'
-							onClick={() => void reload()}
-							disabled={isLoading || busyAction !== null}
-							title='Refresh'
-							aria-label='Refresh admin data'
-							data-testid='admin-debug-refresh'
+							className='lobby-leave-btn'
+							onClick={() =>
+								void navigate({ to: '/', search: withPersistentSearch(), hash: currentHash })
+							}
+							data-testid='admin-debug-back'
 						>
-							<ArrowClockwise size={16} weight='bold' aria-hidden />
+							<ArrowLeft size={14} weight='bold' aria-hidden />
+							Back
 						</button>
-						<button
-							type='button'
-							className='admin-debug-icon-button'
-							onClick={() => setIsOpen(false)}
-							title='Close'
-							aria-label='Close admin debug'
-							data-testid='admin-debug-close'
-						>
-							<X size={16} weight='bold' aria-hidden />
-						</button>
-					</div>
-				</header>
+						<div className='admin-debug-heading'>
+							<p className='admin-debug-kicker'>Debug</p>
+							<h1 className='admin-debug-title'>Admin</h1>
+						</div>
+						<div className='admin-debug-header-actions'>
+							<button
+								type='button'
+								className='admin-debug-icon-button'
+								onClick={() => void reload()}
+								disabled={isLoading || busyAction !== null}
+								title='Refresh'
+								aria-label='Refresh admin data'
+								data-testid='admin-debug-refresh'
+							>
+								<ArrowClockwise size={16} weight='bold' aria-hidden />
+							</button>
+						</div>
+					</header>
 
-				{error && (
-					<p className='admin-debug-error' data-testid='admin-debug-error'>
-						{error}
-					</p>
-				)}
+					{error && (
+						<p className='admin-debug-error' data-testid='admin-debug-error'>
+							{error}
+						</p>
+					)}
 
-				{isLoading && !summary ? (
-					<p className='admin-debug-empty' data-testid='admin-debug-loading'>
-						Loading admin data...
-					</p>
-				) : (
-					<div className='admin-debug-content'>
-						<AdminSection
-							icon={<DoorOpen size={15} weight='bold' aria-hidden />}
-							title='Open Rooms'
-							count={summary?.rooms.length ?? 0}
-						>
-							{summary?.rooms.length ? (
-								<div className='admin-debug-list'>
-									{summary.rooms.map(room => {
-										const key = `room:${room.code}`;
-										return (
-											<article className='admin-debug-row' key={room.code}>
-												<div className='admin-debug-row-main'>
-													<div className='admin-debug-row-title'>{room.code}</div>
-													<div className='admin-debug-row-meta'>
-														<span>{room.phase}</span>
-														<span>{room.players.length ? room.players.join(', ') : 'Empty'}</span>
+					{isLoading && !summary ? (
+						<p className='admin-debug-empty' data-testid='admin-debug-loading'>
+							Loading admin data...
+						</p>
+					) : (
+						<div className='admin-debug-content'>
+							<AdminSection
+								icon={<DoorOpen size={15} weight='bold' aria-hidden />}
+								title='Open Rooms'
+								count={summary?.rooms.length ?? 0}
+							>
+								{summary?.rooms.length ? (
+									<div className='admin-debug-list'>
+										{summary.rooms.map(room => {
+											const key = `room:${room.code}`;
+											return (
+												<article className='admin-debug-row' key={room.code}>
+													<div className='admin-debug-row-main'>
+														<div className='admin-debug-row-title'>{room.code}</div>
+														<div className='admin-debug-row-meta'>
+															<span>{room.phase}</span>
+															<span>{room.players.length ? room.players.join(', ') : 'Empty'}</span>
+														</div>
 													</div>
-												</div>
-												<DeleteButton
-													label={`Delete room ${room.code}`}
-													disabled={busyAction !== null}
-													busy={busyAction === key}
-													testId={`admin-debug-delete-room-${room.code}`}
-													onClick={() => deleteRoom(room.code)}
-												/>
-											</article>
-										);
-									})}
-								</div>
-							) : (
-								<p className='admin-debug-empty'>No open rooms.</p>
-							)}
-						</AdminSection>
+													<DeleteButton
+														label={`Delete room ${room.code}`}
+														disabled={busyAction !== null}
+														busy={busyAction === key}
+														testId={`admin-debug-delete-room-${room.code}`}
+														onClick={() => deleteRoom(room.code)}
+													/>
+												</article>
+											);
+										})}
+									</div>
+								) : (
+									<p className='admin-debug-empty'>No open rooms.</p>
+								)}
+							</AdminSection>
 
-						<AdminSection
-							icon={<Users size={15} weight='bold' aria-hidden />}
-							title='History Users'
-							count={summary?.users.length ?? 0}
-						>
-							{summary?.users.length ? (
-								<div className='admin-debug-list'>
-									{summary.users.map(user => {
-										const key = `user:${user.id}`;
-										return (
-											<article className='admin-debug-row' key={user.id}>
-												<div className='admin-debug-row-main'>
-													<div className='admin-debug-row-title'>{user.name}</div>
-													<div className='admin-debug-row-meta'>
-														<span>{plural(user.gamesPlayed, 'game')}</span>
-														{user.userId && <span>user {user.userId}</span>}
+							<AdminSection
+								icon={<Users size={15} weight='bold' aria-hidden />}
+								title='History Users'
+								count={summary?.users.length ?? 0}
+							>
+								{summary?.users.length ? (
+									<div className='admin-debug-list'>
+										{summary.users.map(user => {
+											const key = `user:${user.id}`;
+											return (
+												<article className='admin-debug-row' key={user.id}>
+													<div className='admin-debug-row-main'>
+														<div className='admin-debug-row-title'>{user.name}</div>
+														<div className='admin-debug-row-meta'>
+															<span>{plural(user.gamesPlayed, 'game')}</span>
+															{user.userId && <span>user {user.userId}</span>}
+														</div>
 													</div>
-												</div>
-												<DeleteButton
-													label={`Delete user ${user.name}`}
-													disabled={busyAction !== null}
-													busy={busyAction === key}
-													testId={`admin-debug-delete-user-${user.id}`}
-													onClick={() => deleteUser(user)}
-												/>
-											</article>
-										);
-									})}
-								</div>
-							) : (
-								<p className='admin-debug-empty'>No history users.</p>
-							)}
-						</AdminSection>
+													<DeleteButton
+														label={`Delete user ${user.name}`}
+														disabled={busyAction !== null}
+														busy={busyAction === key}
+														testId={`admin-debug-delete-user-${user.id}`}
+														onClick={() => deleteUser(user)}
+													/>
+												</article>
+											);
+										})}
+									</div>
+								) : (
+									<p className='admin-debug-empty'>No history users.</p>
+								)}
+							</AdminSection>
 
-						<AdminSection
-							icon={<ClockCounterClockwise size={15} weight='bold' aria-hidden />}
-							title='Games'
-							count={summary?.games.length ?? 0}
-						>
-							{gameGroups.length ? (
-								<div className='admin-debug-game-days'>
-									{gameGroups.map(group => (
-										<section className='admin-debug-game-day' key={group.key}>
-											<h2 className='admin-debug-day-title'>{group.label}</h2>
-											<div className='admin-debug-list'>
-												{group.games.map(game => {
-													const key = `game:${game.id}`;
-													return (
-														<article className='admin-debug-row' key={game.id}>
-															<div className='admin-debug-row-main'>
-																<div className='admin-debug-row-title'>
-																	{game.roomCode} · {game.score} pts
+							<AdminSection
+								icon={<ClockCounterClockwise size={15} weight='bold' aria-hidden />}
+								title='Games'
+								count={summary?.games.length ?? 0}
+							>
+								{gameGroups.length ? (
+									<div className='admin-debug-game-days'>
+										{gameGroups.map(group => (
+											<section className='admin-debug-game-day' key={group.key}>
+												<h2 className='admin-debug-day-title'>{group.label}</h2>
+												<div className='admin-debug-list'>
+													{group.games.map(game => {
+														const key = `game:${game.id}`;
+														return (
+															<article className='admin-debug-row' key={game.id}>
+																<div className='admin-debug-row-main'>
+																	<div className='admin-debug-row-title'>
+																		{game.roomCode} · {game.score} pts
+																	</div>
+																	<div className='admin-debug-row-meta'>
+																		<span>{formatTime(game.endedAt)}</span>
+																		<span>{game.status}</span>
+																		<span>{game.players.join(', ')}</span>
+																	</div>
 																</div>
-																<div className='admin-debug-row-meta'>
-																	<span>{formatTime(game.endedAt)}</span>
-																	<span>{game.status}</span>
-																	<span>{game.players.join(', ')}</span>
-																</div>
-															</div>
-															<DeleteButton
-																label={`Delete game ${game.roomCode} ${formatTime(game.endedAt)}`}
-																disabled={busyAction !== null}
-																busy={busyAction === key}
-																testId={`admin-debug-delete-game-${game.id}`}
-																onClick={() => deleteGame(game)}
-															/>
-														</article>
-													);
-												})}
-											</div>
-										</section>
-									))}
-								</div>
-							) : (
-								<p className='admin-debug-empty'>No finished games.</p>
-							)}
-						</AdminSection>
-					</div>
-				)}
+																<DeleteButton
+																	label={`Delete game ${game.roomCode} ${formatTime(game.endedAt)}`}
+																	disabled={busyAction !== null}
+																	busy={busyAction === key}
+																	testId={`admin-debug-delete-game-${game.id}`}
+																	onClick={() => deleteGame(game)}
+																/>
+															</article>
+														);
+													})}
+												</div>
+											</section>
+										))}
+									</div>
+								) : (
+									<p className='admin-debug-empty'>No finished games.</p>
+								)}
+							</AdminSection>
+						</div>
+					)}
+				</section>
 			</section>
-		</div>
+		</main>
 	);
 }
 
