@@ -1610,6 +1610,7 @@ function GameClient({
 							key={suit}
 							className='tower'
 							style={{ '--suit': suitColors[suit] } as CSSProperties}
+							data-suit={suit}
 							data-testid={`tower-${suit}`}
 						>
 							<div className='tower-stack'>

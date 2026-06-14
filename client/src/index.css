@@ -6567,15 +6567,29 @@ body {
 	background: color-mix(in srgb, var(--suit) 16%, rgba(11, 13, 20, 0.92));
 }
 
+:root[data-theme='dark'] .app > .fireworks .tower[data-suit='K'] {
+	background: color-mix(in srgb, #46536a 28%, rgba(11, 13, 20, 0.9));
+}
+
 :root[data-theme='dark'] .peg {
 	background: color-mix(in srgb, var(--suit) 18%, rgba(11, 13, 20, 0.88));
 	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+:root[data-theme='dark'] .app > .fireworks .tower[data-suit='K'] .peg {
+	--peg-stroke: #8794ad;
+	background: color-mix(in srgb, #46536a 32%, rgba(11, 13, 20, 0.86));
 }
 
 :root[data-theme='dark'] .peg.lit {
 	background: var(--suit);
 	border-color: var(--suit);
 	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+:root[data-theme='dark'] .app > .fireworks .tower[data-suit='K'] .peg.lit {
+	background: #46536a;
+	border-color: #5c6980;
 }
 
 :root[data-theme='dark'] .player {
