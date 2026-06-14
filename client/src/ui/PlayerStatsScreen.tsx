@@ -15,7 +15,7 @@ import { withPersistentSearch } from '../navigation';
 import { playerIdForUser } from '../onlineGame';
 import { storageKeys } from '../utils/constants';
 import { LS } from '../utils/utils';
-import { getScoreFlavor } from './scoreFlavor';
+import { getScoreFlavor, getScoreMaxFromSettings } from './scoreFlavor';
 import { aggregatePlayerStats, type PlayerStatsAggregate } from './playerStats';
 
 type MetricDirection = 'higher' | 'lower';
@@ -442,7 +442,7 @@ export function PlayerStatsScreen({ playerId }: { playerId?: string }) {
 								{players.map(player => {
 									const bestGame = bestScoreGame(player);
 									const bestFlavor = bestGame
-										? getScoreFlavor(bestGame.score, bestGame.score > 25 ? 30 : 25)
+										? getScoreFlavor(bestGame.score, getScoreMaxFromSettings(bestGame.settings))
 										: null;
 
 									return (
@@ -628,7 +628,7 @@ function PlayerStatsDetail({
 			<section className='player-stats-recent' data-testid='player-stats-recent'>
 				<h3 className='history-day-title'>recent games</h3>
 				{player.games.slice(0, 8).map(game => {
-					const gameFlavor = getScoreFlavor(game.score, game.score > 25 ? 30 : 25);
+					const gameFlavor = getScoreFlavor(game.score, getScoreMaxFromSettings(game.settings));
 					const gameStyle = { '--history-accent': gameFlavor.accent } as CSSProperties;
 
 					return (

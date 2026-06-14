@@ -310,7 +310,7 @@ export function getCardCopies(
 
 export function scoreHanabiState(state: Pick<HanabiState, 'fireworks' | 'settings'>): number {
 	const rawScore = state.settings.activeSuits.reduce((sum, suit) => {
-		return isBlackSuit(suit) ? sum : sum + state.fireworks[suit].length;
+		return sum + state.fireworks[suit].length;
 	}, 0);
 	const blackPenalty = state.settings.activeSuits.includes('K')
 		? CARD_NUMBERS.length - state.fireworks.K.length

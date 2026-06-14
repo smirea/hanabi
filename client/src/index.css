@@ -4656,8 +4656,13 @@ body {
 	--score-flavor-color: #a9f5ff;
 }
 
+.score-flavor-badge.supernova {
+	--score-flavor-color: #ffb21a;
+}
+
 .score-flavor-badge.eyebrow,
-.score-flavor-badge.rocket {
+.score-flavor-badge.rocket,
+.score-flavor-badge.supernova {
 	background: transparent;
 }
 

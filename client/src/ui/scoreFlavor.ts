@@ -5,7 +5,8 @@ export type ScoreFlavorKind =
 	| 'chariot'
 	| 'crown'
 	| 'eyebrow'
-	| 'rocket';
+	| 'rocket'
+	| 'supernova';
 
 export interface ScoreFlavor {
 	kind: ScoreFlavorKind;
@@ -54,6 +55,13 @@ const BASE_SCORE_FLAVORS: Array<ScoreFlavor & { minScore: number }> = [
 
 const EXTENDED_SCORE_FLAVORS: Array<ScoreFlavor & { minScore: number }> = [
 	{
+		minScore: 35,
+		kind: 'supernova',
+		label: 'Supernova wrangler',
+		image: '/score-badges/supernova.png',
+		accent: '#ffb21a',
+	},
+	{
 		minScore: 31,
 		kind: 'rocket',
 		label: 'Rocket prodigy',
@@ -81,6 +89,9 @@ export function getScoreFlavor(score: number, maxScore: number): ScoreFlavor {
 	return baseFlavor ?? BASE_SCORE_FLAVORS[BASE_SCORE_FLAVORS.length - 1];
 }
 
-export function getScoreMaxFromSettings(settings: { includeMulticolor?: boolean }): number {
-	return 25 + (settings.includeMulticolor ? 5 : 0);
+export function getScoreMaxFromSettings(settings: {
+	includeMulticolor?: boolean;
+	includeBlack?: boolean;
+}): number {
+	return 25 + (settings.includeMulticolor ? 5 : 0) + (settings.includeBlack ? 5 : 0);
 }

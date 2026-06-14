@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { HanabiGame } from './game';
+import { HanabiGame, getFireworkCardNumbers } from './game';
 
 type DeckSuit = 'R' | 'Y' | 'G' | 'B' | 'W' | 'M' | 'K';
 type DeckNumber = 1 | 2 | 3 | 4 | 5;
@@ -1170,6 +1170,32 @@ describe('HanabiGame', () => {
 		}
 
 		expect(() => game.giveColorHint('p2', 'K')).toThrow('Cannot call black color hints');
+	});
+
+	test('black and multicolor perfection scores 35', () => {
+		const game = new HanabiGame({
+			playerNames: ['A', 'B'],
+			includeMulticolor: true,
+			includeBlack: true,
+			shuffleSeed: 22,
+		});
+		const usedCardIds = new Set<string>();
+
+		for (const suit of game.state.settings.activeSuits) {
+			for (const number of getFireworkCardNumbers(suit)) {
+				const cardId = Object.values(game.state.cards).find(card => {
+					return card.suit === suit && card.number === number && !usedCardIds.has(card.id);
+				})?.id;
+				if (!cardId) {
+					throw new Error(`Missing ${suit}${number}`);
+				}
+
+				usedCardIds.add(cardId);
+				game.state.fireworks[suit].push(cardId);
+			}
+		}
+
+		expect(game.getScore()).toBe(35);
 	});
 
 	test('sudden death loses immediately when discarding an indispensable card', () => {

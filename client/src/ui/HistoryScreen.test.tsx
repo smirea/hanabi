@@ -107,4 +107,29 @@ describe('HistoryScreen', () => {
 			'/score-badges/eyebrow.png',
 		);
 	});
+
+	test('uses the supernova badge for perfect black multicolor games', () => {
+		mockHistory = [
+			historyEntry({
+				score: 35,
+				settings: {
+					includeMulticolor: true,
+					multicolorShortDeck: true,
+					multicolorWildHints: true,
+					includeBlack: true,
+					includeFlamboyants: false,
+					endlessMode: false,
+				},
+			}),
+		];
+
+		render(<HistoryScreen />);
+
+		const row = screen.getByTestId('history-row');
+		expect(row).toHaveTextContent('Multicolor, Black Powder');
+		expect(within(row).getByTestId('history-badge-image')).toHaveAttribute(
+			'src',
+			'/score-badges/supernova.png',
+		);
+	});
 });

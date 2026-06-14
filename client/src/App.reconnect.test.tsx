@@ -27,17 +27,20 @@ function createFinishedRoom({
 	status = 'finished',
 	fuseTokensUsed = 0,
 	includeMulticolor = false,
+	includeBlack = false,
 	completeFireworks = false,
 }: {
 	status?: 'finished' | 'lost' | 'won';
 	fuseTokensUsed?: number;
 	includeMulticolor?: boolean;
+	includeBlack?: boolean;
 	completeFireworks?: boolean;
 } = {}) {
 	const game = new HanabiGame({
 		playerIds: ['player:1', 'player:2'],
 		playerNames: ['Alex', 'Blair'],
 		includeMulticolor,
+		includeBlack,
 		shuffleSeed: 1234,
 	});
 	const gameState = game.getSnapshot();
@@ -74,6 +77,8 @@ function createFinishedRoom({
 		],
 		settings: {
 			includeMulticolor,
+			includeBlack,
+			includeFlamboyants: false,
 			multicolorShortDeck: includeMulticolor,
 			multicolorWildHints: includeMulticolor,
 			endlessMode: false,
@@ -265,6 +270,22 @@ describe('App online reconnect state', () => {
 		expect(screen.getByTestId('endgame-score')).toHaveTextContent('30');
 		expectIconOnlyBadge('endgame-score-flavor', '/score-badges/eyebrow.png');
 		expectIconOnlyBadge('endgame-score-reveal-badge', '/score-badges/eyebrow.png');
+	});
+
+	test('endgame score flavor shows the supernova icon for perfect black multicolor wins', () => {
+		LS.set({ [storageKeys.debugMode]: false });
+		mockRoom = createFinishedRoom({
+			status: 'won',
+			includeMulticolor: true,
+			includeBlack: true,
+			completeFireworks: true,
+		});
+
+		render(<App roomCode='ABCD' />);
+
+		expect(screen.getByTestId('endgame-score')).toHaveTextContent('35');
+		expectIconOnlyBadge('endgame-score-flavor', '/score-badges/supernova.png');
+		expectIconOnlyBadge('endgame-score-reveal-badge', '/score-badges/supernova.png');
 	});
 
 	test('endgame summary reveals final hands with viewer hand hints', () => {

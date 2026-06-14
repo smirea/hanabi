@@ -12,6 +12,7 @@ export interface PlayerStatsGame {
 	hintsRemaining: number;
 	maxLives: number;
 	maxHints: number;
+	settings: GameHistoryEntry['settings'];
 	hintsGiven: number;
 	hintsReceived: number;
 	plays: number;
@@ -113,6 +114,7 @@ export function aggregatePlayerStats(
 				hintsRemaining: game.hintsRemaining ?? 0,
 				maxLives: game.maxLives ?? 0,
 				maxHints: game.maxHints ?? 0,
+				settings: game.settings,
 				hintsGiven: row.hintsGiven,
 				hintsReceived: row.hintsReceived,
 				plays: row.plays,

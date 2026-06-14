@@ -7,7 +7,6 @@ import {
 	type PerspectiveCard,
 	type PlayerId,
 	getFireworkCardNumbers,
-	isBlackSuit,
 	isFireworkCardPlayed,
 } from '../../../game';
 import { getScoreFlavor, type ScoreFlavor } from '../../scoreFlavor';
@@ -98,7 +97,7 @@ export function EndgameOverlay({
 }) {
 	const title = status === 'won' ? 'You win' : status === 'lost' ? 'You lost' : 'Game over';
 	const maxScore = perspective.activeSuits.reduce((total, suit) => {
-		return isBlackSuit(suit) ? total : total + getFireworkCardNumbers(suit).length;
+		return total + getFireworkCardNumbers(suit).length;
 	}, 0);
 	const scoreFlavor = getScoreFlavor(score, maxScore);
 	const [scoreRevealState, setScoreRevealState] = useState<'visible' | 'exiting' | 'hidden'>(
