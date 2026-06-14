@@ -67,12 +67,31 @@ const DISCONNECTED_ROOM_VIEW_STATE: RoomViewState = {
 	gameState: null,
 };
 
+const BLACK_COLOR_HINT_MESSAGE = "Can't hint color on black cards";
+
 function isTerminalStatus(status: HanabiPerspectiveState['status']): boolean {
 	return status === 'won' || status === 'lost' || status === 'finished';
 }
 
 function isBonusHintEffect(effect: string): boolean {
 	return effect === 'free-color-hint' || effect === 'free-number-hint';
+}
+
+type BonusCardSelection =
+	| GameAction
+	| 'wild-color-picker'
+	| { kind: 'invalid-color-hint'; cardId: CardId }
+	| null;
+
+function isInvalidColorHintSelection(
+	selection: BonusCardSelection,
+): selection is { kind: 'invalid-color-hint'; cardId: CardId } {
+	return (
+		typeof selection === 'object' &&
+		selection !== null &&
+		'kind' in selection &&
+		selection.kind === 'invalid-color-hint'
+	);
 }
 
 async function writeToClipboard(text: string): Promise<void> {
@@ -174,6 +193,11 @@ function GameClient({
 	const logListRef = useRef<HTMLDivElement | null>(null);
 	const logDrawerTokenRef = useRef(0);
 	const logDrawerCloseTimeoutRef = useRef<number | null>(null);
+	const feedbackTimeoutRef = useRef<number | null>(null);
+	const feedbackIdRef = useRef(0);
+	const [actionFeedback, setActionFeedback] = useState<{ id: number; message: string } | null>(
+		null,
+	);
 
 	const isLocalDebugMode = isDebugMode;
 	const onlineRoom = useOnlineRoom(roomId, playerName, !isLocalDebugMode);
@@ -633,6 +657,10 @@ function GameClient({
 				window.clearTimeout(logDrawerCloseTimeoutRef.current);
 				logDrawerCloseTimeoutRef.current = null;
 			}
+			if (feedbackTimeoutRef.current !== null) {
+				window.clearTimeout(feedbackTimeoutRef.current);
+				feedbackTimeoutRef.current = null;
+			}
 		};
 	}, []);
 
@@ -721,6 +749,25 @@ function GameClient({
 		}
 	}
 
+	function showActionFeedback(message: string): void {
+		if (feedbackTimeoutRef.current !== null) {
+			window.clearTimeout(feedbackTimeoutRef.current);
+		}
+
+		const id = feedbackIdRef.current + 1;
+		feedbackIdRef.current = id;
+		setActionFeedback({ id, message });
+		feedbackTimeoutRef.current = window.setTimeout(() => {
+			setActionFeedback(current => (current?.id === id ? null : current));
+			feedbackTimeoutRef.current = null;
+		}, 1700);
+	}
+
+	function applyInvalidColorHintFeedback(cardId: CardId): void {
+		triggerCardFx(cardId, 'hint-invalid');
+		showActionFeedback(BLACK_COLOR_HINT_MESSAGE);
+	}
+
 	function commitLocalAction(action: GameAction): void {
 		if (action.type === 'play') {
 			commitLocal(() => {
@@ -790,6 +837,11 @@ function GameClient({
 			return;
 		}
 
+		if (resolved.kind === 'invalid-color-hint') {
+			applyInvalidColorHintFeedback(resolved.cardId);
+			return;
+		}
+
 		if (resolved.kind !== 'action') {
 			return;
 		}
@@ -822,7 +874,7 @@ function GameClient({
 		actorId: PlayerId;
 		playerId: PlayerId;
 		cardId: CardId;
-	}): GameAction | 'wild-color-picker' | null {
+	}): BonusCardSelection {
 		const pendingBonus = state.pendingBonus;
 		if (!pendingBonus || pendingBonus.actorId !== actorId || playerId === actorId) {
 			return null;
@@ -839,7 +891,7 @@ function GameClient({
 			}
 
 			if (card.suit === 'K') {
-				return null;
+				return { kind: 'invalid-color-hint', cardId };
 			}
 
 			return {
@@ -881,6 +933,10 @@ function GameClient({
 					setWildColorHintTargetPlayerId(playerId);
 					return;
 				}
+				if (isInvalidColorHintSelection(resolved)) {
+					applyInvalidColorHintFeedback(resolved.cardId);
+					return;
+				}
 				if (resolved) {
 					commitLocalAction(resolved);
 				}
@@ -915,6 +971,10 @@ function GameClient({
 			});
 			if (resolved === 'wild-color-picker') {
 				setWildColorHintTargetPlayerId(playerId);
+				return;
+			}
+			if (isInvalidColorHintSelection(resolved)) {
+				applyInvalidColorHintFeedback(resolved.cardId);
 				return;
 			}
 			if (resolved) {
@@ -1819,6 +1879,17 @@ function GameClient({
 						</button>
 					</div>
 				</aside>
+			)}
+
+			{actionFeedback && (
+				<div
+					key={actionFeedback.id}
+					className='action-feedback-toast'
+					role='status'
+					data-testid='action-feedback-toast'
+				>
+					{actionFeedback.message}
+				</div>
 			)}
 
 			<>

@@ -18,6 +18,19 @@ const TWO_PLAYER_MULTICOLOR_DECK: TestCardSeed[] = [
 	{ suit: 'B', number: 2 },
 ];
 
+const TWO_PLAYER_BLACK_DECK: TestCardSeed[] = [
+	{ suit: 'R', number: 1 },
+	{ suit: 'K', number: 5 },
+	{ suit: 'Y', number: 1 },
+	{ suit: 'R', number: 2 },
+	{ suit: 'G', number: 1 },
+	{ suit: 'Y', number: 2 },
+	{ suit: 'B', number: 1 },
+	{ suit: 'G', number: 2 },
+	{ suit: 'W', number: 1 },
+	{ suit: 'B', number: 2 },
+];
+
 describe('resolveCardSelectionAction', () => {
 	test('plays immediately even when selected card is already known redundant', () => {
 		const game = new HanabiGame({
@@ -115,5 +128,31 @@ describe('resolveCardSelectionAction', () => {
 				suit: 'R',
 			},
 		});
+	});
+
+	test('reports invalid feedback when selecting a black card for a color hint', () => {
+		const game = new HanabiGame({
+			playerIds: ['p1', 'p2'],
+			playerNames: ['A', 'B'],
+			includeBlack: true,
+			deck: TWO_PLAYER_BLACK_DECK,
+		});
+
+		const actorId = game.state.players[0]?.id;
+		const target = game.state.players[1];
+		const blackCardId = target?.cards.find(cardId => game.state.cards[cardId]?.suit === 'K');
+		if (!actorId || !target || !blackCardId) {
+			throw new Error('Failed to prepare black color-hint selection test');
+		}
+
+		const resolved = resolveCardSelectionAction({
+			state: game.state,
+			actorId,
+			pendingAction: 'hint-color',
+			playerId: target.id,
+			cardId: blackCardId,
+		});
+
+		expect(resolved).toEqual({ kind: 'invalid-color-hint', cardId: blackCardId });
 	});
 });

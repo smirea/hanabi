@@ -208,6 +208,8 @@ export function useGameAnimations({
 				? 'hint-ring'
 				: fxClass === 'hint-redundant'
 					? 'hint-redundant-ring'
+					: fxClass === 'hint-invalid'
+						? 'hint-invalid-ring'
 					: null;
 
 		const listenerMap = cardFxListenerByNodeRef.current.get(node) ?? new Map();

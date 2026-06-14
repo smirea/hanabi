@@ -8,6 +8,7 @@ export type ResolvedCardSelection =
 	| { kind: 'noop' }
 	| { kind: 'wild-color-picker'; targetPlayerId: PlayerId }
 	| { kind: 'redundant-hint'; touchedCardIds: CardId[] }
+	| { kind: 'invalid-color-hint'; cardId: CardId }
 	| { kind: 'action'; action: GameAction };
 
 export function resolveCardSelectionAction({
@@ -77,7 +78,7 @@ export function resolveCardSelectionAction({
 		}
 
 		if (selectedCard.suit === 'K') {
-			return { kind: 'noop' };
+			return { kind: 'invalid-color-hint', cardId };
 		}
 
 		const { redundant, touchedCardIds } = isRedundantHint(state, playerId, {
