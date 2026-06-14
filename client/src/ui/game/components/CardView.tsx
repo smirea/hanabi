@@ -22,7 +22,7 @@ interface ResolutionFold {
 
 function isAmbiguousMulticolorHint(card: PerspectiveCard, showAmbiguousMulticolorHints: boolean) {
 	const knownColor = card.hints.color;
-	if (!showAmbiguousMulticolorHints || !card.isHiddenFromViewer || !knownColor) {
+	if (!showAmbiguousMulticolorHints || !knownColor) {
 		return false;
 	}
 
@@ -54,7 +54,8 @@ export function CardView({
 }) {
 	const knownColor = card.hints.color;
 	const knownNumber = card.hints.number;
-	const ambiguousMulticolor = isAmbiguousMulticolorHint(card, showAmbiguousMulticolorHints);
+	const ambiguousMulticolorHint = isAmbiguousMulticolorHint(card, showAmbiguousMulticolorHints);
+	const ambiguousMulticolorFace = ambiguousMulticolorHint && card.isHiddenFromViewer;
 
 	let faceSuit: Suit | null = null;
 	let faceValue: string | number = '?';
@@ -68,7 +69,7 @@ export function CardView({
 		faceSuit = knownColor;
 		faceValue = knownNumber ?? '?';
 		bgColor = knownColor ? suitColors[knownColor] : knownNumber ? '#9eb2d4' : undefined;
-		altBgColor = ambiguousMulticolor ? suitColors.M : undefined;
+		altBgColor = ambiguousMulticolorFace ? suitColors.M : undefined;
 	} else {
 		if (card.suit === null || card.number === null) {
 			throw new Error(`Visible card ${card.id} is missing face values`);
@@ -94,7 +95,7 @@ export function CardView({
 		if (
 			previous?.cardId === card.id &&
 			previous.isAmbiguous &&
-			!ambiguousMulticolor &&
+			!ambiguousMulticolorFace &&
 			card.isHiddenFromViewer &&
 			showAmbiguousMulticolorHints &&
 			previous.knownColor &&
@@ -113,11 +114,11 @@ export function CardView({
 
 		previousAmbiguousRef.current = {
 			cardId: card.id,
-			isAmbiguous: ambiguousMulticolor,
+			isAmbiguous: ambiguousMulticolorFace,
 			knownColor,
 		};
 	}, [
-		ambiguousMulticolor,
+		ambiguousMulticolorFace,
 		card.id,
 		card.isHiddenFromViewer,
 		knownColor,
@@ -137,7 +138,7 @@ export function CardView({
 	return (
 		<button
 			type='button'
-			className={`card ${card.hints.recentlyHinted ? 'recent' : ''} ${ambiguousMulticolor ? 'ambiguous-multicolor' : ''}`}
+			className={`card ${card.hints.recentlyHinted ? 'recent' : ''} ${ambiguousMulticolorFace ? 'ambiguous-multicolor' : ''}`}
 			style={
 				{
 					'--card-bg': bgColor,
@@ -161,7 +162,7 @@ export function CardView({
 			)}
 			<div className='card-face'>
 				<span className='card-face-value'>{faceValue}</span>
-				{faceSuit && ambiguousMulticolor ? (
+				{faceSuit && ambiguousMulticolorFace ? (
 					<span className='card-face-suit-split'>
 						<span className='card-face-suit-half base' style={{ color: suitColors[faceSuit] }}>
 							<SuitSymbol suit={faceSuit} size={24} />
@@ -177,7 +178,7 @@ export function CardView({
 				) : null}
 			</div>
 			<div className={`badges ${hasPositiveBadges ? 'visible' : 'empty'}`}>
-				{knownColor && ambiguousMulticolor && (
+				{knownColor && ambiguousMulticolorHint && (
 					<span className='badge ambiguous-color-pair' data-testid={`${testId}-ambiguous-color`}>
 						<span
 							className='badge color ambiguous-base'
@@ -203,7 +204,7 @@ export function CardView({
 						</span>
 					</span>
 				)}
-				{knownColor && knownNumber && !ambiguousMulticolor && (
+				{knownColor && knownNumber && !ambiguousMulticolorHint && (
 					<span
 						className='badge combined'
 						style={
@@ -217,7 +218,7 @@ export function CardView({
 						{knownNumber}
 					</span>
 				)}
-				{knownColor && !knownNumber && !ambiguousMulticolor && (
+				{knownColor && !knownNumber && !ambiguousMulticolorHint && (
 					<span
 						className='badge color'
 						style={
@@ -231,7 +232,7 @@ export function CardView({
 					</span>
 				)}
 				{!knownColor && knownNumber && <span className='badge number'>{knownNumber}</span>}
-				{knownColor && knownNumber && ambiguousMulticolor && (
+				{knownColor && knownNumber && ambiguousMulticolorHint && (
 					<span className='badge number'>{knownNumber}</span>
 				)}
 			</div>

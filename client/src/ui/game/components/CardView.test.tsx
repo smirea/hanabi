@@ -21,6 +21,23 @@ function hiddenCard(overrides: Partial<PerspectiveCard> = {}): PerspectiveCard {
 	};
 }
 
+function visibleCard(overrides: Partial<PerspectiveCard> = {}): PerspectiveCard {
+	return {
+		id: 'c002',
+		suit: 'R',
+		number: 1,
+		isHiddenFromViewer: false,
+		hints: {
+			color: 'R',
+			number: null,
+			notColors: [],
+			notNumbers: [],
+			recentlyHinted: false,
+		},
+		...overrides,
+	};
+}
+
 describe('CardView', () => {
 	afterEach(() => {
 		cleanup();
@@ -39,6 +56,23 @@ describe('CardView', () => {
 
 		expect(screen.getByTestId('card')).toHaveClass('ambiguous-multicolor');
 		expect(screen.getByTestId('card-ambiguous-color')).toBeInTheDocument();
+	});
+
+	test('renders visible teammate color hint badges as ambiguous without changing the card face', () => {
+		render(
+			<CardView
+				card={visibleCard()}
+				showNegativeColorHints
+				showNegativeNumberHints
+				showAmbiguousMulticolorHints
+				testId='card'
+			/>,
+		);
+
+		const card = screen.getByTestId('card');
+		expect(card).not.toHaveClass('ambiguous-multicolor');
+		expect(screen.getByTestId('card-ambiguous-color')).toBeInTheDocument();
+		expect(card.querySelector('.card-face-suit-split')).toBeNull();
 	});
 
 	test('resolves ambiguity after a different color is excluded', () => {
