@@ -233,6 +233,10 @@ function historyGameId(roomCode: string, startActionId: number, endActionId: num
 	return `${roomCode}:${startActionId}:${endActionId}`;
 }
 
+const historyStatusOverrides = new Map<string, GameHistoryEntry['status']>([
+	['CYDL:789:876', 'won'],
+]);
+
 function parseHistoryGameId(value: string | null | undefined) {
 	const [roomCodeValue, startValue, endValue] = value?.split(':') ?? [];
 	const roomCode = parseRoomCode(roomCodeValue);
@@ -748,9 +752,11 @@ function adminHistoryForRoom(code: string): AdminHistoryGame[] {
 			const startActionId = currentGameStartActionId ?? row.id;
 			const completed = completedGame(code, state, row.createdAt);
 			if (completed) {
+				const id = historyGameId(code, startActionId, row.id);
 				games.push({
 					...completed,
-					id: historyGameId(code, startActionId, row.id),
+					id,
+					status: historyStatusOverrides.get(id) ?? completed.status,
 					startActionId,
 					endActionId: row.id,
 				});
