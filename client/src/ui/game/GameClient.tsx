@@ -1623,9 +1623,7 @@ function GameClient({
 									const discarded = discardCounts.get(cardKey) ?? 0;
 									const visibleInHands = visibleOtherHandCounts.get(cardKey) ?? 0;
 									const played = isLit ? 1 : 0;
-									const pipTotal = isTibiMode
-										? remaining + visibleInHands + discarded
-										: remaining + visibleInHands + discarded + played;
+									const pipTotal = remaining + visibleInHands + discarded + played;
 									const blocked = !isLit && discarded >= totalCopies;
 									const pipStates = getPegPipStates(
 										isTibiMode ? 'tibi' : 'default',
@@ -1636,7 +1634,7 @@ function GameClient({
 										pipTotal,
 									);
 									const pipAriaLabel = isTibiMode
-										? `${remaining} in deck, ${visibleInHands} in visible hands, ${discarded} discarded`
+										? `${remaining} in deck, ${visibleInHands} in visible hands, ${discarded} discarded, ${played} played`
 										: `${remaining + visibleInHands} available, ${discarded + played} unavailable`;
 
 									return (

@@ -1,8 +1,8 @@
-import { CardsThree, HandPalm } from '@phosphor-icons/react';
+import { CardsThree, Fire, HandPalm } from '@phosphor-icons/react';
 
 const MAX_PEG_PIPS = 4;
 
-export type PegPipState = 'filled' | 'hollow' | 'cross' | 'deck' | 'hand' | 'unused';
+export type PegPipState = 'filled' | 'hollow' | 'cross' | 'deck' | 'hand' | 'played' | 'unused';
 export type PegPipMode = 'default' | 'tibi';
 
 interface PegPipsProps {
@@ -29,12 +29,18 @@ export function getPegPipStates(
 			Math.max(discardedCount, 0),
 			Math.max(0, clampedTotal - clampedDeck - clampedHand),
 		);
+		const clampedPlayed = Math.min(
+			Math.max(playedCount, 0),
+			Math.max(0, clampedTotal - clampedDeck - clampedHand - clampedDiscarded),
+		);
 
 		return Array.from({ length: MAX_PEG_PIPS }, (_, index) => {
 			if (index >= clampedTotal) return 'unused';
 			if (index < clampedDeck) return 'deck';
 			if (index < clampedDeck + clampedHand) return 'hand';
 			if (index < clampedDeck + clampedHand + clampedDiscarded) return 'cross';
+			if (index < clampedDeck + clampedHand + clampedDiscarded + clampedPlayed)
+				return 'played';
 			return 'unused';
 		});
 	}
@@ -73,6 +79,9 @@ export function PegPips({ pipStates }: PegPipsProps) {
 					)}
 					{pip.state === 'hand' && (
 						<HandPalm size={9} weight='bold' className='peg-pip-icon' aria-hidden />
+					)}
+					{pip.state === 'played' && (
+						<Fire size={9} weight='fill' className='peg-pip-icon' aria-hidden />
 					)}
 				</span>
 			))}

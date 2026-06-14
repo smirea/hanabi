@@ -2756,7 +2756,8 @@ body {
 }
 
 .peg-pip.deck,
-.peg-pip.hand {
+.peg-pip.hand,
+.peg-pip.played {
 	width: 0.48rem;
 	height: 0.48rem;
 	border: 0;
@@ -2810,7 +2811,8 @@ body {
 }
 
 .peg.lit .peg-pip.deck,
-.peg.lit .peg-pip.hand {
+.peg.lit .peg-pip.hand,
+.peg.lit .peg-pip.played {
 	background: transparent;
 	border: 0;
 }
