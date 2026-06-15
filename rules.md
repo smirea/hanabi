@@ -80,6 +80,7 @@ The game ends in these ways:
 1. **Loss:** The third black fuse token is added to the lid.
 2. **Win:** All fireworks are completed.
 3. **No legal actions:** If every player is out of cards and no legal information action exists, the game ends and the team scores the fireworks.
+4. **No valid plays:** If no incomplete firework can advance because none of the next required cards remain in player hands or the deck, the game ends and the team scores the fireworks.
 
 Empty-hand players can still give information if at least one clue token is available and the clue touches at least one card in a teammate hand. If no such clue is available, that player is skipped.
 

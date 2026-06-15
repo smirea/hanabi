@@ -21,7 +21,7 @@ const RULE_TABS: RulesTab[] = [
 			'On your turn, give one clue, discard one card, or play one card.',
 			'Clues must point to every card of one color or one number in a teammate hand.',
 			'House rule: the deck running out does not start a final round. Empty-hand players can still clue; if they cannot clue, their turn is skipped.',
-			'Misplayed cards use a fuse. The game ends when the third fuse is used or all fireworks are completed.',
+			'Misplayed cards use a fuse. The game ends when the third fuse is used, all fireworks are completed, no one can act, or no firework can advance.',
 		],
 	},
 	{

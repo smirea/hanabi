@@ -386,6 +386,7 @@ export class HanabiGame {
 	public static fromState(state: HanabiState): HanabiGame {
 		const game = Object.create(HanabiGame.prototype) as HanabiGame;
 		game.state = HanabiGame.normalizeRestoredState(state);
+		game.finishCurrentTerminalPosition();
 		return game;
 	}
 
@@ -1406,6 +1407,44 @@ export class HanabiGame {
 		return true;
 	}
 
+	private canAnyFireworkAdvance(): boolean {
+		const remaining = createEmptyCountsBySuit();
+
+		for (const cardId of this.state.drawDeck) {
+			const card = this.state.cards[cardId];
+			if (!card) {
+				throw new Error(`Unknown card in drawDeck: ${cardId}`);
+			}
+
+			remaining[card.suit][card.number] += 1;
+		}
+
+		for (const player of this.state.players) {
+			for (const cardId of player.cards) {
+				const card = this.state.cards[cardId];
+				if (!card) {
+					throw new Error(`Unknown card in player hand: ${cardId}`);
+				}
+
+				remaining[card.suit][card.number] += 1;
+			}
+		}
+
+		for (const suit of this.state.settings.activeSuits) {
+			const height = this.state.fireworks[suit].length;
+			if (height >= CARD_NUMBERS.length) {
+				continue;
+			}
+
+			const nextNumber = getNextFireworkNumber(suit, height);
+			if (nextNumber && remaining[suit][nextNumber] > 0) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	private drawCardForPlayer(playerIndex: number): void {
 		if (this.state.drawDeck.length === 0) {
 			return;
@@ -1488,7 +1527,7 @@ export class HanabiGame {
 		this.appendStatusLog(status, reason);
 	}
 
-	private finalizeAction(): void {
+	private finishCurrentTerminalPosition(): void {
 		if (!HanabiGame.isTerminalStatus(this.state.status) && this.areAllFireworksComplete()) {
 			this.transitionToTerminalState('won', 'all_fireworks_completed');
 		}
@@ -1496,6 +1535,18 @@ export class HanabiGame {
 		if (!HanabiGame.isTerminalStatus(this.state.status) && !this.anyPlayerHasLegalAction()) {
 			this.transitionToTerminalState('finished', 'no_legal_actions_left');
 		}
+
+		if (
+			!HanabiGame.isTerminalStatus(this.state.status) &&
+			!this.state.settings.endlessMode &&
+			!this.canAnyFireworkAdvance()
+		) {
+			this.transitionToTerminalState('finished', 'no_valid_plays_left');
+		}
+	}
+
+	private finalizeAction(): void {
+		this.finishCurrentTerminalPosition();
 
 		if (!HanabiGame.isTerminalStatus(this.state.status)) {
 			this.advanceTurn();

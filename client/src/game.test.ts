@@ -159,6 +159,25 @@ function createNoValidPlaysLeftState(): any {
 	return state;
 }
 
+function createOneDiscardFromNoValidPlaysLeftState(): any {
+	const state = createNoValidPlaysLeftState();
+	const neededCardId = 'needed-y4';
+	state.cards[neededCardId] = {
+		id: neededCardId,
+		suit: 'Y',
+		number: 4,
+		hints: {
+			color: null,
+			number: null,
+			notColors: [],
+			notNumbers: [],
+			recentlyHinted: false,
+		},
+	};
+	state.players[0].cards.unshift(neededCardId);
+	return state;
+}
+
 function addFireworkCard(state: any, suit: DeckSuit, number: DeckNumber): string {
 	const id = `played-${suit}-${number}`;
 	state.cards[id] = {
@@ -977,13 +996,31 @@ describe('HanabiGame', () => {
 		expect(discardGame.state.logs.at(-1)).toMatchObject({ type: 'discard' });
 	});
 
-	test('normal games keep going when no firework completion path remains', () => {
+	test('restored normal games finish when no firework completion path remains', () => {
 		const game = HanabiGame.fromState(createNoValidPlaysLeftState());
 
-		game.discardCard(game.state.players[0].cards[0]);
+		expect(game.state.status).toBe('finished');
+		expect(game.state.logs.at(-1)).toMatchObject({
+			type: 'status',
+			status: 'finished',
+			reason: 'no_valid_plays_left',
+		});
+		expect(() => game.beginPlaySelection()).toThrow('Game is over (finished)');
+	});
+
+	test('normal games finish after discarding the last card that can advance a firework', () => {
+		const game = HanabiGame.fromState(createOneDiscardFromNoValidPlaysLeftState());
 
 		expect(game.state.status).toBe('active');
-		expect(game.state.logs.some(log => log.type === 'status')).toBeFalse();
+
+		game.discardCard('needed-y4');
+
+		expect(game.state.status).toBe('finished');
+		expect(game.state.logs.at(-1)).toMatchObject({
+			type: 'status',
+			status: 'finished',
+			reason: 'no_valid_plays_left',
+		});
 	});
 
 	test('perspective view hides own cards and updates known availability by viewer', () => {
