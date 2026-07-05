@@ -185,6 +185,25 @@ function createPendingFlamboyantState(effect: FlamboyantBonus) {
 	return game.getSnapshot();
 }
 
+function createBlackCompletionChoiceState() {
+	const game = new HanabiGame({
+		playerNames: ['A', 'B'],
+		includeBlack: true,
+		includeFlamboyants: true,
+		bonusTiles: ['gain-hint'],
+		deck: twoPlayerDeck(
+			[seedCard('K', 1), seedCard('R', 1), seedCard('Y', 1), seedCard('G', 1), seedCard('B', 1)],
+			[seedCard('W', 1), seedCard('R', 2), seedCard('Y', 2), seedCard('G', 2), seedCard('B', 2)],
+		),
+	});
+
+	for (const number of [5, 4, 3, 2] as const) {
+		addPlayedCard(game, 'K', number);
+	}
+	game.state.hintTokens = 6;
+	return game.getSnapshot();
+}
+
 type DebugWindow = Window & {
 	DEBUG?: {
 		getState?: () => ReturnType<HanabiGame['getSnapshot']> | null;
@@ -332,6 +351,49 @@ describe('App local debug wiring', () => {
 
 		expect(debug?.getState?.()?.pendingBonus?.effect).toBe('play-discard');
 		expect(screen.getByTestId('bonus-panel')).toHaveTextContent('Play Discard');
+	});
+
+	test('black powder completion uses selected flamboyant bonus option', async () => {
+		render(<App roomCode={ROOM_CODE} />);
+
+		const debug = (window as DebugWindow).DEBUG;
+		act(() => {
+			debug?.loadState?.(createBlackCompletionChoiceState());
+		});
+
+		fireEvent.click(screen.getByTestId('actions-play'));
+		fireEvent.click(screen.getByTestId('card-p1-0'));
+
+		expect(screen.getByTestId('completion-bonus-picker')).toBeInTheDocument();
+
+		fireEvent.click(screen.getByTestId('completion-bonus-flamboyant'));
+
+		await waitFor(() =>
+			expect(screen.queryByTestId('completion-bonus-picker')).not.toBeInTheDocument(),
+		);
+		expect(debug?.getState?.()?.bonusTileDiscard).toEqual(['gain-hint']);
+		expect(debug?.getState?.()?.bonusTileDeck).toEqual([]);
+		expect(screen.getByTestId('player-turn-p2')).toBeInTheDocument();
+	});
+
+	test('black powder completion can keep the normal hint option', async () => {
+		render(<App roomCode={ROOM_CODE} />);
+
+		const debug = (window as DebugWindow).DEBUG;
+		act(() => {
+			debug?.loadState?.(createBlackCompletionChoiceState());
+		});
+
+		fireEvent.click(screen.getByTestId('actions-play'));
+		fireEvent.click(screen.getByTestId('card-p1-0'));
+		fireEvent.click(screen.getByTestId('completion-bonus-hint'));
+
+		await waitFor(() =>
+			expect(screen.queryByTestId('completion-bonus-picker')).not.toBeInTheDocument(),
+		);
+		expect(debug?.getState?.()?.bonusTileDiscard).toEqual([]);
+		expect(debug?.getState?.()?.bonusTileDeck).toEqual(['gain-hint']);
+		expect(getHintCount()).toBe(7);
 	});
 
 	test('negative hint toggles default to on and persist in local storage', () => {

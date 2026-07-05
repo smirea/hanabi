@@ -27,6 +27,7 @@ export type FlamboyantBonus =
 	| 'free-number-hint'
 	| 'shuffle-discard'
 	| 'play-discard';
+export type CompletionBonusChoice = 'flamboyant' | 'hint';
 
 export interface PendingFlamboyantBonus {
 	effect: FlamboyantBonus;
@@ -290,6 +291,25 @@ export function isFireworkCardPlayed(suit: Suit, number: CardNumber, height: num
 export function isFireworkCompletionCard(suit: Suit, number: CardNumber): boolean {
 	const order = getFireworkCardNumbers(suit);
 	return number === order[order.length - 1];
+}
+
+export function canTriggerFlamboyantBonus(
+	state: Pick<HanabiState, 'settings' | 'bonusTileDeck' | 'fireworks'>,
+	card: Pick<Card, 'suit' | 'number'>,
+): boolean {
+	return (
+		state.settings.includeFlamboyants &&
+		state.bonusTileDeck.length > 0 &&
+		isFireworkCompletionCard(card.suit, card.number) &&
+		getNextFireworkNumber(card.suit, state.fireworks[card.suit].length) === card.number
+	);
+}
+
+export function shouldPromptForFlamboyantCompletionBonus(
+	state: Pick<HanabiState, 'settings' | 'bonusTileDeck' | 'fireworks'>,
+	card: Pick<Card, 'suit' | 'number'>,
+): boolean {
+	return canTriggerFlamboyantBonus(state, card) && (card.suit === 'M' || isBlackSuit(card.suit));
 }
 
 export function getCardCopies(
@@ -670,7 +690,7 @@ export class HanabiGame {
 		this.giveNumberHint(this.state.ui.selectedTargetPlayerId, this.state.ui.selectedHintNumber);
 	}
 
-	public playCard(cardId: CardId): void {
+	public playCard(cardId: CardId, completionBonus: CompletionBonusChoice = 'flamboyant'): void {
 		this.assertTurnCanBePlayed();
 		this.assertNoPendingBonus();
 
@@ -687,12 +707,14 @@ export class HanabiGame {
 		const expectedNumber = getNextFireworkNumber(card.suit, this.state.fireworks[card.suit].length);
 		const success = card.number === expectedNumber;
 		let gainedHint = false;
+		let useFlamboyantBonus = false;
 
 		if (success) {
 			this.state.fireworks[card.suit].push(cardId);
+			useFlamboyantBonus = this.shouldUseFlamboyantBonus(card, completionBonus);
 			if (
 				isFireworkCompletionCard(card.suit, card.number) &&
-				!this.shouldUseFlamboyantBonus(card) &&
+				!useFlamboyantBonus &&
 				this.state.hintTokens < this.state.settings.maxHintTokens
 			) {
 				this.state.hintTokens += 1;
@@ -723,7 +745,7 @@ export class HanabiGame {
 			return;
 		}
 
-		if (success && this.shouldUseFlamboyantBonus(card)) {
+		if (success && useFlamboyantBonus) {
 			this.revealAndResolveFlamboyantBonus(currentPlayer);
 			if (this.state.pendingBonus) {
 				return;
@@ -1260,11 +1282,14 @@ export class HanabiGame {
 		return this.state.settings.includeMulticolor && cardSuit === 'M' && hintSuit !== 'M';
 	}
 
-	private shouldUseFlamboyantBonus(card: Card): boolean {
+	private shouldUseFlamboyantBonus(
+		card: Card,
+		completionBonus: CompletionBonusChoice = 'flamboyant',
+	): boolean {
 		return (
+			completionBonus === 'flamboyant' &&
 			this.state.settings.includeFlamboyants &&
-			card.number === 5 &&
-			!isBlackSuit(card.suit) &&
+			isFireworkCompletionCard(card.suit, card.number) &&
 			this.state.bonusTileDeck.length > 0
 		);
 	}

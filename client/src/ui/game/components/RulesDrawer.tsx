@@ -43,6 +43,7 @@ const RULE_TABS: RulesTab[] = [
 			'Adds colorless black cards and a black firework.',
 			'The black firework is built in reverse: 5, 4, 3, 2, 1.',
 			'Black cards cannot be touched by color clues. Number clues still work.',
+			'With 5 Flamboyants enabled, completing black with 1 can take the normal clue bonus or a bonus tile.',
 			'Black is scored as a penalty: subtract 1 point for each missing black card.',
 		],
 	},
@@ -53,8 +54,9 @@ const RULE_TABS: RulesTab[] = [
 		points: [
 			'Shuffle six one-use bonus tiles at setup.',
 			'When a normal firework is completed with a 5, reveal a bonus tile instead of taking the normal clue bonus.',
+			'Multicolor 5 and black 1 completions can choose the normal clue bonus or a bonus tile.',
 			'Bonuses can gain a clue, recover a fuse and gain a clue, give a free color clue, give a free number clue, shuffle a discard into the deck, or play a currently fitting discard.',
-			'If a bonus plays a 5, reveal another bonus tile immediately.',
+			'If a bonus completes another firework, reveal another bonus tile immediately.',
 		],
 	},
 	{

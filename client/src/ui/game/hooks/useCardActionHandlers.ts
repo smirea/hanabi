@@ -1,4 +1,10 @@
-import type { CardId, HanabiState, PlayerId, Suit } from '../../../game';
+import {
+	shouldPromptForFlamboyantCompletionBonus,
+	type CardId,
+	type HanabiState,
+	type PlayerId,
+	type Suit,
+} from '../../../game';
 import type { GameAction } from '../../../utils/types';
 import { isRedundantHint } from '../utils/hintLogic';
 
@@ -7,6 +13,7 @@ export type PendingCardAction = 'play' | 'discard' | 'hint-color' | 'hint-number
 export type ResolvedCardSelection =
 	| { kind: 'noop' }
 	| { kind: 'wild-color-picker'; targetPlayerId: PlayerId }
+	| { kind: 'completion-bonus-picker'; cardId: CardId }
 	| { kind: 'redundant-hint'; touchedCardIds: CardId[] }
 	| { kind: 'invalid-color-hint'; cardId: CardId }
 	| { kind: 'action'; action: GameAction };
@@ -41,6 +48,10 @@ export function resolveCardSelectionAction({
 	if (pendingAction === 'play') {
 		if (playerId !== actorId) {
 			return { kind: 'noop' };
+		}
+
+		if (shouldPromptForFlamboyantCompletionBonus(state, selectedCard)) {
+			return { kind: 'completion-bonus-picker', cardId };
 		}
 
 		return {
