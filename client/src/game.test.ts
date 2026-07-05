@@ -1093,6 +1093,18 @@ describe('HanabiGame', () => {
 		expect(() => game.beginPlaySelection()).toThrow('Game is over (finished)');
 	});
 
+	test('replaced snapshots finish when no firework completion path remains', () => {
+		const game = new HanabiGame();
+		game.replaceState(createNoValidPlaysLeftState());
+
+		expect(game.state.status).toBe('finished');
+		expect(game.state.logs.at(-1)).toMatchObject({
+			type: 'status',
+			status: 'finished',
+			reason: 'no_valid_plays_left',
+		});
+	});
+
 	test('normal games finish after discarding the last card that can advance a firework', () => {
 		const game = HanabiGame.fromState(createOneDiscardFromNoValidPlaysLeftState());
 
