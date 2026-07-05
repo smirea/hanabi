@@ -1,8 +1,17 @@
 import { CardsThree, Fire, LightbulbFilament, X } from '@phosphor-icons/react';
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	type CSSProperties,
+	type ReactNode,
+} from 'react';
 import {
 	BASE_SUITS,
 	HanabiGame,
+	type Card,
 	type CardId,
 	type CompletionBonusChoice,
 	type HanabiState,
@@ -35,6 +44,7 @@ import type { GameAction, LobbySettings, RoomViewState } from '../../utils/types
 import { CardView } from './components/CardView';
 import { DeckCount } from './components/DeckCount';
 import { LastActionTicker } from './components/LastActionTicker';
+import { LogCardChip } from './components/LogChips';
 import { PegPips, getPegPipStates } from './components/PegPips';
 import { RulesDrawer } from './components/RulesDrawer';
 import { SuitSymbol } from './components/SuitSymbol';
@@ -86,6 +96,7 @@ function isBonusHintEffect(effect: string): boolean {
 }
 
 type PendingBonus = NonNullable<HanabiPerspectiveState['pendingBonus']>;
+type BonusDiscardChoice = { cardId: CardId; card: Card; playable: boolean };
 
 function getBonusPanelTitle(effect: PendingBonus['effect']): string {
 	if (effect === 'free-color-hint') return 'Free Color';
@@ -94,38 +105,51 @@ function getBonusPanelTitle(effect: PendingBonus['effect']): string {
 	return 'Play Discard';
 }
 
-function getBonusSourceText(pendingBonus: PendingBonus): string {
+function renderBonusSource(pendingBonus: PendingBonus): ReactNode {
 	if (pendingBonus.sourceSuit && pendingBonus.sourceNumber) {
-		return `${pendingBonus.actorName} played a ${pendingBonus.sourceNumber} ${suitNames[pendingBonus.sourceSuit]}`;
+		return (
+			<>
+				{pendingBonus.actorName} played{' '}
+				<LogCardChip suit={pendingBonus.sourceSuit} number={pendingBonus.sourceNumber} />
+			</>
+		);
 	}
 
 	return `${pendingBonus.actorName} revealed a bonus`;
 }
 
-function getBonusPanelCopy(pendingBonus: PendingBonus, canAct: boolean): string {
-	const source = getBonusSourceText(pendingBonus);
+function renderBonusPanelCopy(pendingBonus: PendingBonus, canAct: boolean): ReactNode {
+	const source = renderBonusSource(pendingBonus);
 
 	if (pendingBonus.effect === 'free-color-hint') {
-		return canAct
-			? `${source} and is now getting a free color hint. Tap a teammate card.`
-			: `${source} and is now getting a free color hint.`;
+		return canAct ? (
+			<>{source} and is now getting a free color hint. Tap a teammate card.</>
+		) : (
+			<>{source} and is now getting a free color hint.</>
+		);
 	}
 
 	if (pendingBonus.effect === 'free-number-hint') {
-		return canAct
-			? `${source} and is now getting a free number hint. Tap a teammate card.`
-			: `${source} and is now getting a free number hint.`;
+		return canAct ? (
+			<>{source} and is now getting a free number hint. Tap a teammate card.</>
+		) : (
+			<>{source} and is now getting a free number hint.</>
+		);
 	}
 
 	if (pendingBonus.effect === 'shuffle-discard') {
-		return canAct
-			? `${source} and can shuffle a discard back.`
-			: `${source} and is choosing a discard to shuffle back.`;
+		return canAct ? (
+			<>{source} and can shuffle a discard back.</>
+		) : (
+			<>{source} and is choosing a discard to shuffle back.</>
+		);
 	}
 
-	return canAct
-		? `${source} and can play a fitting discard.`
-		: `${source} and is choosing a discard to play.`;
+	return canAct ? (
+		<>{source} and can play a fitting discard.</>
+	) : (
+		<>{source} and is choosing a discard to play.</>
+	);
 }
 
 type BonusCardSelection =
@@ -1633,18 +1657,39 @@ function GameClient({
 			: !gameOver && perspective.drawDeckCount <= 9
 				? 'warning'
 				: null;
-	const bonusDiscardChoices =
+	const bonusDiscardChoices: BonusDiscardChoice[] =
 		pendingBonus && activeGameState
-			? [...activeGameState.discardPile]
-					.reverse()
-					.map(cardId => {
-						const card = activeGameState.cards[cardId];
-						if (!card) {
-							return null;
-						}
-						return { cardId, card, playable: isDiscardCardPlayable(cardId) };
-					})
-					.filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+			? (() => {
+					const choices = [...activeGameState.discardPile]
+						.reverse()
+						.map(cardId => {
+							const card = activeGameState.cards[cardId];
+							if (!card) {
+								return null;
+							}
+							return { cardId, card, playable: isDiscardCardPlayable(cardId) };
+						})
+						.filter((entry): entry is BonusDiscardChoice => entry !== null);
+
+					if (pendingBonus.effect !== 'play-discard') {
+						return choices;
+					}
+
+					const seen = new Set<string>();
+					const suitOrder = activeGameState.settings.activeSuits;
+					return choices
+						.filter(({ card }) => {
+							const key = `${card.suit}:${card.number}`;
+							if (seen.has(key)) return false;
+							seen.add(key);
+							return true;
+						})
+						.sort((left, right) => {
+							const suitDelta =
+								suitOrder.indexOf(left.card.suit) - suitOrder.indexOf(right.card.suit);
+							return suitDelta || left.card.number - right.card.number;
+						});
+				})()
 			: [];
 
 	function toggleEndgameLog(): void {
@@ -1968,7 +2013,7 @@ function GameClient({
 					</div>
 
 					<p className='bonus-panel-copy' data-testid='bonus-panel-copy'>
-						{getBonusPanelCopy(pendingBonus, canAct)}
+						{renderBonusPanelCopy(pendingBonus, canAct)}
 					</p>
 
 					{!isBonusHintEffect(pendingBonus.effect) && (
