@@ -3887,16 +3887,15 @@ body {
 
 .bonus-discard-grid {
 	display: grid;
-	grid-template-columns: repeat(6, minmax(0, 1fr));
-	gap: 0.16rem;
-	max-height: 5.1rem;
-	overflow-y: auto;
+	grid-template-columns: repeat(8, minmax(0, 1fr));
+	gap: 0.12rem;
+	overflow: visible;
 }
 
 .bonus-discard-choice {
 	min-width: 0;
-	min-height: 2rem;
-	border-radius: 8px;
+	min-height: 1.74rem;
+	border-radius: 7px;
 	border: 1px solid color-mix(in srgb, var(--bonus-card-color) 56%, transparent);
 	background: color-mix(in srgb, var(--bonus-card-color) 22%, white);
 	color: color-mix(in srgb, var(--bonus-card-color) 70%, var(--gray-600));
@@ -3920,7 +3919,7 @@ body {
 }
 
 .bonus-discard-number {
-	font-size: 0.72rem;
+	font-size: 0.68rem;
 	line-height: 1;
 }
 

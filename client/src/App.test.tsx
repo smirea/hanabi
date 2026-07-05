@@ -327,6 +327,9 @@ describe('App local debug wiring', () => {
 			await waitFor(() =>
 				expect(screen.getByTestId('bonus-panel')).toHaveTextContent('Play Discard'),
 			);
+			expect(screen.getByTestId('bonus-panel-copy')).toHaveTextContent(
+				'A played a 5 red and can play a fitting discard.',
+			);
 			const discardButton = screen.getByTestId('bonus-discard-discard-g1');
 			expect(discardButton).toBeEnabled();
 
@@ -351,6 +354,19 @@ describe('App local debug wiring', () => {
 
 		expect(debug?.getState?.()?.pendingBonus?.effect).toBe('play-discard');
 		expect(screen.getByTestId('bonus-panel')).toHaveTextContent('Play Discard');
+	});
+
+	test('5 flamboyants free hint panel explains the bonus source', () => {
+		render(<App roomCode={ROOM_CODE} />);
+
+		act(() => {
+			(window as DebugWindow).DEBUG?.loadState?.(createPendingFlamboyantState('free-number-hint'));
+		});
+
+		expect(screen.getByTestId('bonus-panel')).toHaveTextContent('Free Number');
+		expect(screen.getByTestId('bonus-panel-copy')).toHaveTextContent(
+			'A played a 5 red and is now getting a free number hint. Tap a teammate card.',
+		);
 	});
 
 	test('black powder completion uses selected flamboyant bonus option', async () => {
