@@ -33,6 +33,9 @@ export interface PendingFlamboyantBonus {
 	effect: FlamboyantBonus;
 	actorId: PlayerId;
 	actorName: string;
+	sourceCardId: CardId | null;
+	sourceSuit: Suit | null;
+	sourceNumber: CardNumber | null;
 }
 
 export interface CardHints {
@@ -746,7 +749,7 @@ export class HanabiGame {
 		}
 
 		if (success && useFlamboyantBonus) {
-			this.revealAndResolveFlamboyantBonus(currentPlayer);
+			this.revealAndResolveFlamboyantBonus(currentPlayer, card);
 			if (this.state.pendingBonus) {
 				return;
 			}
@@ -873,10 +876,13 @@ export class HanabiGame {
 		}
 
 		if (this.shouldUseFlamboyantBonus(card)) {
-			this.revealAndResolveFlamboyantBonus({
-				id: pending.actorId,
-				name: pending.actorName,
-			});
+			this.revealAndResolveFlamboyantBonus(
+				{
+					id: pending.actorId,
+					name: pending.actorName,
+				},
+				card,
+			);
 			if (this.state.pendingBonus) {
 				return;
 			}
@@ -1294,7 +1300,10 @@ export class HanabiGame {
 		);
 	}
 
-	private revealAndResolveFlamboyantBonus(actor: Pick<Player, 'id' | 'name'>): void {
+	private revealAndResolveFlamboyantBonus(
+		actor: Pick<Player, 'id' | 'name'>,
+		sourceCard: Card,
+	): void {
 		const effect = this.state.bonusTileDeck.shift();
 		if (!effect) {
 			return;
@@ -1341,6 +1350,9 @@ export class HanabiGame {
 			effect,
 			actorId: actor.id,
 			actorName: actor.name,
+			sourceCardId: sourceCard.id,
+			sourceSuit: sourceCard.suit,
+			sourceNumber: sourceCard.number,
 		};
 	}
 
@@ -1704,6 +1716,11 @@ export class HanabiGame {
 		cloned.bonusTileDeck ??= [];
 		cloned.bonusTileDiscard ??= [];
 		cloned.pendingBonus ??= null;
+		if (cloned.pendingBonus) {
+			cloned.pendingBonus.sourceCardId ??= null;
+			cloned.pendingBonus.sourceSuit ??= null;
+			cloned.pendingBonus.sourceNumber ??= null;
+		}
 
 		if (cloned.status === 'last_round') {
 			cloned.status = 'active';

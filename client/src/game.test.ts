@@ -840,6 +840,8 @@ describe('HanabiGame', () => {
 		expect(game.state.pendingBonus).toMatchObject({
 			effect: 'free-number-hint',
 			actorId: 'p1',
+			sourceSuit: 'K',
+			sourceNumber: 1,
 		});
 		expect(game.state.hintTokens).toBe(6);
 		expect(game.state.bonusTileDiscard).toEqual(['free-number-hint']);
@@ -887,6 +889,8 @@ describe('HanabiGame', () => {
 		expect(game.state.pendingBonus).toMatchObject({
 			effect: 'free-number-hint',
 			actorId: 'p1',
+			sourceSuit: 'R',
+			sourceNumber: 5,
 		});
 		expect(game.state.currentTurnPlayerIndex).toBe(0);
 		expect(game.state.players[0].cards).toHaveLength(4);
@@ -922,7 +926,11 @@ describe('HanabiGame', () => {
 		game.state.discardPile.push(playableDiscardId);
 
 		game.playCard(game.state.players[0].cards[0]);
-		expect(game.state.pendingBonus).toMatchObject({ effect: 'play-discard' });
+		expect(game.state.pendingBonus).toMatchObject({
+			effect: 'play-discard',
+			sourceSuit: 'R',
+			sourceNumber: 5,
+		});
 
 		game.resolveFlamboyantPlayDiscard(playableDiscardId);
 
@@ -955,7 +963,11 @@ describe('HanabiGame', () => {
 		game.state.discardPile.push(discardId);
 
 		game.playCard(game.state.players[0].cards[0]);
-		expect(game.state.pendingBonus).toMatchObject({ effect: 'shuffle-discard' });
+		expect(game.state.pendingBonus).toMatchObject({
+			effect: 'shuffle-discard',
+			sourceSuit: 'R',
+			sourceNumber: 5,
+		});
 
 		game.resolveFlamboyantShuffleDiscard(discardId);
 

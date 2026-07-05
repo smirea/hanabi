@@ -78,6 +78,49 @@ function isBonusHintEffect(effect: string): boolean {
 	return effect === 'free-color-hint' || effect === 'free-number-hint';
 }
 
+type PendingBonus = NonNullable<HanabiPerspectiveState['pendingBonus']>;
+
+function getBonusPanelTitle(effect: PendingBonus['effect']): string {
+	if (effect === 'free-color-hint') return 'Free Color';
+	if (effect === 'free-number-hint') return 'Free Number';
+	if (effect === 'shuffle-discard') return 'Shuffle Back';
+	return 'Play Discard';
+}
+
+function getBonusSourceText(pendingBonus: PendingBonus): string {
+	if (pendingBonus.sourceSuit && pendingBonus.sourceNumber) {
+		return `${pendingBonus.actorName} played a ${pendingBonus.sourceNumber} ${suitNames[pendingBonus.sourceSuit]}`;
+	}
+
+	return `${pendingBonus.actorName} revealed a bonus`;
+}
+
+function getBonusPanelCopy(pendingBonus: PendingBonus, canAct: boolean): string {
+	const source = getBonusSourceText(pendingBonus);
+
+	if (pendingBonus.effect === 'free-color-hint') {
+		return canAct
+			? `${source} and is now getting a free color hint. Tap a teammate card.`
+			: `${source} and is now getting a free color hint.`;
+	}
+
+	if (pendingBonus.effect === 'free-number-hint') {
+		return canAct
+			? `${source} and is now getting a free number hint. Tap a teammate card.`
+			: `${source} and is now getting a free number hint.`;
+	}
+
+	if (pendingBonus.effect === 'shuffle-discard') {
+		return canAct
+			? `${source} and can shuffle a discard back.`
+			: `${source} and is choosing a discard to shuffle back.`;
+	}
+
+	return canAct
+		? `${source} and can play a fitting discard.`
+		: `${source} and is choosing a discard to play.`;
+}
+
 type BonusCardSelection =
 	| GameAction
 	| 'wild-color-picker'
@@ -1862,22 +1905,14 @@ function GameClient({
 				<aside className='bonus-panel' data-testid='bonus-panel'>
 					<div className='bonus-panel-header'>
 						<span className='bonus-panel-kicker'>Bonus</span>
-						<span className='bonus-panel-title'>
-							{pendingBonus.effect === 'free-color-hint'
-								? 'Free Color'
-								: pendingBonus.effect === 'free-number-hint'
-									? 'Free Number'
-									: pendingBonus.effect === 'shuffle-discard'
-										? 'Shuffle Back'
-										: 'Play Discard'}
-						</span>
+						<span className='bonus-panel-title'>{getBonusPanelTitle(pendingBonus.effect)}</span>
 					</div>
 
-					{isBonusHintEffect(pendingBonus.effect) ? (
-						<p className='bonus-panel-copy' data-testid='bonus-hint-prompt'>
-							{canAct ? 'Tap a teammate card.' : `Waiting for ${pendingBonus.actorName}.`}
-						</p>
-					) : (
+					<p className='bonus-panel-copy' data-testid='bonus-panel-copy'>
+						{getBonusPanelCopy(pendingBonus, canAct)}
+					</p>
+
+					{!isBonusHintEffect(pendingBonus.effect) && (
 						<div className='bonus-discard-grid' data-testid='bonus-discard-grid'>
 							{bonusDiscardChoices.map(({ cardId, card, playable }) => {
 								const disabled = !canAct || (pendingBonus.effect === 'play-discard' && !playable);
