@@ -405,8 +405,7 @@ export class HanabiGame {
 
 	public static fromState(state: HanabiState): HanabiGame {
 		const game = Object.create(HanabiGame.prototype) as HanabiGame;
-		game.state = HanabiGame.normalizeRestoredState(state);
-		game.finishCurrentTerminalPosition();
+		game.replaceState(state);
 		return game;
 	}
 
@@ -415,7 +414,8 @@ export class HanabiGame {
 	}
 
 	public replaceState(state: HanabiState): void {
-		this.state = deepClone(state);
+		this.state = HanabiGame.normalizeRestoredState(state);
+		this.finishCurrentTerminalPosition();
 	}
 
 	public isGameOver(): boolean {
