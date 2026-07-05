@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import { StrictMode } from 'react';
 
@@ -191,6 +191,24 @@ function createPendingFlamboyantState(effect: FlamboyantBonus) {
 	return game.getSnapshot();
 }
 
+type GameSnapshot = ReturnType<HanabiGame['getSnapshot']>;
+
+function addDiscardCard(state: GameSnapshot, id: string, suit: Suit, number: CardNumber): void {
+	state.cards[id] = {
+		id,
+		suit,
+		number,
+		hints: {
+			color: null,
+			number: null,
+			notColors: [],
+			notNumbers: [],
+			recentlyHinted: false,
+		},
+	};
+	state.discardPile.push(id);
+}
+
 function createBlackCompletionChoiceState() {
 	const game = new HanabiGame({
 		playerNames: ['A', 'B'],
@@ -378,9 +396,10 @@ describe('App local debug wiring', () => {
 			await waitFor(() =>
 				expect(screen.getByTestId('bonus-panel')).toHaveTextContent('Play Discard'),
 			);
-			expect(screen.getByTestId('bonus-panel-copy')).toHaveTextContent(
-				'A played a 5 red and can play a fitting discard.',
-			);
+			const copy = screen.getByTestId('bonus-panel-copy');
+			expect(copy).toHaveTextContent('A played');
+			expect(copy).toHaveTextContent('and can play a fitting discard.');
+			expect(within(copy).getByLabelText('red 5')).toBeInTheDocument();
 			const discardButton = screen.getByTestId('bonus-discard-discard-g1');
 			expect(discardButton).toBeEnabled();
 
@@ -407,6 +426,28 @@ describe('App local debug wiring', () => {
 		expect(screen.getByTestId('bonus-panel')).toHaveTextContent('Play Discard');
 	});
 
+	test('5 flamboyants play discard panel deduplicates and sorts discard choices', () => {
+		render(<App roomCode={ROOM_CODE} />);
+
+		const state = createPendingFlamboyantState('play-discard');
+		addDiscardCard(state, 'discard-b2', 'B', 2);
+		addDiscardCard(state, 'discard-r1', 'R', 1);
+		addDiscardCard(state, 'discard-g1-copy', 'G', 1);
+		addDiscardCard(state, 'discard-y3', 'Y', 3);
+
+		act(() => {
+			(window as DebugWindow).DEBUG?.loadState?.(state);
+		});
+
+		const grid = screen.getByTestId('bonus-discard-grid');
+		expect(
+			within(grid)
+				.getAllByRole('button')
+				.map(button => button.getAttribute('aria-label')),
+		).toEqual(['Play red 1', 'Play yellow 3', 'Play green 1', 'Play blue 2']);
+		expect(within(grid).getAllByLabelText('Play green 1')).toHaveLength(1);
+	});
+
 	test('5 flamboyants free hint panel explains the bonus source', () => {
 		render(<App roomCode={ROOM_CODE} />);
 
@@ -415,9 +456,10 @@ describe('App local debug wiring', () => {
 		});
 
 		expect(screen.getByTestId('bonus-panel')).toHaveTextContent('Free Number');
-		expect(screen.getByTestId('bonus-panel-copy')).toHaveTextContent(
-			'A played a 5 red and is now getting a free number hint. Tap a teammate card.',
-		);
+		const copy = screen.getByTestId('bonus-panel-copy');
+		expect(copy).toHaveTextContent('A played');
+		expect(copy).toHaveTextContent('and is now getting a free number hint. Tap a teammate card.');
+		expect(within(copy).getByLabelText('red 5')).toBeInTheDocument();
 	});
 
 	test('black powder completion uses selected flamboyant bonus option', async () => {
