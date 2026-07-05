@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { PlayerId } from '../../../game';
+import type { CardId, PlayerId } from '../../../game';
 import type { PendingCardAction } from './useCardActionHandlers';
 
 export function useTransientActionState(): {
@@ -7,6 +7,8 @@ export function useTransientActionState(): {
 	setPendingAction: (next: PendingCardAction) => void;
 	wildColorHintTargetPlayerId: PlayerId | null;
 	setWildColorHintTargetPlayerId: (next: PlayerId | null) => void;
+	completionBonusCardId: CardId | null;
+	setCompletionBonusCardId: (next: CardId | null) => void;
 	clearActionDraft: () => void;
 	clearHintDraft: () => void;
 } {
@@ -14,6 +16,7 @@ export function useTransientActionState(): {
 	const [wildColorHintTargetPlayerId, setWildColorHintTargetPlayerId] = useState<PlayerId | null>(
 		null,
 	);
+	const [completionBonusCardId, setCompletionBonusCardId] = useState<CardId | null>(null);
 
 	const clearHintDraft = useCallback(() => {
 		setWildColorHintTargetPlayerId(null);
@@ -21,6 +24,7 @@ export function useTransientActionState(): {
 
 	const clearActionDraft = useCallback(() => {
 		setPendingAction(null);
+		setCompletionBonusCardId(null);
 		clearHintDraft();
 	}, [clearHintDraft]);
 
@@ -29,6 +33,8 @@ export function useTransientActionState(): {
 		setPendingAction,
 		wildColorHintTargetPlayerId,
 		setWildColorHintTargetPlayerId,
+		completionBonusCardId,
+		setCompletionBonusCardId,
 		clearActionDraft,
 		clearHintDraft,
 	};

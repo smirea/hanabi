@@ -214,6 +214,44 @@ function createFlamboyantFiveGame(bonusTiles: any[]): HanabiGame {
 	return game;
 }
 
+function createFlamboyantBlackOneGame(bonusTiles: any[]): HanabiGame {
+	const game = new HanabiGame({
+		playerNames: ['A', 'B'],
+		includeBlack: true,
+		includeFlamboyants: true,
+		bonusTiles,
+		deck: twoPlayerDeck(
+			[card('K', 1), card('R', 1), card('Y', 1), card('G', 1), card('B', 1)],
+			[card('W', 1), card('R', 2), card('Y', 2), card('G', 2), card('B', 2)],
+		),
+	});
+
+	for (const number of [5, 4, 3, 2] as const) {
+		addFireworkCard(game.state, 'K', number);
+	}
+	game.state.hintTokens = 6;
+	return game;
+}
+
+function createFlamboyantMulticolorFiveGame(bonusTiles: any[]): HanabiGame {
+	const game = new HanabiGame({
+		playerNames: ['A', 'B'],
+		includeMulticolor: true,
+		includeFlamboyants: true,
+		bonusTiles,
+		deck: twoPlayerDeck(
+			[card('M', 5), card('R', 1), card('Y', 1), card('G', 1), card('B', 1)],
+			[card('W', 1), card('R', 2), card('Y', 2), card('G', 2), card('B', 2)],
+		),
+	});
+
+	for (const number of [1, 2, 3, 4] as const) {
+		addFireworkCard(game.state, 'M', number);
+	}
+	game.state.hintTokens = 6;
+	return game;
+}
+
 describe('HanabiGame', () => {
 	test('initializes a new game with dealt hands and serializable state', () => {
 		const deck = twoPlayerDeck(
@@ -791,6 +829,53 @@ describe('HanabiGame', () => {
 			effect: 'recover-fuse-and-gain-hint',
 			gainedHint: true,
 			recoveredFuse: true,
+		});
+	});
+
+	test('5 flamboyants triggers when black powder completes with black 1', () => {
+		const game = createFlamboyantBlackOneGame(['free-number-hint']);
+
+		game.playCard(game.state.players[0].cards[0]);
+
+		expect(game.state.pendingBonus).toMatchObject({
+			effect: 'free-number-hint',
+			actorId: 'p1',
+		});
+		expect(game.state.hintTokens).toBe(6);
+		expect(game.state.bonusTileDiscard).toEqual(['free-number-hint']);
+		expect(game.state.logs.at(-1)).toMatchObject({
+			type: 'play',
+			gainedHint: false,
+		});
+	});
+
+	test('5 flamboyants keeps normal hint as an explicit special-completion choice', () => {
+		const game = createFlamboyantBlackOneGame(['gain-hint']);
+
+		game.playCard(game.state.players[0].cards[0], 'hint');
+
+		expect(game.state.pendingBonus).toBeNull();
+		expect(game.state.hintTokens).toBe(7);
+		expect(game.state.bonusTileDiscard).toEqual([]);
+		expect(game.state.bonusTileDeck).toEqual(['gain-hint']);
+		expect(game.state.currentTurnPlayerIndex).toBe(1);
+		expect(game.state.logs.at(-1)).toMatchObject({
+			type: 'play',
+			gainedHint: true,
+		});
+	});
+
+	test('5 flamboyants triggers when multicolor completes with 5', () => {
+		const game = createFlamboyantMulticolorFiveGame(['gain-hint']);
+
+		game.playCard(game.state.players[0].cards[0]);
+
+		expect(game.state.pendingBonus).toBeNull();
+		expect(game.state.hintTokens).toBe(7);
+		expect(game.state.bonusTileDiscard).toEqual(['gain-hint']);
+		expect(game.state.logs.at(-1)).toMatchObject({
+			type: 'bonus',
+			effect: 'gain-hint',
 		});
 	});
 

@@ -4,6 +4,7 @@ import {
 	BASE_SUITS,
 	HanabiGame,
 	type CardId,
+	type CompletionBonusChoice,
 	type HanabiState,
 	type HanabiPerspectiveState,
 	type PerspectiveCard,
@@ -170,6 +171,8 @@ function GameClient({
 		setPendingAction,
 		wildColorHintTargetPlayerId,
 		setWildColorHintTargetPlayerId,
+		completionBonusCardId,
+		setCompletionBonusCardId,
 		clearActionDraft,
 		clearHintDraft,
 	} = useTransientActionState();
@@ -702,6 +705,7 @@ function GameClient({
 		}
 
 		clearHintDraft();
+		setCompletionBonusCardId(null);
 		setPendingAction(nextAction);
 	}
 
@@ -710,6 +714,7 @@ function GameClient({
 		beginLocal: () => void,
 	): void {
 		clearHintDraft();
+		setCompletionBonusCardId(null);
 		if (isLocalDebugMode) {
 			setIsMenuOpen(false);
 			commitLocal(beginLocal);
@@ -771,7 +776,7 @@ function GameClient({
 	function commitLocalAction(action: GameAction): void {
 		if (action.type === 'play') {
 			commitLocal(() => {
-				debugGame.playCard(action.cardId);
+				debugGame.playCard(action.cardId, action.completionBonus);
 			});
 			return;
 		}
@@ -829,6 +834,11 @@ function GameClient({
 	): void {
 		if (resolved.kind === 'wild-color-picker') {
 			setWildColorHintTargetPlayerId(resolved.targetPlayerId);
+			return;
+		}
+
+		if (resolved.kind === 'completion-bonus-picker') {
+			setCompletionBonusCardId(resolved.cardId);
 			return;
 		}
 
@@ -1011,6 +1021,51 @@ function GameClient({
 			return;
 		}
 
+		clearActionDraft();
+	}
+
+	function cancelCompletionBonusPicker(): void {
+		if (isLocalDebugMode) {
+			commitLocal(() => {
+				debugGame.cancelSelection();
+			});
+			return;
+		}
+
+		clearActionDraft();
+	}
+
+	function handleCompletionBonusPick(completionBonus: CompletionBonusChoice): void {
+		const cardId = completionBonusCardId;
+		if (!cardId) {
+			return;
+		}
+
+		if (isLocalDebugMode) {
+			const actorId = debugGame.state.players[debugGame.state.currentTurnPlayerIndex]?.id;
+			if (!actorId) {
+				return;
+			}
+
+			commitLocalAction({
+				type: 'play',
+				actorId,
+				cardId,
+				completionBonus,
+			});
+			return;
+		}
+
+		if (!onlineSelfPlayerId) {
+			return;
+		}
+
+		sendOnlineGameAction({
+			type: 'play',
+			actorId: onlineSelfPlayerId,
+			cardId,
+			completionBonus,
+		});
 		clearActionDraft();
 	}
 
@@ -1463,7 +1518,7 @@ function GameClient({
 	const viewerHandCount =
 		perspective.players.find(player => player.id === perspective.viewerId)?.cards.length ?? 0;
 	const viewerHasCards = viewerHandCount > 0;
-	const normalActionBlocked = Boolean(pendingBonus);
+	const normalActionBlocked = Boolean(pendingBonus || completionBonusCardId);
 	const discardDisabled = gameOver || normalActionBlocked || !canAct || !viewerHasCards;
 	const colorHintDisabled =
 		gameOver || normalActionBlocked || !canAct || perspective.hintTokens <= 0;
@@ -1848,6 +1903,40 @@ function GameClient({
 							})}
 						</div>
 					)}
+				</aside>
+			)}
+
+			{completionBonusCardId && (
+				<aside className='completion-bonus-picker' data-testid='completion-bonus-picker'>
+					<div className='completion-bonus-buttons'>
+						<button
+							type='button'
+							className='completion-bonus-button primary'
+							onClick={() => handleCompletionBonusPick('flamboyant')}
+							disabled={!canAct}
+							data-testid='completion-bonus-flamboyant'
+						>
+							Bonus
+						</button>
+						<button
+							type='button'
+							className='completion-bonus-button'
+							onClick={() => handleCompletionBonusPick('hint')}
+							disabled={!canAct}
+							data-testid='completion-bonus-hint'
+						>
+							Hint
+						</button>
+						<button
+							type='button'
+							className='completion-bonus-cancel'
+							onClick={cancelCompletionBonusPicker}
+							aria-label='Cancel'
+							data-testid='completion-bonus-cancel'
+						>
+							X
+						</button>
+					</div>
 				</aside>
 			)}
 

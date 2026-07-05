@@ -1,6 +1,7 @@
 import {
 	HanabiGame,
 	type CardNumber,
+	type CompletionBonusChoice,
 	type HanabiState,
 	type PlayerId as GamePlayerId,
 	type Suit,
@@ -32,7 +33,12 @@ export const DEFAULT_LOBBY_SETTINGS: LobbySettings = {
 export type RoomPhase = 'lobby' | 'playing';
 
 export type GameAction =
-	| { type: 'play'; actorId: GamePlayerId; cardId: string }
+	| {
+			type: 'play';
+			actorId: GamePlayerId;
+			cardId: string;
+			completionBonus?: CompletionBonusChoice;
+	  }
 	| { type: 'discard'; actorId: GamePlayerId; cardId: string }
 	| { type: 'hint-color'; actorId: GamePlayerId; targetPlayerId: GamePlayerId; suit: Suit }
 	| {
@@ -305,7 +311,7 @@ export function applyGameAction(game: HanabiGame, action: GameAction): void {
 
 	switch (action.type) {
 		case 'play':
-			return game.playCard(action.cardId);
+			return game.playCard(action.cardId, action.completionBonus);
 		case 'discard':
 			return game.discardCard(action.cardId);
 		case 'hint-color':
