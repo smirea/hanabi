@@ -16,12 +16,7 @@ describe('getPegPipStates', () => {
 	});
 
 	test('keeps played cards visible in tibi mode', () => {
-		expect(getPegPipStates('tibi', 1, 1, 1, 1, 4)).toEqual([
-			'deck',
-			'hand',
-			'cross',
-			'played',
-		]);
+		expect(getPegPipStates('tibi', 1, 1, 1, 1, 4)).toEqual(['deck', 'hand', 'cross', 'played']);
 	});
 
 	test('caps output to four pips', () => {

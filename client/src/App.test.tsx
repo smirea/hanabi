@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import { StrictMode } from 'react';
 
 void mock.module('./hooks/useGameServer', () => ({
@@ -32,6 +32,12 @@ void mock.module('./hooks/useGameServer', () => ({
 		reloadRoom: async () => null,
 		sendAction: async () => null,
 	}),
+}));
+
+void mock.module('html2canvas', () => ({
+	default: async () => {
+		throw new Error('html2canvas is unavailable in tests');
+	},
 }));
 
 import App from './App';
@@ -312,6 +318,51 @@ describe('App local debug wiring', () => {
 
 		expect(screen.getByTestId('rules-content')).toHaveTextContent('5 Flamboyants');
 		expect(screen.getByTestId('rules-content')).toHaveTextContent('six one-use bonus tiles');
+	});
+
+	test('burger menu report issue opens a prefilled GitHub issue draft', () => {
+		const openSpy = spyOn(window, 'open').mockImplementation(
+			(url?: string | URL, target?: string, features?: string) => {
+				void url;
+				void target;
+				void features;
+				return { closed: false } as Window;
+			},
+		);
+		const createObjectUrlSpy = spyOn(URL, 'createObjectURL').mockImplementation(() => {
+			return 'blob:hanabi-report';
+		});
+		const revokeObjectUrlSpy = spyOn(URL, 'revokeObjectURL').mockImplementation(url => {
+			void url;
+		});
+		const anchorClickSpy = spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+		try {
+			render(<App roomCode={ROOM_CODE} />);
+
+			fireEvent.click(screen.getByTestId('actions-menu'));
+			fireEvent.click(screen.getByTestId('menu-report-issue'));
+
+			expect(createObjectUrlSpy).toHaveBeenCalled();
+			expect(anchorClickSpy).toHaveBeenCalled();
+			expect(openSpy).toHaveBeenCalledTimes(1);
+			const [rawIssueUrl, target, features] = openSpy.mock.calls[0] ?? [];
+			expect(target).toBe('_blank');
+			expect(features).toBe('noopener,noreferrer');
+			const issueUrl = new URL(String(rawIssueUrl));
+			expect(`${issueUrl.origin}${issueUrl.pathname}`).toBe(
+				'https://github.com/smirea/hanabi/issues/new',
+			);
+			expect(issueUrl.searchParams.get('title')).toBe('Issue in room ABCD');
+			expect(issueUrl.searchParams.get('body')).toContain('Drag the downloaded files');
+			expect(issueUrl.searchParams.get('body')).toContain('Mode: Local Debug');
+			expect(screen.getByTestId('menu-panel')).toHaveAttribute('aria-hidden', 'true');
+		} finally {
+			openSpy.mockRestore();
+			createObjectUrlSpy.mockRestore();
+			revokeObjectUrlSpy.mockRestore();
+			anchorClickSpy.mockRestore();
+		}
 	});
 
 	test('loaded debug state can resolve a 5 flamboyants discard bonus from the panel', async () => {

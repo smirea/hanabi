@@ -48,6 +48,13 @@ import {
 	resolveDirectColorHintAction,
 } from './hooks/useCardActionHandlers';
 import { useGameAnimations } from './hooks/useGameAnimations';
+import {
+	buildGameIssueReport,
+	captureGameScreenshotBlob,
+	downloadBlob,
+	downloadIssueReportState,
+	openIssueDraft,
+} from './issueReport';
 import { useTransientActionState } from './hooks/useTransientActionState';
 import { getLogBadge, renderLogMessage } from './utils/logFormatting';
 
@@ -184,6 +191,18 @@ function parseHanabiStatePayload(
 	).getSnapshot();
 }
 
+function waitForNextPaint(): Promise<void> {
+	if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+		return Promise.resolve();
+	}
+
+	return new Promise(resolve => {
+		window.requestAnimationFrame(() => {
+			window.requestAnimationFrame(() => resolve());
+		});
+	});
+}
+
 function GameClient({
 	roomId,
 	isDarkMode,
@@ -236,6 +255,7 @@ function GameClient({
 	const [isTibiMode, setIsTibiMode] = useLocalStorage(storageKeys.tibiMode, false);
 	const [storedTvMode, setStoredTvMode] = useLocalStorage(storageKeys.tvMode, false);
 	const { versionText } = useAppVersion();
+	const appRef = useRef<HTMLElement | null>(null);
 	const logListRef = useRef<HTMLDivElement | null>(null);
 	const logDrawerTokenRef = useRef(0);
 	const logDrawerCloseTimeoutRef = useRef<number | null>(null);
@@ -1466,6 +1486,45 @@ function GameClient({
 		}
 	}
 
+	async function downloadReportScreenshot(filename: string): Promise<void> {
+		await waitForNextPaint();
+
+		const element = appRef.current;
+		if (!element) {
+			return;
+		}
+
+		const screenshot = await captureGameScreenshotBlob(element);
+		if (screenshot) {
+			downloadBlob(screenshot, filename);
+		}
+	}
+
+	function handleReportIssuePress(): void {
+		setIsLeaveGameArmed(false);
+		setIsMenuOpen(false);
+		closeLogDrawer();
+		clearActionDraft();
+
+		if (!activeGameState) {
+			window.alert('No game state available yet.');
+			return;
+		}
+
+		const report = buildGameIssueReport({
+			state: activeGameState,
+			roomId,
+			mode: isLocalDebugMode ? 'local-debug' : 'online',
+			versionText: versionText || null,
+			currentUrl: typeof window === 'undefined' ? '' : window.location.href,
+			userAgent: typeof navigator === 'undefined' ? '' : navigator.userAgent,
+		});
+
+		downloadIssueReportState(report);
+		openIssueDraft(report.issueUrl);
+		void downloadReportScreenshot(report.screenshotFilename).catch(() => {});
+	}
+
 	if (showLobby) {
 		return (
 			<LobbyScreen
@@ -1634,7 +1693,7 @@ function GameClient({
 	}
 
 	return (
-		<main className='app' data-testid='app-root'>
+		<main className='app' data-testid='app-root' ref={appRef}>
 			<section className='stats'>
 				<div className='stat hints-stat' data-testid='status-hints'>
 					<div className='token-grid hints-grid' aria-label='Hint tokens'>
@@ -2158,6 +2217,15 @@ function GameClient({
 					>
 						View on GitHub
 					</a>
+
+					<button
+						type='button'
+						className='menu-item'
+						data-testid='menu-report-issue'
+						onClick={handleReportIssuePress}
+					>
+						Report Issue
+					</button>
 
 					{versionText && (
 						<div className='menu-version' data-testid='menu-version'>

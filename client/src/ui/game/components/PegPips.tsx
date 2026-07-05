@@ -39,8 +39,7 @@ export function getPegPipStates(
 			if (index < clampedDeck) return 'deck';
 			if (index < clampedDeck + clampedHand) return 'hand';
 			if (index < clampedDeck + clampedHand + clampedDiscarded) return 'cross';
-			if (index < clampedDeck + clampedHand + clampedDiscarded + clampedPlayed)
-				return 'played';
+			if (index < clampedDeck + clampedHand + clampedDiscarded + clampedPlayed) return 'played';
 			return 'unused';
 		});
 	}
