@@ -9,7 +9,16 @@ function createProps(settings: LobbySettings, onUpdateSettings = mock(() => {}))
 		roomId: 'ABCD',
 		status: 'connected' as const,
 		error: null,
-		members: [{ id: 'player:1', userId: 1, name: 'Alex', isTv: false, isReady: false }],
+		members: [
+			{
+				id: 'player:1',
+				userId: 1,
+				name: 'Alex',
+				isTv: false,
+				isReady: false,
+				wantsRematch: false,
+			},
+		],
 		selfPlayerId: 'player:1',
 		selfName: 'Alex',
 		onSelfNameChange: mock(() => {}),
