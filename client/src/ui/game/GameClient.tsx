@@ -1407,6 +1407,21 @@ function GameClient({
 		});
 	}
 
+	function voteForOnlineRematch(): void {
+		if (!connectionState.selfPlayerId) {
+			return;
+		}
+
+		const wantsRematch =
+			connectionState.members.find(member => member.id === connectionState.selfPlayerId)
+				?.wantsRematch ?? false;
+		void onlineRoom.sendAction({
+			type: 'set-rematch',
+			actorId: connectionState.selfPlayerId,
+			rematch: !wantsRematch,
+		});
+	}
+
 	function sendOnlineGameAction(action: GameAction): void {
 		if (!connectionState.selfPlayerId) {
 			return;
@@ -2344,11 +2359,16 @@ function GameClient({
 					players={activeGameState.players}
 					viewerId={perspective.viewerId}
 					statsByPlayerId={endgameStatsByPlayerId}
+					rematchPlayerIds={connectionState.members
+						.filter(member => member.wantsRematch)
+						.map(member => member.id)}
+					canVoteForRematch={!isLocalDebugMode && isOnlineParticipant}
 					logs={orderedLogs}
 					panel={endgamePanel}
 					reduceMotion={reduceMotion}
 					onToggleLog={toggleEndgameLog}
 					onBackToGame={backToGame}
+					onVoteForRematch={voteForOnlineRematch}
 				/>
 			)}
 		</main>
