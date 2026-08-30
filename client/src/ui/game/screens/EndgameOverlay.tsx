@@ -70,11 +70,14 @@ export function EndgameOverlay({
 	players,
 	viewerId,
 	statsByPlayerId,
+	rematchPlayerIds,
+	canVoteForRematch,
 	logs,
 	panel,
 	reduceMotion,
 	onToggleLog,
 	onBackToGame,
+	onVoteForRematch,
 }: {
 	outcome: 'win' | 'lose';
 	status: HanabiPerspectiveState['status'];
@@ -89,11 +92,14 @@ export function EndgameOverlay({
 		PlayerId,
 		{ hintsGiven: number; hintsReceived: number; plays: number; discards: number }
 	>;
+	rematchPlayerIds: readonly PlayerId[];
+	canVoteForRematch: boolean;
 	logs: GameLogEntry[];
 	panel: 'summary' | 'log';
 	reduceMotion: boolean;
 	onToggleLog: () => void;
 	onBackToGame: () => void;
+	onVoteForRematch: () => void;
 }) {
 	const title = status === 'won' ? 'You win' : status === 'lost' ? 'You lost' : 'Game over';
 	const maxScore = perspective.activeSuits.reduce((total, suit) => {
@@ -111,6 +117,8 @@ export function EndgameOverlay({
 		return total + stats.hintsGiven;
 	}, 0);
 	const rounds = Math.max(1, Math.ceil(perspective.turn / Math.max(1, players.length)));
+	const rematchPlayerIdSet = new Set(rematchPlayerIds);
+	const viewerWantsRematch = rematchPlayerIdSet.has(viewerId);
 
 	const seedKey = `${outcome}:${status}:${score}:${logs[0]?.id ?? 'none'}`;
 
@@ -497,6 +505,15 @@ export function EndgameOverlay({
 													<td className='name' data-testid={`endgame-player-name-${player.id}`}>
 														{player.name}
 														{isViewer ? <span className='you-tag'>you</span> : null}
+														{rematchPlayerIdSet.has(player.id) ? (
+															<span
+																className='endgame-rematch-check'
+																aria-label='Wants a new game'
+																data-testid={`endgame-rematch-check-${player.id}`}
+															>
+																✓
+															</span>
+														) : null}
 													</td>
 													<td className='num' data-testid={`endgame-hints-given-${player.id}`}>
 														<span className='endgame-num-value'>{stats.hintsGiven}</span>
@@ -561,6 +578,17 @@ export function EndgameOverlay({
 				</section>
 
 				<footer className='endgame-actions'>
+					{canVoteForRematch && (
+						<button
+							type='button'
+							className='endgame-button primary endgame-rematch-button'
+							onClick={onVoteForRematch}
+							aria-pressed={viewerWantsRematch}
+							data-testid='endgame-new-game'
+						>
+							{viewerWantsRematch ? 'Waiting for Everyone' : 'New Game'}
+						</button>
+					)}
 					<button
 						type='button'
 						className='endgame-button subtle'

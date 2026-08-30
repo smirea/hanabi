@@ -66,6 +66,7 @@ export interface RoomMember {
 export interface RoomMemberView extends RoomMember {
 	isTv: boolean;
 	isReady: boolean;
+	wantsRematch: boolean;
 }
 
 export interface OnlineRoomState {
@@ -76,6 +77,7 @@ export interface OnlineRoomState {
 	members: RoomMember[];
 	spectatorIds: GamePlayerId[];
 	readyPlayerIds: GamePlayerId[];
+	rematchPlayerIds: GamePlayerId[];
 }
 
 export type OnlineRoomAction =
@@ -85,7 +87,7 @@ export type OnlineRoomAction =
 	| { type: 'set-settings'; actorId: GamePlayerId; next: Partial<LobbySettings> }
 	| { type: 'set-spectator'; actorId: GamePlayerId; spectator: boolean }
 	| { type: 'set-ready'; actorId: GamePlayerId; ready: boolean; shuffleSeed?: number }
-	| { type: 'reset-room'; actorId: GamePlayerId }
+	| { type: 'set-rematch'; actorId: GamePlayerId; rematch: boolean; shuffleSeed?: number }
 	| { type: 'game-action'; actorId: GamePlayerId; action: GameAction };
 
 export interface RoomViewState {
@@ -177,6 +179,7 @@ export function createInitialOnlineRoomState(): OnlineRoomState {
 		members: [],
 		spectatorIds: [],
 		readyPlayerIds: [],
+		rematchPlayerIds: [],
 	};
 }
 
@@ -247,9 +250,11 @@ export function buildRoomMembers(
 	members: readonly RoomMember[],
 	spectatorIds: readonly GamePlayerId[],
 	readyPlayerIds: readonly GamePlayerId[] = [],
+	rematchPlayerIds: readonly GamePlayerId[] = [],
 ): RoomMemberView[] {
 	const spectatorSet = new Set(uniquePlayerIds(spectatorIds, members));
 	const readySet = new Set(uniquePlayerIds(readyPlayerIds, members));
+	const rematchSet = new Set(uniquePlayerIds(rematchPlayerIds, members));
 	const used = new Set<string>();
 
 	return [...members]
@@ -264,6 +269,7 @@ export function buildRoomMembers(
 				name,
 				isTv: spectatorSet.has(member.id),
 				isReady: readySet.has(member.id),
+				wantsRematch: rematchSet.has(member.id),
 			};
 		});
 }
@@ -297,7 +303,14 @@ export function selectRoomViewState(
 		selfPlayerId,
 		snapshotVersion: state?.v ?? 0,
 		phase: state?.phase ?? 'lobby',
-		members: state ? buildRoomMembers(state.members, state.spectatorIds, state.readyPlayerIds) : [],
+		members: state
+			? buildRoomMembers(
+					state.members,
+					state.spectatorIds,
+					state.readyPlayerIds,
+					state.rematchPlayerIds,
+				)
+			: [],
 		settings: state?.settings ?? cloneLobbySettings(),
 		gameState: state?.gameState ?? null,
 	};
@@ -379,6 +392,37 @@ function maybeStartGame(state: OnlineRoomState, shuffleSeed?: number): boolean {
 	state.phase = 'playing';
 	state.gameState = game.getSnapshot();
 	state.readyPlayerIds = [];
+	state.rematchPlayerIds = [];
+	return true;
+}
+
+function maybeStartRematch(state: OnlineRoomState, shuffleSeed?: number): boolean {
+	if (state.phase !== 'playing' || !isTerminalGame(state) || !state.gameState) return false;
+
+	const activePlayerIds = new Set(state.gameState.players.map(player => player.id));
+	const players = buildRoomMembers(
+		state.members.filter(member => activePlayerIds.has(member.id)),
+		[],
+		[],
+		state.rematchPlayerIds,
+	);
+	if (players.length < MIN_SEATED_PLAYER_COUNT || !players.every(player => player.wantsRematch)) {
+		return false;
+	}
+
+	const random = shuffleSeed === undefined ? null : createSeededRandom(shuffleSeed);
+	const orderedPlayers = random ? shuffleWithRandom(players, random) : players;
+	const startingPlayerIndex = random ? Math.floor(random() * orderedPlayers.length) : 0;
+	const game = new HanabiGame({
+		playerIds: orderedPlayers.map(player => player.id),
+		playerNames: orderedPlayers.map(player => player.name),
+		startingPlayerIndex,
+		shuffleSeed,
+		...state.settings,
+	});
+	state.gameState = game.getSnapshot();
+	state.readyPlayerIds = [];
+	state.rematchPlayerIds = [];
 	return true;
 }
 
@@ -386,6 +430,7 @@ export function applyOnlineRoomAction(state: OnlineRoomState, action: OnlineRoom
 	state.settings = normalizeSettings(state.settings);
 	state.spectatorIds = uniquePlayerIds(state.spectatorIds, state.members);
 	state.readyPlayerIds = uniquePlayerIds(state.readyPlayerIds, state.members);
+	state.rematchPlayerIds = uniquePlayerIds(state.rematchPlayerIds ?? [], state.members);
 
 	if (action.type === 'join') {
 		if (action.actorId !== playerIdForUser(action.userId)) return false;
@@ -461,12 +506,22 @@ export function applyOnlineRoomAction(state: OnlineRoomState, action: OnlineRoom
 			maybeStartGame(state, action.shuffleSeed);
 			return true;
 		}
-		case 'reset-room': {
-			if (state.phase !== 'playing' || !isTerminalGame(state)) return false;
+		case 'set-rematch': {
+			if (
+				state.phase !== 'playing' ||
+				!isTerminalGame(state) ||
+				!state.gameState?.players.some(player => player.id === action.actorId)
+			)
+				return false;
 
-			state.phase = 'lobby';
-			state.gameState = null;
-			state.readyPlayerIds = [];
+			const wantsRematch = state.rematchPlayerIds.includes(action.actorId);
+			if (action.rematch === wantsRematch) return false;
+
+			state.rematchPlayerIds = action.rematch
+				? uniquePlayerIds([...state.rematchPlayerIds, action.actorId], state.members)
+				: state.rematchPlayerIds.filter(id => id !== action.actorId);
+
+			maybeStartRematch(state, action.shuffleSeed);
 			return true;
 		}
 		case 'game-action': {

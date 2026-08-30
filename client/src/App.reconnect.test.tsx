@@ -29,12 +29,14 @@ function createFinishedRoom({
 	includeMulticolor = false,
 	includeBlack = false,
 	completeFireworks = false,
+	rematchPlayerIds = [],
 }: {
 	status?: 'finished' | 'lost' | 'won';
 	fuseTokensUsed?: number;
 	includeMulticolor?: boolean;
 	includeBlack?: boolean;
 	completeFireworks?: boolean;
+	rematchPlayerIds?: string[];
 } = {}) {
 	const game = new HanabiGame({
 		playerIds: ['player:1', 'player:2'],
@@ -72,8 +74,22 @@ function createFinishedRoom({
 		snapshotVersion: 4,
 		phase: 'playing',
 		members: [
-			{ id: 'player:1', userId: 1, name: 'Alex', isTv: false, isReady: false },
-			{ id: 'player:2', userId: 2, name: 'Blair', isTv: false, isReady: false },
+			{
+				id: 'player:1',
+				userId: 1,
+				name: 'Alex',
+				isTv: false,
+				isReady: false,
+				wantsRematch: rematchPlayerIds.includes('player:1'),
+			},
+			{
+				id: 'player:2',
+				userId: 2,
+				name: 'Blair',
+				isTv: false,
+				isReady: false,
+				wantsRematch: rematchPlayerIds.includes('player:2'),
+			},
 		],
 		settings: {
 			includeMulticolor,
@@ -110,8 +126,22 @@ function createPlayingRoom({
 		snapshotVersion: 4,
 		phase: 'playing',
 		members: [
-			{ id: 'player:1', userId: 1, name: 'Alex', isTv: false, isReady: false },
-			{ id: 'player:2', userId: 2, name: 'Blair', isTv: false, isReady: false },
+			{
+				id: 'player:1',
+				userId: 1,
+				name: 'Alex',
+				isTv: false,
+				isReady: false,
+				wantsRematch: false,
+			},
+			{
+				id: 'player:2',
+				userId: 2,
+				name: 'Blair',
+				isTv: false,
+				isReady: false,
+				wantsRematch: false,
+			},
 		],
 		settings: {
 			includeMulticolor: false,
@@ -214,6 +244,22 @@ describe('App online reconnect state', () => {
 		expect(screen.queryByTestId('endgame-screen')).not.toBeInTheDocument();
 		expect(screen.getByTestId('table-shell')).toBeInTheDocument();
 		expect(sendActionMock).not.toHaveBeenCalled();
+	});
+
+	test('endgame rematch button sends a vote and shows existing player votes', () => {
+		LS.set({ [storageKeys.debugMode]: false });
+		mockRoom = createFinishedRoom({ rematchPlayerIds: ['player:2'] });
+
+		render(<App roomCode='ABCD' />);
+
+		expect(screen.getByTestId('endgame-rematch-check-player:2')).toBeInTheDocument();
+		fireEvent.click(screen.getByTestId('endgame-new-game'));
+
+		expect(sendActionMock).toHaveBeenCalledWith({
+			type: 'set-rematch',
+			actorId: 'player:1',
+			rematch: true,
+		});
 	});
 
 	test('endgame loss shows no lives remaining even for non-fuse defeats', () => {

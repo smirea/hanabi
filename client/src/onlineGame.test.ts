@@ -46,10 +46,38 @@ function twoPlayerDeck(
 
 describe('onlineGame', () => {
 	test('buildRoomMembers deduplicates names and marks spectators and ready players', () => {
-		expect(buildRoomMembers(PLAYERS, ['player:2' as PlayerId], ['player:1' as PlayerId])).toEqual([
-			{ id: 'player:1', userId: 1, name: 'Alex', isTv: false, isReady: true },
-			{ id: 'player:2', userId: 2, name: 'Alex 2', isTv: true, isReady: false },
-			{ id: 'player:3', userId: 3, name: 'Casey', isTv: false, isReady: false },
+		expect(
+			buildRoomMembers(
+				PLAYERS,
+				['player:2' as PlayerId],
+				['player:1' as PlayerId],
+				['player:3' as PlayerId],
+			),
+		).toEqual([
+			{
+				id: 'player:1',
+				userId: 1,
+				name: 'Alex',
+				isTv: false,
+				isReady: true,
+				wantsRematch: false,
+			},
+			{
+				id: 'player:2',
+				userId: 2,
+				name: 'Alex 2',
+				isTv: true,
+				isReady: false,
+				wantsRematch: false,
+			},
+			{
+				id: 'player:3',
+				userId: 3,
+				name: 'Casey',
+				isTv: false,
+				isReady: false,
+				wantsRematch: true,
+			},
 		]);
 	});
 
@@ -165,6 +193,82 @@ describe('onlineGame', () => {
 		]);
 		expect(state.gameState?.currentTurnPlayerIndex).toBe(2);
 		expect(state.gameState?.players[state.gameState.currentTurnPlayerIndex]?.id).toBe('player:3');
+	});
+
+	test('a completed game restarts only after every active player votes for a rematch', () => {
+		const game = new HanabiGame({
+			playerIds: ['player:1', 'player:2'],
+			playerNames: ['Alex', 'Blair'],
+		});
+		game.state.status = 'won';
+		const state = createState({
+			phase: 'playing',
+			members: PLAYERS,
+			gameState: game.getSnapshot(),
+		});
+
+		expect(
+			applyOnlineRoomAction(state, {
+				type: 'set-rematch',
+				actorId: 'player:3',
+				rematch: true,
+			}),
+		).toBeFalse();
+		expect(
+			applyOnlineRoomAction(state, {
+				type: 'set-rematch',
+				actorId: 'player:1',
+				rematch: true,
+			}),
+		).toBeTrue();
+		expect(state.gameState?.status).toBe('won');
+		expect(state.rematchPlayerIds).toEqual(['player:1']);
+
+		expect(
+			applyOnlineRoomAction(state, {
+				type: 'set-rematch',
+				actorId: 'player:2',
+				rematch: true,
+				shuffleSeed: 4321,
+			}),
+		).toBeTrue();
+		expect(state.phase).toBe('playing');
+		expect(state.gameState?.status).toBe('active');
+		expect(state.gameState?.players.map(player => player.id).sort()).toEqual([
+			'player:1',
+			'player:2',
+		]);
+		expect(state.rematchPlayerIds).toEqual([]);
+	});
+
+	test('rematch votes replay to the same fresh game', () => {
+		const game = new HanabiGame({
+			playerIds: ['player:1', 'player:2'],
+			playerNames: ['Alex', 'Blair'],
+		});
+		game.state.status = 'finished';
+		const first = createState({
+			phase: 'playing',
+			members: PLAYERS.slice(0, 2),
+			gameState: game.getSnapshot(),
+		});
+		const second = structuredClone(first);
+		const votes = [
+			{ type: 'set-rematch', actorId: 'player:1', rematch: true },
+			{
+				type: 'set-rematch',
+				actorId: 'player:2',
+				rematch: true,
+				shuffleSeed: 9876,
+			},
+		] as const;
+
+		for (const vote of votes) {
+			applyOnlineRoomAction(first, vote);
+			applyOnlineRoomAction(second, vote);
+		}
+
+		expect(first.gameState).toEqual(second.gameState);
 	});
 
 	test('rejoining a playing room preserves the active player seat', () => {
