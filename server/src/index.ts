@@ -531,9 +531,7 @@ function streamRoom(code: string, userId: number | null) {
 function appendRoomAction(code: string, userId: number, action: OnlineRoomAction) {
 	ensureRoom(code);
 	const storedAction: OnlineRoomAction =
-		((action.type === 'set-ready' && action.ready) ||
-			(action.type === 'set-rematch' && action.rematch)) &&
-		action.shuffleSeed === undefined
+		action.type === 'set-ready' && action.ready && action.shuffleSeed === undefined
 			? { ...action, shuffleSeed: Math.floor(Math.random() * 2 ** 31) }
 			: action;
 	if (storedAction.actorId !== playerIdForUser(userId)) throw new HttpError('Wrong actor', 403);
