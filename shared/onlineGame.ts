@@ -87,7 +87,7 @@ export type OnlineRoomAction =
 	| { type: 'set-settings'; actorId: GamePlayerId; next: Partial<LobbySettings> }
 	| { type: 'set-spectator'; actorId: GamePlayerId; spectator: boolean }
 	| { type: 'set-ready'; actorId: GamePlayerId; ready: boolean; shuffleSeed?: number }
-	| { type: 'set-rematch'; actorId: GamePlayerId; rematch: boolean; shuffleSeed?: number }
+	| { type: 'set-rematch'; actorId: GamePlayerId; rematch: boolean }
 	| { type: 'game-action'; actorId: GamePlayerId; action: GameAction };
 
 export interface RoomViewState {
@@ -396,7 +396,7 @@ function maybeStartGame(state: OnlineRoomState, shuffleSeed?: number): boolean {
 	return true;
 }
 
-function maybeStartRematch(state: OnlineRoomState, shuffleSeed?: number): boolean {
+function maybeReturnToLobby(state: OnlineRoomState): boolean {
 	if (state.phase !== 'playing' || !isTerminalGame(state) || !state.gameState) return false;
 
 	const activePlayerIds = new Set(state.gameState.players.map(player => player.id));
@@ -410,17 +410,8 @@ function maybeStartRematch(state: OnlineRoomState, shuffleSeed?: number): boolea
 		return false;
 	}
 
-	const random = shuffleSeed === undefined ? null : createSeededRandom(shuffleSeed);
-	const orderedPlayers = random ? shuffleWithRandom(players, random) : players;
-	const startingPlayerIndex = random ? Math.floor(random() * orderedPlayers.length) : 0;
-	const game = new HanabiGame({
-		playerIds: orderedPlayers.map(player => player.id),
-		playerNames: orderedPlayers.map(player => player.name),
-		startingPlayerIndex,
-		shuffleSeed,
-		...state.settings,
-	});
-	state.gameState = game.getSnapshot();
+	state.phase = 'lobby';
+	state.gameState = null;
 	state.readyPlayerIds = [];
 	state.rematchPlayerIds = [];
 	return true;
@@ -521,7 +512,7 @@ export function applyOnlineRoomAction(state: OnlineRoomState, action: OnlineRoom
 				? uniquePlayerIds([...state.rematchPlayerIds, action.actorId], state.members)
 				: state.rematchPlayerIds.filter(id => id !== action.actorId);
 
-			maybeStartRematch(state, action.shuffleSeed);
+			maybeReturnToLobby(state);
 			return true;
 		}
 		case 'game-action': {

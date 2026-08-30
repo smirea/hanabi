@@ -195,7 +195,7 @@ describe('onlineGame', () => {
 		expect(state.gameState?.players[state.gameState.currentTurnPlayerIndex]?.id).toBe('player:3');
 	});
 
-	test('a completed game restarts only after every active player votes for a rematch', () => {
+	test('a completed game returns to the same lobby only after every active player votes', () => {
 		const game = new HanabiGame({
 			playerIds: ['player:1', 'player:2'],
 			playerNames: ['Alex', 'Blair'],
@@ -204,6 +204,7 @@ describe('onlineGame', () => {
 		const state = createState({
 			phase: 'playing',
 			members: PLAYERS,
+			settings: { ...cloneLobbySettings(), includeBlack: true },
 			gameState: game.getSnapshot(),
 		});
 
@@ -229,46 +230,13 @@ describe('onlineGame', () => {
 				type: 'set-rematch',
 				actorId: 'player:2',
 				rematch: true,
-				shuffleSeed: 4321,
 			}),
 		).toBeTrue();
-		expect(state.phase).toBe('playing');
-		expect(state.gameState?.status).toBe('active');
-		expect(state.gameState?.players.map(player => player.id).sort()).toEqual([
-			'player:1',
-			'player:2',
-		]);
+		expect(state.phase).toBe('lobby');
+		expect(state.gameState).toBeNull();
+		expect(state.members).toEqual(PLAYERS);
+		expect(state.settings).toEqual({ ...cloneLobbySettings(), includeBlack: true });
 		expect(state.rematchPlayerIds).toEqual([]);
-	});
-
-	test('rematch votes replay to the same fresh game', () => {
-		const game = new HanabiGame({
-			playerIds: ['player:1', 'player:2'],
-			playerNames: ['Alex', 'Blair'],
-		});
-		game.state.status = 'finished';
-		const first = createState({
-			phase: 'playing',
-			members: PLAYERS.slice(0, 2),
-			gameState: game.getSnapshot(),
-		});
-		const second = structuredClone(first);
-		const votes = [
-			{ type: 'set-rematch', actorId: 'player:1', rematch: true },
-			{
-				type: 'set-rematch',
-				actorId: 'player:2',
-				rematch: true,
-				shuffleSeed: 9876,
-			},
-		] as const;
-
-		for (const vote of votes) {
-			applyOnlineRoomAction(first, vote);
-			applyOnlineRoomAction(second, vote);
-		}
-
-		expect(first.gameState).toEqual(second.gameState);
 	});
 
 	test('rejoining a playing room preserves the active player seat', () => {
