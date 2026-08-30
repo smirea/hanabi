@@ -45,11 +45,15 @@
 html,
 body,
 #root {
+	width: 100%;
 	height: 100%;
 	overflow: hidden;
+	overscroll-behavior: none;
 }
 
 body {
+	position: fixed;
+	inset: 0;
 	margin: 0;
 	font-family:
 		'DM Sans',
@@ -57,7 +61,15 @@ body {
 		sans-serif;
 	background: #1c1f29;
 	color: var(--black);
+	touch-action: pan-x pan-y;
 	-webkit-font-smoothing: antialiased;
+}
+
+@media (max-width: 48rem), (hover: none) and (pointer: coarse) {
+	:root {
+		--app-max-width: 100vw;
+		--app-max-height: 100dvh;
+	}
 }
 
 :root[data-theme='dark'] body {
