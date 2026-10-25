@@ -64,7 +64,19 @@ body {
 		'DM Sans',
 		-apple-system,
 		sans-serif;
-	background: #1c1f29;
+	background-color: var(--grid-bg);
+	background-image:
+		linear-gradient(var(--grid-line) 1px, transparent 1px),
+		linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+		radial-gradient(
+			130% 100% at 50% 0%,
+			rgba(248, 250, 255, 0.95) 0%,
+			rgba(244, 247, 255, 0.88) 100%
+		);
+	background-size:
+		20px 20px,
+		20px 20px,
+		100% 100%;
 	color: var(--black);
 	touch-action: pan-x pan-y;
 	-webkit-font-smoothing: antialiased;
@@ -78,7 +90,14 @@ body {
 }
 
 :root[data-theme='dark'] body {
-	background: #05060a;
+	background-image:
+		linear-gradient(var(--grid-line) 1px, transparent 1px),
+		linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+		radial-gradient(150% 120% at 50% 0%, rgba(44, 62, 112, 0.68) 0%, rgba(11, 13, 20, 0.98) 78%);
+	background-size:
+		20px 20px,
+		20px 20px,
+		100% 100%;
 	color: rgba(240, 244, 255, 0.92);
 }
 
@@ -103,37 +122,6 @@ body {
 	position: relative;
 	isolation: isolate;
 	overflow: hidden;
-	background: var(--grid-bg);
-}
-
-.app::before {
-	content: '';
-	position: absolute;
-	inset: 0;
-	z-index: 0;
-	background:
-		linear-gradient(var(--grid-line) 1px, transparent 1px),
-		linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
-		radial-gradient(
-			130% 100% at 50% 0%,
-			rgba(248, 250, 255, 0.95) 0%,
-			rgba(244, 247, 255, 0.88) 100%
-		);
-	background-size:
-		20px 20px,
-		20px 20px,
-		100% 100%;
-}
-
-:root[data-theme='dark'] .app::before {
-	background:
-		linear-gradient(var(--grid-line) 1px, transparent 1px),
-		linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
-		radial-gradient(150% 120% at 50% 0%, rgba(44, 62, 112, 0.68) 0%, rgba(11, 13, 20, 0.98) 78%);
-	background-size:
-		20px 20px,
-		20px 20px,
-		100% 100%;
 }
 
 .app > .stats,
