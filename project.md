@@ -66,6 +66,9 @@ Each card tracks and renders:
 ## Deployment (Production)
 
 - Runtime target: `https://hanabi.stf.lol`.
+- Host: this Mac. The launchd agent `~/Library/LaunchAgents/lol.stf.hanabi.plist` runs `bun server/src/index.ts` with `SERVE_CLIENT=1 API_PORT=6092`. Logs go to `~/Library/Logs/hanabi.log` and data goes to `.data/hanabi.sqlite`.
+- Ingress: the Cloudflare tunnel `mac-stf-lol` (`~/.cloudflared/config.yml`, launchd agent `lol.stf.cloudflared`) routes `hanabi.stf.lol` to `127.0.0.1:6092`.
+- Manual deploy: `git pull && bun install && bun run build && launchctl kickstart -k gui/$(id -u)/lol.stf.hanabi`.
 - CI: GitHub Actions workflow in `.github/workflows/ci.yml`.
   - Trigger: pull requests + every push to `master`.
   - Flow: lint/typecheck + tests + build (uploads `client/dist` as the `client-dist` artifact).
