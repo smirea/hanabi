@@ -130,11 +130,18 @@ function createFlamboyantBlackOneGame(bonusTiles: string[]): HanabiGame {
 }
 
 test('two- and three-player games deal five cards each, four- and five-player games deal four', () => {
-	expect(new HanabiGame({ playerNames: ['A', 'B'], shuffleSeed: 1 }).state.players[0].cards).toHaveLength(5);
-	expect(new HanabiGame({ playerNames: ['A', 'B', 'C'], shuffleSeed: 1 }).state.players[0].cards).toHaveLength(5);
-	expect(new HanabiGame({ playerNames: ['A', 'B', 'C', 'D'], shuffleSeed: 1 }).state.players[0].cards).toHaveLength(4);
 	expect(
-		new HanabiGame({ playerNames: ['A', 'B', 'C', 'D', 'E'], shuffleSeed: 1 }).state.players[0].cards,
+		new HanabiGame({ playerNames: ['A', 'B'], shuffleSeed: 1 }).state.players[0].cards,
+	).toHaveLength(5);
+	expect(
+		new HanabiGame({ playerNames: ['A', 'B', 'C'], shuffleSeed: 1 }).state.players[0].cards,
+	).toHaveLength(5);
+	expect(
+		new HanabiGame({ playerNames: ['A', 'B', 'C', 'D'], shuffleSeed: 1 }).state.players[0].cards,
+	).toHaveLength(4);
+	expect(
+		new HanabiGame({ playerNames: ['A', 'B', 'C', 'D', 'E'], shuffleSeed: 1 }).state.players[0]
+			.cards,
 	).toHaveLength(4);
 });
 
@@ -157,7 +164,11 @@ test('the same shuffle seed deals the same game', () => {
 test('a hint records the value on touched cards and the exclusion on every untouched card, for one token', () => {
 	const game = new HanabiGame({
 		playerNames: ['A', 'B'],
-		deck: twoPlayerDeck(ONES, [card('G', 1), card('R', 2), card('G', 2), card('B', 3), card('G', 3)], [card('Y', 1)]),
+		deck: twoPlayerDeck(
+			ONES,
+			[card('G', 1), card('R', 2), card('G', 2), card('B', 3), card('G', 3)],
+			[card('Y', 1)],
+		),
 	});
 
 	game.giveColorHint('p2', 'G');
@@ -194,7 +205,11 @@ test('a hint cannot target yourself, must touch a card, and needs a hint token',
 test('a hint that adds no new information is rejected without spending a token or the turn', () => {
 	const game = new HanabiGame({
 		playerNames: ['A', 'B'],
-		deck: twoPlayerDeck(ONES, [card('R', 2), card('G', 2), card('Y', 3), card('B', 4), card('W', 5)], [card('R', 3)]),
+		deck: twoPlayerDeck(
+			ONES,
+			[card('R', 2), card('G', 2), card('Y', 3), card('B', 4), card('W', 5)],
+			[card('R', 3)],
+		),
 	});
 	game.giveColorHint('p2', 'R');
 	game.giveNumberHint('p1', 1);
@@ -379,7 +394,7 @@ test('multicolor adds one card of each number and always uses short deck and wil
 	const multicolorNumbers = Object.values(game.state.cards)
 		.filter(entry => entry.suit === 'M')
 		.map(entry => entry.number)
-		.sort();
+		.sort((a, b) => a - b);
 	expect(multicolorNumbers).toEqual([1, 2, 3, 4, 5]);
 	expect(game.state.settings.multicolorShortDeck).toBeTrue();
 	expect(game.state.settings.multicolorWildHints).toBeTrue();
@@ -603,7 +618,11 @@ test('sudden death loses when the last copy of a needed card is discarded', () =
 	const game = new HanabiGame({
 		playerNames: ['A', 'B'],
 		endlessMode: true,
-		deck: twoPlayerDeck(ONES, [card('R', 5), card('Y', 5), card('G', 5), card('B', 5), card('W', 5)], TWOS),
+		deck: twoPlayerDeck(
+			ONES,
+			[card('R', 5), card('Y', 5), card('G', 5), card('B', 5), card('W', 5)],
+			TWOS,
+		),
 	});
 	game.giveNumberHint('p2', 5);
 

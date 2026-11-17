@@ -59,7 +59,10 @@ test('the game starts only when every seated player is ready, and spectators are
 	ready(state, 'player:2');
 
 	expect(state.phase).toBe('playing');
-	expect(state.gameState?.players.map(player => player.id).sort()).toEqual(['player:1', 'player:2']);
+	expect(state.gameState?.players.map(player => player.id).sort()).toEqual([
+		'player:1',
+		'player:2',
+	]);
 });
 
 test('a player who leaves loses their seat, ready mark and spectator mark', () => {
@@ -126,10 +129,18 @@ test('only the player whose turn it is can act in the game', () => {
 });
 
 test('a finished game returns to the same lobby only after every seated player votes for a rematch', () => {
-	const game = new HanabiGame({ playerIds: ['player:1', 'player:2'], playerNames: ['Alex', 'Blair'] });
+	const game = new HanabiGame({
+		playerIds: ['player:1', 'player:2'],
+		playerNames: ['Alex', 'Blair'],
+	});
 	game.state.status = 'won';
 	const settings = { ...cloneLobbySettings(), includeBlack: true };
-	const state = createState({ phase: 'playing', members: PLAYERS, settings, gameState: game.getSnapshot() });
+	const state = createState({
+		phase: 'playing',
+		members: PLAYERS,
+		settings,
+		gameState: game.getSnapshot(),
+	});
 	const vote = (actorId: PlayerId) =>
 		applyOnlineRoomAction(state, { type: 'set-rematch', actorId, rematch: true });
 

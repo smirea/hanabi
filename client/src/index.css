@@ -60,10 +60,7 @@ body {
 	position: fixed;
 	inset: 0;
 	margin: 0;
-	font-family:
-		'DM Sans',
-		-apple-system,
-		sans-serif;
+	font-family: 'DM Sans', -apple-system, sans-serif;
 	background-color: var(--grid-bg);
 	background-image:
 		linear-gradient(var(--grid-line) 1px, transparent 1px),
