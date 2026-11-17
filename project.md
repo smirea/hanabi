@@ -60,6 +60,7 @@ Each card tracks and renders:
 - `bun run build` for production client build output in `client/dist`.
 - `bun run preview` to build and run the Bun server with `SERVE_CLIENT=1` so `/api` and the client share one origin.
 - `bun run lint`, `bun run typecheck`, `bun run test`.
+- Pre-commit hook (lefthook, `.lefthook.yml`): oxlint and oxfmt fix the staged files, while `typecheck` and `test` run over the whole project in parallel. It takes about a second.
 
 ## Deployment (Production)
 
@@ -69,7 +70,7 @@ Each card tracks and renders:
 - Manual deploy: `git pull && bun install && bun run build && launchctl kickstart -k gui/$(id -u)/lol.stf.hanabi`.
 - CI: GitHub Actions workflow in `.github/workflows/ci.yml`.
   - Trigger: pull requests + every push to `master`.
-  - Flow: lint/typecheck + tests + build (uploads `client/dist` as the `client-dist` artifact).
+  - Flow: `lint:ci`, `typecheck`, `test` and `build` run as four parallel jobs with a 5-minute timeout; `build` uploads `client/dist` as the `client-dist` artifact.
 - CD/update hook: GitHub Actions workflow in `.github/workflows/mac-update.yml`.
   - Trigger: every push to `master` plus manual `workflow_dispatch`.
   - Flow: call the Mac update endpoint, then fall back to checking `https://hanabi.stf.lol/api/status` if the update request fails after reaching the service.
