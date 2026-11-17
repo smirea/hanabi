@@ -8,7 +8,11 @@ pre-commit:
     oxfmt:
       run: bunx oxfmt --ignore-path .oxfmtignore --no-error-on-unmatched-pattern {staged_files}
       stage_fixed: true
-    build:
-      run: bun run build
+    typecheck:
+      glob: '*.{js,mjs,mts,ts,tsx,json,jsonc}'
+      run: bun run typecheck
+    # Git exports GIT_DIR and GIT_INDEX_FILE to hooks, so a test that runs git in a temp directory would act on this
+    # repository unless they are unset first.
     test:
-      run: bun run test
+      glob: '*.{js,mjs,mts,ts,tsx,json}'
+      run: unset $(git rev-parse --local-env-vars); bun run test
