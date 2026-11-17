@@ -59,11 +59,9 @@ See `project_animation.md` for what the various animations are and how they are 
 
 ## Testing Guidance
 
-- Run tests with `bun test`. Tests use `bun:test` (not vitest).
-- Add stable `data-testid` attributes to every interactive control and critical status field.
-- Test id format: `section-element` or `entity-id-index`.
-- UI component tests use Testing Library.
-- Shared room-action tests live around `client/src/onlineGame.test.ts`.
+- Run tests with `bun test`. Tests use `bun:test`.
+- Tests cover decided gameplay and room rules only, in `shared/game.test.ts` and `shared/onlineGame.test.ts`. UI gets no tests; verify it in the running app.
+- Keep stable `data-testid` attributes on interactive controls and critical status fields so browser automation can find them. Format: `section-element` or `entity-id-index`.
 
 ## Manual Browser Testing
 

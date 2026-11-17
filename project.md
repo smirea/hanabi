@@ -51,10 +51,8 @@ Each card tracks and renders:
 
 ## Testing Strategy
 
-- Unit and UI behavior: `bun:test` + Testing Library.
-- Add `data-testid` to all actionable controls and critical status fields.
-- Keep test ids stable and semantic for long-term maintainability.
-- Visual regression: add screenshot-based tests for key mobile states once the main game loop is stable.
+- `bun:test` covers decided gameplay and room rules in `shared/`. UI is verified in the running app, not with tests.
+- Keep `data-testid` on actionable controls and critical status fields, stable and semantic, for browser automation.
 
 ## Commands
 

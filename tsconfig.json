@@ -15,5 +15,5 @@
 		"noImplicitOverride": true,
 		"types": ["bun-types", "vite/client"]
 	},
-	"include": ["client/src", "server/src", "shared", "tests/**/*.ts", "tests/**/*.tsx"]
+	"include": ["client/src", "server/src", "shared"]
 }
